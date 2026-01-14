@@ -11,19 +11,19 @@ import java.util.Optional;
 @Repository
 public interface BuildingRepository extends JpaRepository<Building, Long> {
 
-    /**
-     * Find a building by its unique code.
-     *
-     * @param code the building code
-     * @return optional containing the building if found
-     */
-    Optional<Building> findByCode(String code);
+	/**
+	 * Find a building by its unique code.
+	 *
+	 * @param code the building code
+	 * @return optional containing the building if found
+	 */
+	Optional<Building> findByCode(String code);
 
-    /**
-     * Check if a building with the given code exists.
-     *
-     * @param code the building code
-     * @return true if exists
-     */
-    boolean existsByCode(String code);
+	/**
+	 * Check if a building with the given code exists.
+	 *
+	 * @param code the building code
+	 * @return true if exists
+	 */
+	boolean existsByCode(String code);
 }
