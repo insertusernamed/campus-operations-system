@@ -10,15 +10,19 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.util.Objects;
 
 /**
  * Represents a physical building on campus that contains rooms.
  */
 @Entity
 @Table(name = "buildings")
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -41,4 +45,19 @@ public class Building {
     @Size(max = 255, message = "Address must not exceed 255 characters")
     @Column(length = 255)
     private String address;
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        Building building = (Building) o;
+        return Objects.equals(code, building.code);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(code);
+    }
 }
