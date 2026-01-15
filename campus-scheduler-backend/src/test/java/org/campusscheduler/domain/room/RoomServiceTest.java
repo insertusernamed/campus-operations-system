@@ -269,7 +269,7 @@ class RoomServiceTest {
 		@Test
 		@DisplayName("should return true when room is deleted")
 		void shouldReturnTrueWhenRoomIsDeleted() {
-			when(roomRepository.existsById(1L)).thenReturn(true);
+			when(roomRepository.findById(1L)).thenReturn(Optional.of(testRoom));
 
 			boolean result = roomService.delete(1L);
 
@@ -280,7 +280,7 @@ class RoomServiceTest {
 		@Test
 		@DisplayName("should return false when room not found")
 		void shouldReturnFalseWhenRoomNotFound() {
-			when(roomRepository.existsById(999L)).thenReturn(false);
+			when(roomRepository.findById(999L)).thenReturn(Optional.empty());
 
 			boolean result = roomService.delete(999L);
 
