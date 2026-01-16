@@ -76,6 +76,10 @@ public class CourseService {
      */
     @Transactional
     public Course create(Course course) {
+        String code = course.getCode();
+        if (code != null && courseRepository.existsByCode(code)) {
+            throw new IllegalArgumentException("Course with code " + code + " already exists");
+        }
         return courseRepository.save(course);
     }
 
@@ -106,6 +110,13 @@ public class CourseService {
     public Optional<Course> update(Long id, Course updated) {
         return courseRepository.findById(id)
                 .map(existing -> {
+                    String newCode = updated.getCode();
+                    if (newCode != null && !newCode.equals(existing.getCode())) {
+                        Optional<Course> existingWithCode = courseRepository.findByCode(newCode);
+                        if (existingWithCode.isPresent() && !existingWithCode.get().getId().equals(id)) {
+                            throw new IllegalArgumentException("Course with code " + newCode + " already exists");
+                        }
+                    }
                     existing.setCode(updated.getCode());
                     existing.setName(updated.getName());
                     existing.setDescription(updated.getDescription());
