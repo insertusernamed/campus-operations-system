@@ -54,6 +54,10 @@ public class InstructorService {
      */
     @Transactional
     public Instructor create(Instructor instructor) {
+        String email = instructor.getEmail();
+        if (email != null && instructorRepository.existsByEmail(email)) {
+            throw new IllegalArgumentException("Instructor with email " + email + " already exists");
+        }
         return instructorRepository.save(instructor);
     }
 
@@ -68,6 +72,13 @@ public class InstructorService {
     public Optional<Instructor> update(Long id, Instructor updated) {
         return instructorRepository.findById(id)
                 .map(existing -> {
+                    String newEmail = updated.getEmail();
+                    if (newEmail != null && !newEmail.equals(existing.getEmail())) {
+                        Optional<Instructor> existingWithEmail = instructorRepository.findByEmail(newEmail);
+                        if (existingWithEmail.isPresent() && !existingWithEmail.get().getId().equals(id)) {
+                            throw new IllegalArgumentException("Instructor with email " + newEmail + " already exists");
+                        }
+                    }
                     existing.setFirstName(updated.getFirstName());
                     existing.setLastName(updated.getLastName());
                     existing.setEmail(updated.getEmail());
