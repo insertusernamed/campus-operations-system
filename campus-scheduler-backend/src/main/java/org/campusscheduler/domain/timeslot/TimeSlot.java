@@ -49,6 +49,19 @@ public class TimeSlot {
     private String label;
 
     /**
+     * Validates that start time is before end time.
+     *
+     * @return true if valid, false otherwise
+     */
+    @jakarta.validation.constraints.AssertTrue(message = "Start time must be before end time")
+    public boolean isValidTimeRange() {
+        if (startTime == null || endTime == null) {
+            return true; // Let @NotNull handle null validation
+        }
+        return startTime.isBefore(endTime);
+    }
+
+    /**
      * Check if this time slot overlaps with another.
      *
      * @param other the other time slot
