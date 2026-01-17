@@ -1,5 +1,10 @@
 package org.campusscheduler.domain.building;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -21,67 +26,65 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/buildings")
 @RequiredArgsConstructor
+@Tag(name = "Buildings", description = "Building management endpoints")
 public class BuildingController {
 
     private final BuildingService buildingService;
 
-    /**
-     * Get all buildings.
-     *
-     * @return list of all buildings
-     */
+    @Operation(summary = "Get all buildings", description = "Returns a list of all buildings in the system")
+    @ApiResponse(responseCode = "200", description = "Successfully retrieved buildings")
     @GetMapping
     public ResponseEntity<List<Building>> getAll() {
         return ResponseEntity.ok(buildingService.findAll());
     }
 
-    /**
-     * Get a building by ID.
-     *
-     * @param id the building ID
-     * @return the building if found
-     */
+    @Operation(summary = "Get building by ID", description = "Returns a single building by its ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Building found"),
+            @ApiResponse(responseCode = "404", description = "Building not found")
+    })
     @GetMapping("/{id}")
-    public ResponseEntity<Building> getById(@PathVariable Long id) {
+    public ResponseEntity<Building> getById(
+            @Parameter(description = "Building ID") @PathVariable Long id) {
         return buildingService.findById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    /**
-     * Create a new building.
-     *
-     * @param building the building to create
-     * @return the created building
-     */
+    @Operation(summary = "Create a new building", description = "Creates a new building with the provided data")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Building created successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid building data")
+    })
     @PostMapping
     public ResponseEntity<Building> create(@Valid @RequestBody Building building) {
         Building created = buildingService.create(building);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    /**
-     * Update an existing building.
-     *
-     * @param id       the building ID
-     * @param building the updated building data
-     * @return the updated building if found
-     */
+    @Operation(summary = "Update a building", description = "Updates an existing building by ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Building updated successfully"),
+            @ApiResponse(responseCode = "404", description = "Building not found"),
+            @ApiResponse(responseCode = "400", description = "Invalid building data")
+    })
     @PutMapping("/{id}")
-    public ResponseEntity<Building> update(@PathVariable Long id, @Valid @RequestBody Building building) {
+    public ResponseEntity<Building> update(
+            @Parameter(description = "Building ID") @PathVariable Long id,
+            @Valid @RequestBody Building building) {
         return buildingService.update(id, building)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    /**
-     * Delete a building by ID.
-     *
-     * @param id the building ID
-     * @return 204 if deleted, 404 if not found
-     */
+    @Operation(summary = "Delete a building", description = "Deletes a building by ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Building deleted successfully"),
+            @ApiResponse(responseCode = "404", description = "Building not found")
+    })
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(
+            @Parameter(description = "Building ID") @PathVariable Long id) {
         if (buildingService.delete(id)) {
             return ResponseEntity.noContent().build();
         }
