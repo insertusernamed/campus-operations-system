@@ -1,5 +1,10 @@
 package org.campusscheduler.domain.timeslot;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -23,71 +28,69 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/timeslots")
 @RequiredArgsConstructor
+@Tag(name = "Time Slots", description = "Time slot management for scheduling")
 public class TimeSlotController {
 
     private final TimeSlotService timeSlotService;
 
-    /**
-     * Get all time slots, optionally filtered by day of week.
-     *
-     * @param dayOfWeek optional day of week filter
-     * @return list of time slots
-     */
+    @Operation(summary = "Get all time slots", description = "Returns all time slots, optionally filtered by day of week")
+    @ApiResponse(responseCode = "200", description = "Successfully retrieved time slots")
     @GetMapping
-    public ResponseEntity<List<TimeSlot>> getAll(@RequestParam(required = false) DayOfWeek dayOfWeek) {
+    public ResponseEntity<List<TimeSlot>> getAll(
+            @Parameter(description = "Filter by day of week (MONDAY, TUESDAY, etc.)") @RequestParam(required = false) DayOfWeek dayOfWeek) {
         if (dayOfWeek != null) {
             return ResponseEntity.ok(timeSlotService.findByDayOfWeek(dayOfWeek));
         }
         return ResponseEntity.ok(timeSlotService.findAll());
     }
 
-    /**
-     * Get a time slot by ID.
-     *
-     * @param id the time slot ID
-     * @return the time slot if found
-     */
+    @Operation(summary = "Get time slot by ID", description = "Returns a single time slot by its ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Time slot found"),
+            @ApiResponse(responseCode = "404", description = "Time slot not found")
+    })
     @GetMapping("/{id}")
-    public ResponseEntity<TimeSlot> getById(@PathVariable Long id) {
+    public ResponseEntity<TimeSlot> getById(
+            @Parameter(description = "Time slot ID") @PathVariable Long id) {
         return timeSlotService.findById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    /**
-     * Create a new time slot.
-     *
-     * @param timeSlot the time slot to create
-     * @return the created time slot
-     */
+    @Operation(summary = "Create a new time slot", description = "Creates a new time slot with start/end times")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Time slot created successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid time slot data (e.g., start time after end time)")
+    })
     @PostMapping
     public ResponseEntity<TimeSlot> create(@Valid @RequestBody TimeSlot timeSlot) {
         TimeSlot created = timeSlotService.create(timeSlot);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    /**
-     * Update an existing time slot.
-     *
-     * @param id       the time slot ID
-     * @param timeSlot the updated time slot data
-     * @return the updated time slot if found
-     */
+    @Operation(summary = "Update a time slot", description = "Updates an existing time slot by ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Time slot updated successfully"),
+            @ApiResponse(responseCode = "404", description = "Time slot not found"),
+            @ApiResponse(responseCode = "400", description = "Invalid time slot data")
+    })
     @PutMapping("/{id}")
-    public ResponseEntity<TimeSlot> update(@PathVariable Long id, @Valid @RequestBody TimeSlot timeSlot) {
+    public ResponseEntity<TimeSlot> update(
+            @Parameter(description = "Time slot ID") @PathVariable Long id,
+            @Valid @RequestBody TimeSlot timeSlot) {
         return timeSlotService.update(id, timeSlot)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    /**
-     * Delete a time slot by ID.
-     *
-     * @param id the time slot ID
-     * @return 204 if deleted, 404 if not found
-     */
+    @Operation(summary = "Delete a time slot", description = "Deletes a time slot by ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Time slot deleted successfully"),
+            @ApiResponse(responseCode = "404", description = "Time slot not found")
+    })
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(
+            @Parameter(description = "Time slot ID") @PathVariable Long id) {
         if (timeSlotService.delete(id)) {
             return ResponseEntity.noContent().build();
         }

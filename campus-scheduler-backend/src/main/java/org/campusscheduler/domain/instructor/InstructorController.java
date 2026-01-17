@@ -1,5 +1,10 @@
 package org.campusscheduler.domain.instructor;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -22,71 +27,69 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/instructors")
 @RequiredArgsConstructor
+@Tag(name = "Instructors", description = "Instructor management endpoints")
 public class InstructorController {
 
     private final InstructorService instructorService;
 
-    /**
-     * Get all instructors, optionally filtered by department.
-     *
-     * @param department optional department filter
-     * @return list of instructors
-     */
+    @Operation(summary = "Get all instructors", description = "Returns all instructors, optionally filtered by department")
+    @ApiResponse(responseCode = "200", description = "Successfully retrieved instructors")
     @GetMapping
-    public ResponseEntity<List<Instructor>> getAll(@RequestParam(required = false) String department) {
+    public ResponseEntity<List<Instructor>> getAll(
+            @Parameter(description = "Filter by department") @RequestParam(required = false) String department) {
         if (department != null && !department.isBlank()) {
             return ResponseEntity.ok(instructorService.findByDepartment(department));
         }
         return ResponseEntity.ok(instructorService.findAll());
     }
 
-    /**
-     * Get an instructor by ID.
-     *
-     * @param id the instructor ID
-     * @return the instructor if found
-     */
+    @Operation(summary = "Get instructor by ID", description = "Returns a single instructor by their ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Instructor found"),
+            @ApiResponse(responseCode = "404", description = "Instructor not found")
+    })
     @GetMapping("/{id}")
-    public ResponseEntity<Instructor> getById(@PathVariable Long id) {
+    public ResponseEntity<Instructor> getById(
+            @Parameter(description = "Instructor ID") @PathVariable Long id) {
         return instructorService.findById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    /**
-     * Create a new instructor.
-     *
-     * @param instructor the instructor to create
-     * @return the created instructor
-     */
+    @Operation(summary = "Create a new instructor", description = "Creates a new instructor with the provided data")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Instructor created successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid instructor data or email already exists")
+    })
     @PostMapping
     public ResponseEntity<Instructor> create(@Valid @RequestBody Instructor instructor) {
         Instructor created = instructorService.create(instructor);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    /**
-     * Update an existing instructor.
-     *
-     * @param id         the instructor ID
-     * @param instructor the updated instructor data
-     * @return the updated instructor if found
-     */
+    @Operation(summary = "Update an instructor", description = "Updates an existing instructor by ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Instructor updated successfully"),
+            @ApiResponse(responseCode = "404", description = "Instructor not found"),
+            @ApiResponse(responseCode = "400", description = "Invalid data or email already in use")
+    })
     @PutMapping("/{id}")
-    public ResponseEntity<Instructor> update(@PathVariable Long id, @Valid @RequestBody Instructor instructor) {
+    public ResponseEntity<Instructor> update(
+            @Parameter(description = "Instructor ID") @PathVariable Long id,
+            @Valid @RequestBody Instructor instructor) {
         return instructorService.update(id, instructor)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    /**
-     * Delete an instructor by ID.
-     *
-     * @param id the instructor ID
-     * @return 204 if deleted, 404 if not found
-     */
+    @Operation(summary = "Delete an instructor", description = "Deletes an instructor by ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Instructor deleted successfully"),
+            @ApiResponse(responseCode = "404", description = "Instructor not found")
+    })
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(
+            @Parameter(description = "Instructor ID") @PathVariable Long id) {
         if (instructorService.delete(id)) {
             return ResponseEntity.noContent().build();
         }
