@@ -32,6 +32,12 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
     List<Schedule> findByRoomIdAndTimeSlotId(Long roomId, Long timeSlotId);
 
     /**
+     * Find schedules by room, time slot, and semester (for semester-specific
+     * conflict detection).
+     */
+    List<Schedule> findByRoomIdAndTimeSlotIdAndSemester(Long roomId, Long timeSlotId, String semester);
+
+    /**
      * Find schedules by semester.
      */
     List<Schedule> findBySemester(String semester);

@@ -1,5 +1,7 @@
 package org.campusscheduler.domain.schedule;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 /**
@@ -7,8 +9,16 @@ import lombok.Data;
  */
 @Data
 public class ScheduleCreateRequest {
-    private Long courseId;
-    private Long roomId;
-    private Long timeSlotId;
-    private String semester;
+
+	@NotNull(message = "Course ID is required")
+	private Long courseId;
+
+	@NotNull(message = "Room ID is required")
+	private Long roomId;
+
+	@NotNull(message = "Time slot ID is required")
+	private Long timeSlotId;
+
+	@NotBlank(message = "Semester is required")
+	private String semester;
 }

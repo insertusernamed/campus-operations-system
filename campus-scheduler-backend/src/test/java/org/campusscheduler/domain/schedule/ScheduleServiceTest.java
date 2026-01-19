@@ -192,7 +192,7 @@ class ScheduleServiceTest {
             when(courseRepository.findById(1L)).thenReturn(Optional.of(testCourse));
             when(roomRepository.findById(1L)).thenReturn(Optional.of(testRoom));
             when(timeSlotRepository.findById(1L)).thenReturn(Optional.of(testTimeSlot));
-            when(scheduleRepository.findByRoomIdAndTimeSlotId(1L, 1L)).thenReturn(List.of());
+            when(scheduleRepository.findByRoomIdAndTimeSlotIdAndSemester(1L, 1L, "Spring 2026")).thenReturn(List.of());
             when(scheduleRepository.save(any(Schedule.class))).thenReturn(testSchedule);
 
             Optional<Schedule> result = scheduleService.create(1L, 1L, 1L, "Spring 2026");
@@ -207,7 +207,8 @@ class ScheduleServiceTest {
             when(courseRepository.findById(1L)).thenReturn(Optional.of(testCourse));
             when(roomRepository.findById(1L)).thenReturn(Optional.of(testRoom));
             when(timeSlotRepository.findById(1L)).thenReturn(Optional.of(testTimeSlot));
-            when(scheduleRepository.findByRoomIdAndTimeSlotId(1L, 1L)).thenReturn(List.of(testSchedule));
+            when(scheduleRepository.findByRoomIdAndTimeSlotIdAndSemester(1L, 1L, "Spring 2026"))
+                    .thenReturn(List.of(testSchedule));
 
             assertThatThrownBy(() -> scheduleService.create(1L, 1L, 1L, "Spring 2026"))
                     .isInstanceOf(ScheduleConflictException.class)
