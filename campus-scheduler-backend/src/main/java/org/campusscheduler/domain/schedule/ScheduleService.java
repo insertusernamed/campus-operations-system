@@ -107,10 +107,10 @@ public class ScheduleService {
                             + course.getEnrollmentCapacity() + ")");
         }
 
-        // Check for room conflicts
-        if (hasRoomConflict(roomId, timeSlotId)) {
+        // Check for room conflicts within the same semester
+        if (hasRoomConflict(roomId, timeSlotId, semester)) {
             throw new ScheduleConflictException(
-                    "Room " + room.getRoomNumber() + " is already booked for this time slot");
+                    "Room " + room.getRoomNumber() + " is already booked for this time slot in " + semester);
         }
 
         Schedule schedule = Schedule.builder()
@@ -136,10 +136,19 @@ public class ScheduleService {
     }
 
     /**
-     * Check if a room has a conflict for a given time slot.
+     * Check if a room has a conflict for a given time slot (any semester).
      */
     public boolean hasRoomConflict(Long roomId, Long timeSlotId) {
         List<Schedule> existing = scheduleRepository.findByRoomIdAndTimeSlotId(roomId, timeSlotId);
+        return !existing.isEmpty();
+    }
+
+    /**
+     * Check if a room has a conflict for a given time slot and semester.
+     */
+    public boolean hasRoomConflict(Long roomId, Long timeSlotId, String semester) {
+        List<Schedule> existing = scheduleRepository.findByRoomIdAndTimeSlotIdAndSemester(
+                roomId, timeSlotId, semester);
         return !existing.isEmpty();
     }
 }
