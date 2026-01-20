@@ -6,12 +6,9 @@ export interface Room {
 	capacity: number
 	type: string
 	features: string | null
-	building: {
-		id: number
-		code: string
-		name: string
-		address: string | null
-	}
+	buildingId: number | null
+	buildingCode: string | null
+	buildingName: string | null
 }
 
 export interface CreateRoomRequest {
@@ -19,7 +16,6 @@ export interface CreateRoomRequest {
 	capacity: number
 	type: string
 	features?: string
-	buildingId: number
 }
 
 export interface UpdateRoomRequest {
@@ -27,7 +23,6 @@ export interface UpdateRoomRequest {
 	capacity?: number
 	type?: string
 	features?: string
-	buildingId?: number
 }
 
 export const roomsService = {
@@ -36,13 +31,18 @@ export const roomsService = {
 		return response.data
 	},
 
+	async getByBuildingId(buildingId: number): Promise<Room[]> {
+		const response = await api.get<Room[]>(`/rooms?buildingId=${buildingId}`)
+		return response.data
+	},
+
 	async getById(id: number): Promise<Room> {
 		const response = await api.get<Room>(`/rooms/${id}`)
 		return response.data
 	},
 
-	async create(room: CreateRoomRequest): Promise<Room> {
-		const response = await api.post<Room>('/rooms', room)
+	async create(buildingId: number, room: CreateRoomRequest): Promise<Room> {
+		const response = await api.post<Room>(`/rooms/building/${buildingId}`, room)
 		return response.data
 	},
 

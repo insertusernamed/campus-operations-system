@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -35,12 +36,23 @@ public class RoomController {
     @Operation(summary = "Get all rooms", description = "Returns all rooms, optionally filtered by building")
     @ApiResponse(responseCode = "200", description = "Successfully retrieved rooms")
     @GetMapping
-    public ResponseEntity<List<Room>> getAll(
+    public ResponseEntity<List<RoomResponse>> getAll(
             @Parameter(description = "Filter by building ID") @RequestParam(required = false) Long buildingId) {
+        List<Room> rooms;
         if (buildingId != null) {
-            return ResponseEntity.ok(roomService.findByBuildingId(buildingId));
+            rooms = roomService.findByBuildingId(buildingId);
+        } else {
+            rooms = roomService.findAll();
         }
-        return ResponseEntity.ok(roomService.findAll());
+
+        List<RoomResponse> response = rooms.stream()
+                .map(RoomResponse::fromEntity)
+                .sorted(Comparator
+                        .comparing(RoomResponse::getBuildingName, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(RoomResponse::getRoomNumber))
+                .toList();
+
+        return ResponseEntity.ok(response);
     }
 
     @Operation(summary = "Get room by ID", description = "Returns a single room by its ID")
@@ -49,27 +61,39 @@ public class RoomController {
             @ApiResponse(responseCode = "404", description = "Room not found")
     })
     @GetMapping("/{id}")
-    public ResponseEntity<Room> getById(
+    public ResponseEntity<RoomResponse> getById(
             @Parameter(description = "Room ID") @PathVariable Long id) {
         return roomService.findById(id)
-                .map(ResponseEntity::ok)
+                .map(room -> ResponseEntity.ok(RoomResponse.fromEntity(room)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @Operation(summary = "Get rooms by type", description = "Returns rooms of a specific type")
     @ApiResponse(responseCode = "200", description = "Successfully retrieved rooms")
     @GetMapping("/type/{type}")
-    public ResponseEntity<List<Room>> getByType(
+    public ResponseEntity<List<RoomResponse>> getByType(
             @Parameter(description = "Room type (CLASSROOM, LECTURE_HALL, LAB, SEMINAR, CONFERENCE)") @PathVariable Room.RoomType type) {
-        return ResponseEntity.ok(roomService.findByType(type));
+        List<RoomResponse> response = roomService.findByType(type).stream()
+                .map(RoomResponse::fromEntity)
+                .sorted(Comparator
+                        .comparing(RoomResponse::getBuildingName, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(RoomResponse::getRoomNumber))
+                .toList();
+        return ResponseEntity.ok(response);
     }
 
     @Operation(summary = "Get rooms by minimum capacity", description = "Returns rooms with at least the specified capacity")
     @ApiResponse(responseCode = "200", description = "Successfully retrieved rooms")
     @GetMapping("/capacity/{capacity}")
-    public ResponseEntity<List<Room>> getByMinCapacity(
+    public ResponseEntity<List<RoomResponse>> getByMinCapacity(
             @Parameter(description = "Minimum capacity") @PathVariable Integer capacity) {
-        return ResponseEntity.ok(roomService.findByMinCapacity(capacity));
+        List<RoomResponse> response = roomService.findByMinCapacity(capacity).stream()
+                .map(RoomResponse::fromEntity)
+                .sorted(Comparator
+                        .comparing(RoomResponse::getBuildingName, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(RoomResponse::getRoomNumber))
+                .toList();
+        return ResponseEntity.ok(response);
     }
 
     @Operation(summary = "Create a new room", description = "Creates a new room in the specified building")
@@ -79,11 +103,11 @@ public class RoomController {
             @ApiResponse(responseCode = "400", description = "Invalid room data")
     })
     @PostMapping("/building/{buildingId}")
-    public ResponseEntity<Room> create(
+    public ResponseEntity<RoomResponse> create(
             @Parameter(description = "Building ID") @PathVariable Long buildingId,
             @Valid @RequestBody Room room) {
         return roomService.create(room, buildingId)
-                .map(created -> ResponseEntity.status(HttpStatus.CREATED).body(created))
+                .map(created -> ResponseEntity.status(HttpStatus.CREATED).body(RoomResponse.fromEntity(created)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -94,11 +118,11 @@ public class RoomController {
             @ApiResponse(responseCode = "400", description = "Invalid room data")
     })
     @PutMapping("/{id}")
-    public ResponseEntity<Room> update(
+    public ResponseEntity<RoomResponse> update(
             @Parameter(description = "Room ID") @PathVariable Long id,
             @Valid @RequestBody Room room) {
         return roomService.update(id, room)
-                .map(ResponseEntity::ok)
+                .map(updated -> ResponseEntity.ok(RoomResponse.fromEntity(updated)))
                 .orElse(ResponseEntity.notFound().build());
     }
 

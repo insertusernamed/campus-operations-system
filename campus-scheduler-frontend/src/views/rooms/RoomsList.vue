@@ -32,22 +32,24 @@ onMounted(async () => {
         <table v-else class="w-full bg-white border border-gray-200">
             <thead>
                 <tr class="bg-gray-50 border-b border-gray-200">
-                    <th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Room</th>
                     <th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Building</th>
+                    <th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Room</th>
                     <th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Capacity</th>
                     <th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Type</th>
+                    <th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Features</th>
                 </tr>
             </thead>
             <tbody>
                 <tr v-for="room in rooms" :key="room.id" class="border-b border-gray-100">
+                    <td class="px-4 py-3 text-gray-600">{{ room.buildingName || '-' }}</td>
                     <td class="px-4 py-3">
                         <RouterLink :to="`/rooms/${room.id}`" class="text-blue-600 hover:underline">
                             {{ room.roomNumber }}
                         </RouterLink>
                     </td>
-                    <td class="px-4 py-3 text-gray-600">{{ room.building.name }}</td>
                     <td class="px-4 py-3 text-gray-600">{{ room.capacity }}</td>
                     <td class="px-4 py-3 text-gray-600">{{ room.type }}</td>
+                    <td class="px-4 py-3 text-gray-600">{{ room.features || '-' }}</td>
                 </tr>
             </tbody>
         </table>
