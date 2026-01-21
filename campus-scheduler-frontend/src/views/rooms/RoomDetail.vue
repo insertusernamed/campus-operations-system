@@ -1,15 +1,19 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, watch } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import { roomsService, type Room } from '@/services/rooms'
+import type { AxiosError } from 'axios'
 
 const route = useRoute()
 const room = ref<Room | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
 
-onMounted(async () => {
-	const id = Number(route.params.id)
+async function fetchRoom(id: number) {
+	loading.value = true
+	error.value = null
+	room.value = null
+
 	if (isNaN(id)) {
 		error.value = 'Invalid room ID'
 		loading.value = false
@@ -19,12 +23,23 @@ onMounted(async () => {
 	try {
 		room.value = await roomsService.getById(id)
 	} catch (e) {
-		error.value = 'Room not found'
+		const axiosError = e as AxiosError
+		if (axiosError.response?.status === 404) {
+			error.value = 'Room not found'
+		} else {
+			error.value = 'Failed to load room'
+		}
 		console.error(e)
 	} finally {
 		loading.value = false
 	}
-})
+}
+
+watch(
+	() => route.params.id,
+	(newId) => fetchRoom(Number(newId)),
+	{ immediate: true }
+)
 </script>
 
 <template>
