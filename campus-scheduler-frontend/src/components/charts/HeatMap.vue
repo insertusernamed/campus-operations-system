@@ -2,42 +2,42 @@
 import { ref, onMounted, watch, computed } from 'vue'
 
 export interface HeatmapCell {
-    row: string
-    col: string
-    value: number
-    label?: string
+	row: string
+	col: string
+	value: number
+	label?: string
 }
 
 const props = withDefaults(
-    defineProps<{
-        data: HeatmapCell[]
-        rows: string[]
-        cols: string[]
-        title?: string
-        minValue?: number
-        maxValue?: number
-        cellWidth?: number
-        cellHeight?: number
-        showValues?: boolean
-        valueFormatter?: (value: number) => string
-    }>(),
-    {
-        cellWidth: 60,
-        cellHeight: 40,
-        showValues: true,
-    }
+	defineProps<{
+		data: HeatmapCell[]
+		rows: string[]
+		cols: string[]
+		title?: string
+		minValue?: number
+		maxValue?: number
+		cellWidth?: number
+		cellHeight?: number
+		showValues?: boolean
+		valueFormatter?: (value: number) => string
+	}>(),
+	{
+		cellWidth: 60,
+		cellHeight: 40,
+		showValues: true,
+	}
 )
 
 const emit = defineEmits<{
-    cellClick: [cell: HeatmapCell]
+	cellClick: [cell: HeatmapCell]
 }>()
 
 const canvas = ref<HTMLCanvasElement | null>(null)
 const tooltip = ref<{ visible: boolean; x: number; y: number; content: string }>({
-    visible: false,
-    x: 0,
-    y: 0,
-    content: '',
+	visible: false,
+	x: 0,
+	y: 0,
+	content: '',
 })
 
 const defaultFormatter = (value: number) => value.toString()
@@ -46,148 +46,148 @@ const formatter = computed(() => props.valueFormatter || defaultFormatter)
 const padding = { top: 40, right: 20, bottom: 20, left: 80 }
 
 const cellMap = computed(() => {
-    const map = new Map<string, HeatmapCell>()
-    props.data.forEach((cell) => {
-        map.set(`${cell.row}-${cell.col}`, cell)
-    })
-    return map
+	const map = new Map<string, HeatmapCell>()
+	props.data.forEach((cell) => {
+		map.set(`${cell.row}-${cell.col}`, cell)
+	})
+	return map
 })
 
 function getColor(value: number, min: number, max: number): string {
-    const normalized = max > min ? (value - min) / (max - min) : 0
-    // Simple blue scale
-    const lightness = 95 - normalized * 50
-    return `hsl(210, 60%, ${lightness}%)`
+	const normalized = max > min ? (value - min) / (max - min) : 0
+	// Simple blue scale
+	const lightness = 95 - normalized * 50
+	return `hsl(210, 60%, ${lightness}%)`
 }
 
 function draw() {
-    if (!canvas.value) return
+	if (!canvas.value) return
 
-    const ctx = canvas.value.getContext('2d')
-    if (!ctx) return
+	const ctx = canvas.value.getContext('2d')
+	if (!ctx) return
 
-    const dpr = window.devicePixelRatio || 1
-    const width = padding.left + props.cols.length * props.cellWidth + padding.right
-    const height = padding.top + props.rows.length * props.cellHeight + padding.bottom
+	const dpr = window.devicePixelRatio || 1
+	const width = padding.left + props.cols.length * props.cellWidth + padding.right
+	const height = padding.top + props.rows.length * props.cellHeight + padding.bottom
 
-    canvas.value.width = width * dpr
-    canvas.value.height = height * dpr
-    canvas.value.style.width = `${width}px`
-    canvas.value.style.height = `${height}px`
-    ctx.scale(dpr, dpr)
+	canvas.value.width = width * dpr
+	canvas.value.height = height * dpr
+	canvas.value.style.width = `${width}px`
+	canvas.value.style.height = `${height}px`
+	ctx.scale(dpr, dpr)
 
-    ctx.clearRect(0, 0, width, height)
+	ctx.clearRect(0, 0, width, height)
 
-    const values = props.data.map((d) => d.value)
-    const min = props.minValue ?? Math.min(...values, 0)
-    const max = props.maxValue ?? Math.max(...values, 1)
+	const values = props.data.map((d) => d.value)
+	const min = props.minValue ?? Math.min(...values, 0)
+	const max = props.maxValue ?? Math.max(...values, 1)
 
-    // Column headers
-    ctx.fillStyle = '#333'
-    ctx.font = '11px sans-serif'
-    ctx.textAlign = 'center'
-    props.cols.forEach((col, i) => {
-        const x = padding.left + i * props.cellWidth + props.cellWidth / 2
-        ctx.fillText(col, x, padding.top - 10)
-    })
+	// Column headers
+	ctx.fillStyle = '#333'
+	ctx.font = '11px sans-serif'
+	ctx.textAlign = 'center'
+	props.cols.forEach((col, i) => {
+		const x = padding.left + i * props.cellWidth + props.cellWidth / 2
+		ctx.fillText(col, x, padding.top - 10)
+	})
 
-    // Row headers
-    ctx.textAlign = 'right'
-    props.rows.forEach((row, i) => {
-        const y = padding.top + i * props.cellHeight + props.cellHeight / 2 + 4
-        ctx.fillText(row, padding.left - 10, y)
-    })
+	// Row headers
+	ctx.textAlign = 'right'
+	props.rows.forEach((row, i) => {
+		const y = padding.top + i * props.cellHeight + props.cellHeight / 2 + 4
+		ctx.fillText(row, padding.left - 10, y)
+	})
 
-    // Cells
-    props.rows.forEach((row, rowIndex) => {
-        props.cols.forEach((col, colIndex) => {
-            const cell = cellMap.value.get(`${row}-${col}`)
-            const x = padding.left + colIndex * props.cellWidth
-            const y = padding.top + rowIndex * props.cellHeight
+	// Cells
+	props.rows.forEach((row, rowIndex) => {
+		props.cols.forEach((col, colIndex) => {
+			const cell = cellMap.value.get(`${row}-${col}`)
+			const x = padding.left + colIndex * props.cellWidth
+			const y = padding.top + rowIndex * props.cellHeight
 
-            if (cell) {
-                ctx.fillStyle = getColor(cell.value, min, max)
-            } else {
-                ctx.fillStyle = '#f5f5f5'
-            }
-            ctx.fillRect(x + 1, y + 1, props.cellWidth - 2, props.cellHeight - 2)
+			if (cell) {
+				ctx.fillStyle = getColor(cell.value, min, max)
+			} else {
+				ctx.fillStyle = '#f5f5f5'
+			}
+			ctx.fillRect(x + 1, y + 1, props.cellWidth - 2, props.cellHeight - 2)
 
-            if (props.showValues && cell && cell.value > 0) {
-                ctx.fillStyle = cell.value / max > 0.6 ? '#fff' : '#333'
-                ctx.font = '11px sans-serif'
-                ctx.textAlign = 'center'
-                ctx.fillText(
-                    formatter.value(cell.value),
-                    x + props.cellWidth / 2,
-                    y + props.cellHeight / 2 + 4
-                )
-            }
-        })
-    })
+			if (props.showValues && cell && cell.value > 0) {
+				ctx.fillStyle = cell.value / max > 0.6 ? '#fff' : '#333'
+				ctx.font = '11px sans-serif'
+				ctx.textAlign = 'center'
+				ctx.fillText(
+					formatter.value(cell.value),
+					x + props.cellWidth / 2,
+					y + props.cellHeight / 2 + 4
+				)
+			}
+		})
+	})
 }
 
 function handleMouseMove(event: MouseEvent) {
-    if (!canvas.value) return
+	if (!canvas.value) return
 
-    const rect = canvas.value.getBoundingClientRect()
-    const x = event.clientX - rect.left
-    const y = event.clientY - rect.top
+	const rect = canvas.value.getBoundingClientRect()
+	const x = event.clientX - rect.left
+	const y = event.clientY - rect.top
 
-    const colIndex = Math.floor((x - padding.left) / props.cellWidth)
-    const rowIndex = Math.floor((y - padding.top) / props.cellHeight)
+	const colIndex = Math.floor((x - padding.left) / props.cellWidth)
+	const rowIndex = Math.floor((y - padding.top) / props.cellHeight)
 
-    if (
-        colIndex >= 0 &&
-        colIndex < props.cols.length &&
-        rowIndex >= 0 &&
-        rowIndex < props.rows.length
-    ) {
-        const row = props.rows[rowIndex]
-        const col = props.cols[colIndex]
-        const cell = cellMap.value.get(`${row}-${col}`)
+	if (
+		colIndex >= 0 &&
+		colIndex < props.cols.length &&
+		rowIndex >= 0 &&
+		rowIndex < props.rows.length
+	) {
+		const row = props.rows[rowIndex]
+		const col = props.cols[colIndex]
+		const cell = cellMap.value.get(`${row}-${col}`)
 
-        if (cell) {
-            tooltip.value = {
-                visible: true,
-                x: event.clientX - rect.left + 10,
-                y: event.clientY - rect.top - 10,
-                content: cell.label || `${row} - ${col}: ${formatter.value(cell.value)}`,
-            }
-            return
-        }
-    }
+		if (cell) {
+			tooltip.value = {
+				visible: true,
+				x: event.clientX - rect.left + 10,
+				y: event.clientY - rect.top - 10,
+				content: cell.label || `${row} - ${col}: ${formatter.value(cell.value)}`,
+			}
+			return
+		}
+	}
 
-    tooltip.value.visible = false
+	tooltip.value.visible = false
 }
 
 function handleMouseLeave() {
-    tooltip.value.visible = false
+	tooltip.value.visible = false
 }
 
 function handleClick(event: MouseEvent) {
-    if (!canvas.value) return
+	if (!canvas.value) return
 
-    const rect = canvas.value.getBoundingClientRect()
-    const x = event.clientX - rect.left
-    const y = event.clientY - rect.top
+	const rect = canvas.value.getBoundingClientRect()
+	const x = event.clientX - rect.left
+	const y = event.clientY - rect.top
 
-    const colIndex = Math.floor((x - padding.left) / props.cellWidth)
-    const rowIndex = Math.floor((y - padding.top) / props.cellHeight)
+	const colIndex = Math.floor((x - padding.left) / props.cellWidth)
+	const rowIndex = Math.floor((y - padding.top) / props.cellHeight)
 
-    if (
-        colIndex >= 0 &&
-        colIndex < props.cols.length &&
-        rowIndex >= 0 &&
-        rowIndex < props.rows.length
-    ) {
-        const row = props.rows[rowIndex]
-        const col = props.cols[colIndex]
-        const cell = cellMap.value.get(`${row}-${col}`)
+	if (
+		colIndex >= 0 &&
+		colIndex < props.cols.length &&
+		rowIndex >= 0 &&
+		rowIndex < props.rows.length
+	) {
+		const row = props.rows[rowIndex]
+		const col = props.cols[colIndex]
+		const cell = cellMap.value.get(`${row}-${col}`)
 
-        if (cell) {
-            emit('cellClick', cell)
-        }
-    }
+		if (cell) {
+			emit('cellClick', cell)
+		}
+	}
 }
 
 onMounted(draw)
@@ -195,16 +195,16 @@ watch([() => props.data, () => props.rows, () => props.cols], draw, { deep: true
 </script>
 
 <template>
-    <div>
-        <h3 v-if="title" class="font-semibold mb-2">{{ title }}</h3>
-        <div v-if="data.length === 0" class="text-gray-500 py-8 text-center">No data</div>
-        <div v-else class="overflow-x-auto relative">
-            <canvas ref="canvas" @mousemove="handleMouseMove" @mouseleave="handleMouseLeave"
-                @click="handleClick"></canvas>
-            <div v-if="tooltip.visible" class="absolute bg-black text-white text-xs px-2 py-1 pointer-events-none"
-                :style="{ left: `${tooltip.x}px`, top: `${tooltip.y}px` }">
-                {{ tooltip.content }}
-            </div>
-        </div>
-    </div>
+	<div>
+		<h3 v-if="title" class="font-semibold mb-2">{{ title }}</h3>
+		<div v-if="data.length === 0" class="text-gray-500 py-8 text-center">No data</div>
+		<div v-else class="overflow-x-auto relative">
+			<canvas ref="canvas" role="img" :aria-label="title ? `${title} heatmap` : 'Schedule heatmap'"
+				@mousemove="handleMouseMove" @mouseleave="handleMouseLeave" @click="handleClick"></canvas>
+			<div v-if="tooltip.visible" class="absolute bg-black text-white text-xs px-2 py-1 pointer-events-none"
+				:style="{ left: `${tooltip.x}px`, top: `${tooltip.y}px` }">
+				{{ tooltip.content }}
+			</div>
+		</div>
+	</div>
 </template>
