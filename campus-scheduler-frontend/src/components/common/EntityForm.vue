@@ -21,7 +21,7 @@ export interface FormField {
     span?: 1 | 2
 }
 
-defineProps<{
+const props = defineProps<{
     title: string
     fields: FormField[]
     modelValue: Record<string, unknown>
@@ -39,7 +39,7 @@ const emit = defineEmits<{
 }>()
 
 function updateField(name: string, value: unknown) {
-    emit('update:modelValue', { ...arguments[2], [name]: value })
+    emit('update:modelValue', { ...props.modelValue, [name]: value })
 }
 </script>
 
