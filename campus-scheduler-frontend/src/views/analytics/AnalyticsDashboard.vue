@@ -17,6 +17,8 @@ const selectedSemester = ref('Spring 2026')
 const selectedBuildingId = ref<number | null>(null)
 const semesters = ['Spring 2026', 'Fall 2025', 'Summer 2025', 'Spring 2025']
 
+const MAX_DISPLAYED_ROOMS = 15
+
 const { data: buildings } = useAsyncData<Building[]>(() => buildingsService.getAll())
 
 const {
@@ -32,6 +34,7 @@ const {
 const {
 	data: roomsUtilization,
 	loading: roomsLoading,
+	error: roomsError,
 	execute: fetchRooms,
 } = useAsyncData<RoomUtilization[]>(
 	() => analyticsService.getAllRoomsUtilization(selectedSemester.value),
@@ -41,6 +44,7 @@ const {
 const {
 	data: buildingsUtilization,
 	loading: buildingsLoading,
+	error: buildingsError,
 	execute: fetchBuildings,
 } = useAsyncData<BuildingUtilization[]>(
 	() => analyticsService.getAllBuildingsUtilization(selectedSemester.value),
@@ -50,6 +54,7 @@ const {
 const {
 	data: peakHours,
 	loading: peakHoursLoading,
+	error: peakHoursError,
 	execute: fetchPeakHours,
 } = useAsyncData<PeakHours[]>(
 	() => analyticsService.getPeakHours(selectedSemester.value),
@@ -77,7 +82,7 @@ const buildingChartData = computed<BarChartData[]>(() => {
 })
 
 const roomChartData = computed<BarChartData[]>(() => {
-	return filteredRooms.value.slice(0, 15).map((r) => ({
+	return filteredRooms.value.slice(0, MAX_DISPLAYED_ROOMS).map((r) => ({
 		label: `${r.buildingCode}-${r.roomNumber}`,
 		value: r.utilizationPercentage,
 	}))
@@ -106,10 +111,10 @@ const heatmapData = computed<HeatmapCell[]>(() => {
 const formatPercent = (value: number) => `${value.toFixed(1)}%`
 
 async function fetchAllData() {
-	await Promise.all([fetchSummary(), fetchRooms(), fetchBuildings(), fetchPeakHours()])
+	await Promise.allSettled([fetchSummary(), fetchRooms(), fetchBuildings(), fetchPeakHours()])
 }
 
-watch([selectedSemester], fetchAllData)
+watch(selectedSemester, fetchAllData)
 onMounted(fetchAllData)
 </script>
 
@@ -136,9 +141,13 @@ onMounted(fetchAllData)
 
 		<div v-if="isLoading" class="py-12 text-center text-gray-500">Loading...</div>
 
-		<div v-else-if="summaryError" class="border border-red-300 p-4 text-red-600">
-			{{ summaryError }}
-			<button @click="fetchAllData" class="ml-4 underline">Retry</button>
+		<div v-else-if="summaryError || roomsError || buildingsError || peakHoursError"
+			class="border border-red-300 p-4 text-red-600">
+			<p v-if="summaryError">{{ summaryError }}</p>
+			<p v-if="roomsError">Room data error: {{ roomsError }}</p>
+			<p v-if="buildingsError">Building data error: {{ buildingsError }}</p>
+			<p v-if="peakHoursError">Peak hours error: {{ peakHoursError }}</p>
+			<button @click="fetchAllData" class="mt-2 underline">Retry</button>
 		</div>
 
 		<template v-else-if="summary">
