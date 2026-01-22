@@ -23,14 +23,18 @@ const groupedTimeslots = computed(() => {
 
 onMounted(async () => {
     try { timeslots.value = await timeslotsService.getAll() }
-    catch { error.value = 'Failed to load' }
+    catch { error.value = 'Failed to load time slots' }
     finally { loading.value = false }
 })
 
 async function handleDelete(id: number) {
     if (!confirm('Delete this time slot?')) return
-    await timeslotsService.delete(id)
-    timeslots.value = timeslots.value.filter(t => t.id !== id)
+    try {
+        await timeslotsService.delete(id)
+        timeslots.value = timeslots.value.filter(t => t.id !== id)
+    } catch {
+        error.value = 'Failed to delete time slot'
+    }
 }
 </script>
 

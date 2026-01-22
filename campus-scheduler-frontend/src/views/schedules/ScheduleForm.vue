@@ -19,19 +19,27 @@ const error = ref<string | null>(null)
 const conflictWarning = ref<string | null>(null)
 
 onMounted(async () => {
-    [courses.value, rooms.value, timeslots.value] = await Promise.all([
-        coursesService.getAll(),
-        roomsService.getAll(),
-        timeslotsService.getAll(),
-    ])
+    try {
+        [courses.value, rooms.value, timeslots.value] = await Promise.all([
+            coursesService.getAll(),
+            roomsService.getAll(),
+            timeslotsService.getAll(),
+        ])
+    } catch {
+        error.value = 'Failed to load form data'
+    }
 })
 
 // Check conflicts when room/timeslot/semester change
 watch([() => form.value.roomId, () => form.value.timeSlotId, () => form.value.semester], async () => {
     conflictWarning.value = null
     if (form.value.roomId && form.value.timeSlotId) {
-        const result = await schedulesService.checkConflicts(form.value.roomId, form.value.timeSlotId, form.value.semester || undefined)
-        if (result.hasConflict) conflictWarning.value = 'This room is already booked at this time!'
+        try {
+            const result = await schedulesService.checkConflicts(form.value.roomId, form.value.timeSlotId, form.value.semester || undefined)
+            if (result.hasConflict) conflictWarning.value = 'This room is already booked at this time!'
+        } catch {
+            // Silently ignore conflict check failures - user can still try to submit
+        }
     }
 }, { immediate: false })
 
