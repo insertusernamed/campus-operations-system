@@ -190,8 +190,8 @@ class AnalyticsServiceTest {
             testBuilding.setRooms(List.of(testRoom1, testRoom2));
             when(buildingRepository.findById(1L)).thenReturn(Optional.of(testBuilding));
             when(timeSlotRepository.count()).thenReturn(10L);
-            when(scheduleRepository.countByRoomIdAndSemester(1L, TEST_SEMESTER)).thenReturn(5L);
-            when(scheduleRepository.countByRoomIdAndSemester(2L, TEST_SEMESTER)).thenReturn(8L);
+            // Optimized query mock
+            when(scheduleRepository.countByRoomBuildingIdAndSemester(1L, TEST_SEMESTER)).thenReturn(13L);
 
             Optional<BuildingUtilizationDTO> result = analyticsService.getBuildingUtilization(1L, TEST_SEMESTER);
 
@@ -199,7 +199,7 @@ class AnalyticsServiceTest {
             assertThat(result.get().getBuildingId()).isEqualTo(1L);
             assertThat(result.get().getBuildingName()).isEqualTo("Science Building");
             assertThat(result.get().getRoomCount()).isEqualTo(2);
-            assertThat(result.get().getScheduledSlots()).isEqualTo(13L); // 5 + 8
+            assertThat(result.get().getScheduledSlots()).isEqualTo(13L); // 13 from optimized count
             assertThat(result.get().getTotalSlots()).isEqualTo(20L); // 2 rooms * 10 slots
             assertThat(result.get().getUtilizationPercentage()).isEqualTo(65.0);
         }
@@ -233,8 +233,9 @@ class AnalyticsServiceTest {
 
             when(buildingRepository.findAll()).thenReturn(List.of(testBuilding, testBuilding2));
             when(timeSlotRepository.count()).thenReturn(10L);
-            when(scheduleRepository.countByRoomIdAndSemester(1L, TEST_SEMESTER)).thenReturn(5L);
-            when(scheduleRepository.countByRoomIdAndSemester(2L, TEST_SEMESTER)).thenReturn(8L);
+            // Optimized query mocks
+            when(scheduleRepository.countByRoomBuildingIdAndSemester(1L, TEST_SEMESTER)).thenReturn(5L);
+            when(scheduleRepository.countByRoomBuildingIdAndSemester(2L, TEST_SEMESTER)).thenReturn(8L);
 
             List<BuildingUtilizationDTO> result = analyticsService.getAllBuildingsUtilization(TEST_SEMESTER);
 
