@@ -17,9 +17,14 @@ const error = ref<string | null>(null)
 onMounted(async () => {
     if (isEdit.value) {
         loading.value = true
-        const ts = await timeslotsService.getById(timeslotId.value)
-        form.value = { dayOfWeek: ts.dayOfWeek, startTime: ts.startTime, endTime: ts.endTime, label: ts.label || '' }
-        loading.value = false
+        try {
+            const ts = await timeslotsService.getById(timeslotId.value)
+            form.value = { dayOfWeek: ts.dayOfWeek, startTime: ts.startTime, endTime: ts.endTime, label: ts.label || '' }
+        } catch {
+            error.value = 'Failed to load time slot'
+        } finally {
+            loading.value = false
+        }
     }
 })
 
@@ -31,7 +36,7 @@ async function handleSubmit() {
         if (isEdit.value) await timeslotsService.update(timeslotId.value, form.value)
         else await timeslotsService.create(form.value)
         router.push('/timeslots')
-    } catch (e) { error.value = (e as AxiosError<{ message?: string }>).response?.data?.message || 'Failed' }
+    } catch (e) { error.value = (e as AxiosError<{ message?: string }>).response?.data?.message || 'Failed to save time slot' }
     finally { saving.value = false }
 }
 </script>

@@ -30,6 +30,16 @@ test.describe('Courses CRUD', () => {
             await route.fulfill({ json: mockInstructors });
         });
 
+        // Mock createWithInstructor endpoint (POST /courses/instructor/:instructorId)
+        await page.route(/.*\/api\/courses\/instructor\/\d+$/, async route => {
+            if (route.request().method() === 'POST') {
+                const data = route.request().postDataJSON();
+                await route.fulfill({ json: { id: 2, ...data } });
+            } else {
+                await route.fulfill({ json: mockCourses });
+            }
+        });
+
         await page.route(/.*\/api\/courses\/\d+\/instructor\/\d+$/, async route => {
             await route.fulfill({ json: {} });
         });

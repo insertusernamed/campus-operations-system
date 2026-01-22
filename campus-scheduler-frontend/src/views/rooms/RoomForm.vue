@@ -21,13 +21,19 @@ const saving = ref(false)
 const error = ref<string | null>(null)
 
 onMounted(async () => {
-    buildings.value = await buildingsService.getAll()
+    try {
+        buildings.value = await buildingsService.getAll()
+    } catch {
+        error.value = 'Failed to load buildings'
+    }
     if (isEdit.value) {
         loading.value = true
         try {
             const room = await roomsService.getById(roomId.value)
             form.value = { roomNumber: room.roomNumber, capacity: room.capacity, type: room.type, features: room.features || '' }
             selectedBuildingId.value = room.buildingId
+        } catch {
+            error.value = 'Failed to load room'
         } finally {
             loading.value = false
         }
@@ -70,6 +76,8 @@ async function handleSubmit() {
                             <option v-for="b in buildings" :key="b.id" :value="b.id">{{ b.code }} - {{ b.name }}
                             </option>
                         </select>
+                        <p v-if="isEdit" class="text-xs text-gray-500 mt-1">Building cannot be changed after creation
+                        </p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Room Number <span

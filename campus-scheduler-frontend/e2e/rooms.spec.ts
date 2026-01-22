@@ -20,6 +20,12 @@ test.describe('Rooms CRUD', () => {
             else await route.fulfill({ json: { id: 1, ...route.request().postDataJSON() } });
         });
 
+        // Mock create room endpoint (POST /rooms/building/:buildingId)
+        await page.route(/.*\/api\/rooms\/building\/\d+$/, async route => {
+            const data = route.request().postDataJSON();
+            await route.fulfill({ json: { id: 2, ...data } });
+        });
+
         await page.route(/.*\/api\/buildings$/, async route => {
             await route.fulfill({ json: mockBuildings });
         });
