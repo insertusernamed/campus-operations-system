@@ -48,8 +48,9 @@ public class AnalyticsService {
      * @return list of room utilization DTOs
      */
     public List<RoomUtilizationDTO> getAllRoomsUtilization(String semester) {
+        long totalSlots = timeSlotRepository.count();
         return roomRepository.findAll().stream()
-                .map(room -> buildRoomUtilizationDTO(room, semester))
+                .map(room -> buildRoomUtilizationDTO(room, semester, totalSlots))
                 .collect(Collectors.toList());
     }
 
@@ -72,8 +73,9 @@ public class AnalyticsService {
      * @return list of building utilization DTOs
      */
     public List<BuildingUtilizationDTO> getAllBuildingsUtilization(String semester) {
+        long totalSlots = timeSlotRepository.count();
         return buildingRepository.findAll().stream()
-                .map(building -> buildBuildingUtilizationDTO(building, semester))
+                .map(building -> buildBuildingUtilizationDTO(building, semester, totalSlots))
                 .collect(Collectors.toList());
     }
 
@@ -152,9 +154,17 @@ public class AnalyticsService {
 
     /**
      * Build a RoomUtilizationDTO for a given room.
+     * Overloaded method for individual queries.
      */
     private RoomUtilizationDTO buildRoomUtilizationDTO(Room room, String semester) {
         long totalSlots = timeSlotRepository.count();
+        return buildRoomUtilizationDTO(room, semester, totalSlots);
+    }
+
+    /**
+     * Build a RoomUtilizationDTO for a given room with pre-fetched total slots.
+     */
+    private RoomUtilizationDTO buildRoomUtilizationDTO(Room room, String semester, long totalSlots) {
         long scheduledSlots = scheduleRepository.countByRoomIdAndSemester(room.getId(), semester);
         double utilization = totalSlots > 0
                 ? (double) scheduledSlots / totalSlots * 100
@@ -175,14 +185,22 @@ public class AnalyticsService {
 
     /**
      * Build a BuildingUtilizationDTO for a given building.
+     * Overloaded method for individual queries.
      */
     private BuildingUtilizationDTO buildBuildingUtilizationDTO(Building building, String semester) {
-        List<Room> rooms = building.getRooms();
         long totalSlots = timeSlotRepository.count();
+        return buildBuildingUtilizationDTO(building, semester, totalSlots);
+    }
 
-        long scheduledSlots = rooms.stream()
-                .mapToLong(room -> scheduleRepository.countByRoomIdAndSemester(room.getId(), semester))
-                .sum();
+    /**
+     * Build a BuildingUtilizationDTO for a given building with pre-fetched total
+     * slots.
+     */
+    private BuildingUtilizationDTO buildBuildingUtilizationDTO(Building building, String semester, long totalSlots) {
+        List<Room> rooms = building.getRooms();
+
+        // Optimized: Single query to count all schedules for this building
+        long scheduledSlots = scheduleRepository.countByRoomBuildingIdAndSemester(building.getId(), semester);
         long totalAvailableSlots = rooms.size() * totalSlots;
 
         double utilization = totalAvailableSlots > 0
