@@ -41,4 +41,14 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
      * Find schedules by semester.
      */
     List<Schedule> findBySemester(String semester);
+
+    /**
+     * Count schedules by room and semester (for utilization calculation).
+     */
+    long countByRoomIdAndSemester(Long roomId, String semester);
+
+    /**
+     * Count schedules by time slot and semester (for peak hours calculation).
+     */
+    long countByTimeSlotIdAndSemester(Long timeSlotId, String semester);
 }
