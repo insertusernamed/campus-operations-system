@@ -38,7 +38,7 @@ public class UniversityGeneratorService {
     private final ScheduleRepository scheduleRepository;
     private final TimeSlotRepository timeSlotRepository;
 
-    private final Random random = new Random();
+    private static final Random random = new Random();
 
     private static final String[] BUILDING_NAMES = {
             "Science Building", "Engineering Hall", "Arts Center", "Business School",
@@ -150,6 +150,11 @@ public class UniversityGeneratorService {
         List<Building> buildings = new ArrayList<>();
         int max = Math.min(count, BUILDING_NAMES.length);
 
+        if (count > BUILDING_NAMES.length) {
+            log.warn("Requested {} buildings but only {} available. Generating {} buildings.",
+                    count, BUILDING_NAMES.length, max);
+        }
+
         for (int i = 0; i < max; i++) {
             Building building = Building.builder()
                     .name(BUILDING_NAMES[i])
@@ -170,8 +175,11 @@ public class UniversityGeneratorService {
         List<Room> rooms = new ArrayList<>();
 
         for (Building building : buildings) {
+            int baseRoomsPerFloor = roomsPerBuilding / 3;
+            int remainderRooms = roomsPerBuilding % 3;
+
             for (int floor = 1; floor <= 3; floor++) {
-                int roomsOnFloor = roomsPerBuilding / 3;
+                int roomsOnFloor = baseRoomsPerFloor + (floor <= remainderRooms ? 1 : 0);
                 for (int r = 0; r < roomsOnFloor; r++) {
                     String type = ROOM_TYPES[random.nextInt(ROOM_TYPES.length)];
                     Room room = Room.builder()
@@ -224,7 +232,8 @@ public class UniversityGeneratorService {
         for (int i = 0; i < count; i++) {
             String[] prefix = COURSE_PREFIXES[i % COURSE_PREFIXES.length];
             int level = (i / COURSE_PREFIXES.length) % 4 + 1; // 1-4
-            int courseNum = level * 100 + (i % 99) + 1;
+            // Use unique sequence number to avoid duplicate codes
+            int courseNum = level * 1000 + i;
 
             Instructor instructor = instructors.get(i % instructors.size());
 
