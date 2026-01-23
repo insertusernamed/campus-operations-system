@@ -13,6 +13,8 @@ import org.campusscheduler.domain.schedule.Schedule;
 import org.campusscheduler.domain.schedule.ScheduleRepository;
 import org.campusscheduler.domain.timeslot.TimeSlot;
 import org.campusscheduler.domain.timeslot.TimeSlotRepository;
+import org.campusscheduler.websocket.SolverProgressEvent;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,17 +27,21 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Service for managing the Timefold solver.
  * Handles starting, stopping, and retrieving solutions.
+ * Broadcasts progress updates via WebSocket.
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class SolverService {
 
+    private static final String SOLVER_TOPIC = "/topic/solver/progress";
+
     private final SolverManager<ScheduleSolution, Long> solverManager;
     private final CourseRepository courseRepository;
     private final RoomRepository roomRepository;
     private final TimeSlotRepository timeSlotRepository;
     private final ScheduleRepository scheduleRepository;
+    private final SimpMessagingTemplate messagingTemplate;
 
     private static final AtomicLong problemIdGenerator = new AtomicLong(0);
     private final AtomicReference<Long> currentProblemId = new AtomicReference<>();
@@ -77,17 +83,53 @@ public class SolverService {
         ScheduleSolution problem = buildProblem(semester);
         bestSolution.set(problem);
 
+        // Broadcast start event
+        broadcastProgress(SolverStatus.SOLVING_ACTIVE, problem, "Solver started");
+
         solverManager.solveBuilder()
                 .withProblemId(problemId)
                 .withProblem(problem)
                 .withBestSolutionEventConsumer(event -> {
-                    log.debug("New best solution: {}", event.solution().getScore());
-                    bestSolution.set(event.solution());
+                    ScheduleSolution solution = event.solution();
+                    log.debug("New best solution: {}", solution.getScore());
+                    bestSolution.set(solution);
+                    broadcastProgress(SolverStatus.SOLVING_ACTIVE, solution, "New best solution found");
                 })
-                .withExceptionHandler((id, exception) -> log.error("Solver failed for problem {}", id, exception))
+                .withFinalBestSolutionConsumer(solution -> {
+                    log.info("Solving finished with score: {}", solution.getScore());
+                    bestSolution.set(solution);
+                    broadcastProgress(SolverStatus.NOT_SOLVING, solution, "Solving complete");
+                })
+                .withExceptionHandler((id, exception) -> {
+                    log.error("Solver failed for problem {}", id, exception);
+                    broadcastProgress(SolverStatus.NOT_SOLVING, bestSolution.get(),
+                            "Solver error: " + exception.getMessage());
+                })
                 .run();
 
         return problemId;
+    }
+
+    /**
+     * Broadcast solver progress to WebSocket clients.
+     */
+    private void broadcastProgress(SolverStatus status, ScheduleSolution solution, String message) {
+        if (solution == null) {
+            return;
+        }
+
+        int assigned = (int) solution.getAssignments().stream()
+                .filter(ScheduleAssignment::isInitialized)
+                .count();
+
+        SolverProgressEvent event = SolverProgressEvent.of(
+                status,
+                solution.getScore(),
+                assigned,
+                solution.getAssignments().size(),
+                message);
+
+        messagingTemplate.convertAndSend(SOLVER_TOPIC, event);
     }
 
     /**
@@ -132,6 +174,7 @@ public class SolverService {
         if (problemId != null) {
             log.info("Stopping solver for problem ID {}", problemId);
             solverManager.terminateEarly(problemId);
+            broadcastProgress(SolverStatus.NOT_SOLVING, bestSolution.get(), "Solver stopped by user");
         }
     }
 
