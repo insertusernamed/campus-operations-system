@@ -3,6 +3,7 @@ package org.campusscheduler.generator;
 import org.campusscheduler.generator.UniversityGeneratorService.GenerationConfig;
 import org.campusscheduler.generator.UniversityGeneratorService.GenerationResult;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -11,6 +12,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -23,6 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequestMapping("/api/generator")
 @RequiredArgsConstructor
 @Slf4j
+@Validated
 @Tag(name = "Data Generator", description = "Generate demo data for presentations")
 public class DataGeneratorController {
 
@@ -32,10 +37,13 @@ public class DataGeneratorController {
      * Request DTO for generating university data.
      */
     public record GenerateRequest(
-            Integer buildings,
-            Integer roomsPerBuilding,
-            Integer instructors,
-            Integer courses) {
+            @Min(value = 1, message = "At least 1 building required") @Max(value = 12, message = "Maximum 12 buildings allowed") Integer buildings,
+
+            @Min(value = 1, message = "At least 1 room per building required") @Max(value = 50, message = "Maximum 50 rooms per building allowed") Integer roomsPerBuilding,
+
+            @Min(value = 1, message = "At least 1 instructor required") @Max(value = 1000, message = "Maximum 1000 instructors allowed") Integer instructors,
+
+            @Min(value = 1, message = "At least 1 course required") @Max(value = 2000, message = "Maximum 2000 courses allowed") Integer courses) {
 
         /**
          * Convert to GenerationConfig with defaults for null values.
@@ -56,7 +64,7 @@ public class DataGeneratorController {
     @PostMapping("/university")
     @Operation(summary = "Generate complete university", description = "Creates buildings, rooms, instructors, and courses. Clears existing data first.")
     public ResponseEntity<GenerationResult> generateUniversity(
-            @RequestBody(required = false) GenerateRequest request) {
+            @Valid @RequestBody(required = false) GenerateRequest request) {
 
         GenerationConfig config = request != null
                 ? request.toConfig()
@@ -92,9 +100,17 @@ public class DataGeneratorController {
 
     /**
      * Clear all data from the database.
+     *
+     * <p>
+     * <strong>WARNING:</strong> This endpoint deletes all data without
+     * confirmation.
+     * In production environments, ensure this endpoint is restricted to admin users
+     * only.
+     * See SecurityConfig for authentication/authorization configuration.
+     * </p>
      */
     @DeleteMapping("/reset")
-    @Operation(summary = "Reset database", description = "Clears all schedules, courses, instructors, rooms, and buildings")
+    @Operation(summary = "Reset database", description = "Clears all schedules, courses, instructors, rooms, and buildings. WARNING: For development/demo use only.")
     public ResponseEntity<Void> resetDatabase() {
         log.info("Resetting database");
         universityGeneratorService.clearAll();

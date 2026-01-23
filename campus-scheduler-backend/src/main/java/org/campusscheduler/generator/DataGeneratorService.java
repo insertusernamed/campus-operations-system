@@ -22,7 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class DataGeneratorService {
 
-    private final Random random = new Random();
+    private static final Random random = new Random();
     private List<String[]> contactsCache = null;
 
     /**
@@ -91,6 +91,7 @@ public class DataGeneratorService {
             log.info("Loaded {} contacts from CSV", rows.size());
         } catch (IOException e) {
             log.error("Failed to load contacts.csv", e);
+            throw new IllegalStateException("Unable to load required resource contacts.csv from classpath", e);
         }
         return rows;
     }
