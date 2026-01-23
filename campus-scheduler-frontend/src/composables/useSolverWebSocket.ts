@@ -20,8 +20,12 @@ export function useSolverWebSocket() {
 	let client: Client | null = null
 
 	function connect() {
+		// Use environment variable or fallback to localhost
+		const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+		const wsUrl = `${baseUrl}/ws`
+
 		client = new Client({
-			webSocketFactory: () => new SockJS('http://localhost:8080/ws'),
+			webSocketFactory: () => new SockJS(wsUrl),
 			reconnectDelay: 5000,
 			heartbeatIncoming: 4000,
 			heartbeatOutgoing: 4000,
@@ -29,13 +33,18 @@ export function useSolverWebSocket() {
 				connected.value = true
 				error.value = null
 
-				client?.subscribe('/topic/solver/progress', (message) => {
-					try {
-						progress.value = JSON.parse(message.body)
-					} catch (e) {
-						console.error('Failed to parse solver progress:', e)
-					}
-				})
+				try {
+					client?.subscribe('/topic/solver/progress', (message) => {
+						try {
+							progress.value = JSON.parse(message.body)
+						} catch (e) {
+							console.error('Failed to parse solver progress:', e)
+						}
+					})
+				} catch (e) {
+					error.value = 'Failed to subscribe to solver progress'
+					console.error('Subscription error:', e)
+				}
 			},
 			onDisconnect: () => {
 				connected.value = false
