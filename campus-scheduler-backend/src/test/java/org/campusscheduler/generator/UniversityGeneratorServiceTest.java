@@ -38,200 +38,204 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class UniversityGeneratorServiceTest {
 
-    @Mock
-    private DataGeneratorService dataGeneratorService;
+	@Mock
+	private DataGeneratorService dataGeneratorService;
 
-    @Mock
-    private BuildingRepository buildingRepository;
+	@Mock
+	private BuildingRepository buildingRepository;
 
-    @Mock
-    private RoomRepository roomRepository;
+	@Mock
+	private RoomRepository roomRepository;
 
-    @Mock
-    private InstructorRepository instructorRepository;
+	@Mock
+	private InstructorRepository instructorRepository;
 
-    @Mock
-    private CourseRepository courseRepository;
+	@Mock
+	private CourseRepository courseRepository;
 
-    @Mock
-    private ScheduleRepository scheduleRepository;
+	@Mock
+	private ScheduleRepository scheduleRepository;
 
-    @Mock
-    private TimeSlotRepository timeSlotRepository;
+	@Mock
+	private TimeSlotRepository timeSlotRepository;
 
-    @Captor
-    private ArgumentCaptor<Building> buildingCaptor;
+	@Mock
+	private jakarta.persistence.EntityManager entityManager;
 
-    @Captor
-    private ArgumentCaptor<Room> roomCaptor;
+	@Captor
+	private ArgumentCaptor<Building> buildingCaptor;
 
-    @Captor
-    private ArgumentCaptor<Instructor> instructorCaptor;
+	@Captor
+	private ArgumentCaptor<Room> roomCaptor;
 
-    @Captor
-    private ArgumentCaptor<Course> courseCaptor;
+	@Captor
+	private ArgumentCaptor<Instructor> instructorCaptor;
 
-    private UniversityGeneratorService service;
+	@Captor
+	private ArgumentCaptor<Course> courseCaptor;
 
-    @BeforeEach
-    void setUp() {
-        service = new UniversityGeneratorService(
-                dataGeneratorService,
-                buildingRepository,
-                roomRepository,
-                instructorRepository,
-                courseRepository,
-                scheduleRepository,
-                timeSlotRepository);
-    }
+	private UniversityGeneratorService service;
 
-    @Nested
-    @DisplayName("GenerationConfig")
-    class GenerationConfigTests {
+	@BeforeEach
+	void setUp() {
+		service = new UniversityGeneratorService(
+				dataGeneratorService,
+				buildingRepository,
+				roomRepository,
+				instructorRepository,
+				courseRepository,
+				scheduleRepository,
+				timeSlotRepository,
+				entityManager);
+	}
 
-        @Test
-        @DisplayName("default config should have reasonable values")
-        void defaultConfigShouldHaveReasonableValues() {
-            GenerationConfig config = GenerationConfig.defaultConfig();
+	@Nested
+	@DisplayName("GenerationConfig")
+	class GenerationConfigTests {
 
-            assertThat(config.buildings()).isEqualTo(8);
-            assertThat(config.roomsPerBuilding()).isEqualTo(15);
-            assertThat(config.instructors()).isEqualTo(200);
-            assertThat(config.courses()).isEqualTo(500);
-        }
+		@Test
+		@DisplayName("default config should have reasonable values")
+		void defaultConfigShouldHaveReasonableValues() {
+			GenerationConfig config = GenerationConfig.defaultConfig();
 
-        @Test
-        @DisplayName("small config should be smaller than default")
-        void smallConfigShouldBeSmallerThanDefault() {
-            GenerationConfig small = GenerationConfig.small();
-            GenerationConfig def = GenerationConfig.defaultConfig();
+			assertThat(config.buildings()).isEqualTo(8);
+			assertThat(config.roomsPerBuilding()).isEqualTo(15);
+			assertThat(config.instructors()).isEqualTo(200);
+			assertThat(config.courses()).isEqualTo(500);
+		}
 
-            assertThat(small.buildings()).isLessThan(def.buildings());
-            assertThat(small.courses()).isLessThan(def.courses());
-        }
-    }
+		@Test
+		@DisplayName("small config should be smaller than default")
+		void smallConfigShouldBeSmallerThanDefault() {
+			GenerationConfig small = GenerationConfig.small();
+			GenerationConfig def = GenerationConfig.defaultConfig();
 
-    @Nested
-    @DisplayName("generateUniversity")
-    class GenerateUniversity {
+			assertThat(small.buildings()).isLessThan(def.buildings());
+			assertThat(small.courses()).isLessThan(def.courses());
+		}
+	}
 
-        @BeforeEach
-        void setUpMocks() {
-            // Mock building saves to return with ID
-            when(buildingRepository.save(any(Building.class)))
-                    .thenAnswer(inv -> {
-                        Building b = inv.getArgument(0);
-                        b.setId(1L);
-                        return b;
-                    });
+	@Nested
+	@DisplayName("generateUniversity")
+	class GenerateUniversity {
 
-            // Mock room saves
-            when(roomRepository.save(any(Room.class)))
-                    .thenAnswer(inv -> {
-                        Room r = inv.getArgument(0);
-                        r.setId(1L);
-                        return r;
-                    });
+		@BeforeEach
+		void setUpMocks() {
+			// Mock building saves to return with ID
+			when(buildingRepository.save(any(Building.class)))
+					.thenAnswer(inv -> {
+						Building b = inv.getArgument(0);
+						b.setId(1L);
+						return b;
+					});
 
-            // Mock instructor saves
-            when(instructorRepository.save(any(Instructor.class)))
-                    .thenAnswer(inv -> {
-                        Instructor i = inv.getArgument(0);
-                        i.setId(1L);
-                        return i;
-                    });
+			// Mock room saves
+			when(roomRepository.save(any(Room.class)))
+					.thenAnswer(inv -> {
+						Room r = inv.getArgument(0);
+						r.setId(1L);
+						return r;
+					});
 
-            // Mock course saves
-            when(courseRepository.save(any(Course.class)))
-                    .thenAnswer(inv -> {
-                        Course c = inv.getArgument(0);
-                        c.setId(1L);
-                        return c;
-                    });
+			// Mock instructor saves
+			when(instructorRepository.save(any(Instructor.class)))
+					.thenAnswer(inv -> {
+						Instructor i = inv.getArgument(0);
+						i.setId(1L);
+						return i;
+					});
 
-            // Mock contacts
-            when(dataGeneratorService.getRandomContacts(50))
-                    .thenReturn(List.of(
-                            new Contact("John", "Doe", "john@test.edu"),
-                            new Contact("Jane", "Smith", "jane@test.edu")));
+			// Mock course saves
+			when(courseRepository.save(any(Course.class)))
+					.thenAnswer(inv -> {
+						Course c = inv.getArgument(0);
+						c.setId(1L);
+						return c;
+					});
 
-            when(dataGeneratorService.generateRoomNumber(any(Integer.class)))
-                    .thenReturn("101");
+			// Mock contacts
+			when(dataGeneratorService.getRandomContacts(50))
+					.thenReturn(List.of(
+							new Contact("John", "Doe", "john@test.edu"),
+							new Contact("Jane", "Smith", "jane@test.edu")));
 
-            when(dataGeneratorService.generateCapacity(any(String.class)))
-                    .thenReturn(30);
+			when(dataGeneratorService.generateRoomNumber(any(Integer.class)))
+					.thenReturn("101");
 
-            when(timeSlotRepository.count()).thenReturn(30L);
-        }
+			when(dataGeneratorService.generateCapacity(any(String.class)))
+					.thenReturn(30);
 
-        @Test
-        @DisplayName("should generate buildings")
-        void shouldGenerateBuildings() {
-            GenerationConfig config = new GenerationConfig(4, 9, 50, 100);
+			when(timeSlotRepository.count()).thenReturn(30L);
+		}
 
-            service.generateUniversity(config);
+		@Test
+		@DisplayName("should generate buildings")
+		void shouldGenerateBuildings() {
+			GenerationConfig config = new GenerationConfig(4, 9, 50, 100);
 
-            verify(buildingRepository, times(4)).save(buildingCaptor.capture());
-            List<Building> savedBuildings = buildingCaptor.getAllValues();
+			service.generateUniversity(config);
 
-            assertThat(savedBuildings).hasSize(4);
-            assertThat(savedBuildings.get(0).getName()).isNotBlank();
-            assertThat(savedBuildings.get(0).getCode()).isNotBlank();
-        }
+			verify(buildingRepository, times(4)).save(buildingCaptor.capture());
+			List<Building> savedBuildings = buildingCaptor.getAllValues();
 
-        @Test
-        @DisplayName("should generate rooms for each building")
-        void shouldGenerateRoomsForEachBuilding() {
-            GenerationConfig config = new GenerationConfig(2, 9, 50, 100);
+			assertThat(savedBuildings).hasSize(4);
+			assertThat(savedBuildings.get(0).getName()).isNotBlank();
+			assertThat(savedBuildings.get(0).getCode()).isNotBlank();
+		}
 
-            service.generateUniversity(config);
+		@Test
+		@DisplayName("should generate rooms for each building")
+		void shouldGenerateRoomsForEachBuilding() {
+			GenerationConfig config = new GenerationConfig(2, 9, 50, 100);
 
-            // 2 buildings * 9 rooms per building = 18 rooms
-            verify(roomRepository, atLeast(6)).save(any(Room.class));
-        }
+			service.generateUniversity(config);
 
-        @Test
-        @DisplayName("should generate instructors from contacts")
-        void shouldGenerateInstructorsFromContacts() {
-            GenerationConfig config = new GenerationConfig(2, 9, 50, 100);
+			// 2 buildings * 9 rooms per building = 18 rooms
+			verify(roomRepository, atLeast(6)).save(any(Room.class));
+		}
 
-            service.generateUniversity(config);
+		@Test
+		@DisplayName("should generate instructors from contacts")
+		void shouldGenerateInstructorsFromContacts() {
+			GenerationConfig config = new GenerationConfig(2, 9, 50, 100);
 
-            verify(instructorRepository, times(2)).save(instructorCaptor.capture());
-            List<Instructor> savedInstructors = instructorCaptor.getAllValues();
+			service.generateUniversity(config);
 
-            assertThat(savedInstructors.get(0).getFirstName()).isEqualTo("John");
-            assertThat(savedInstructors.get(0).getLastName()).isEqualTo("Doe");
-        }
+			verify(instructorRepository, times(2)).save(instructorCaptor.capture());
+			List<Instructor> savedInstructors = instructorCaptor.getAllValues();
 
-        @Test
-        @DisplayName("should return accurate generation result")
-        void shouldReturnAccurateResult() {
-            GenerationConfig config = new GenerationConfig(2, 9, 50, 10);
+			assertThat(savedInstructors.get(0).getFirstName()).isEqualTo("John");
+			assertThat(savedInstructors.get(0).getLastName()).isEqualTo("Doe");
+		}
 
-            GenerationResult result = service.generateUniversity(config);
+		@Test
+		@DisplayName("should return accurate generation result")
+		void shouldReturnAccurateResult() {
+			GenerationConfig config = new GenerationConfig(2, 9, 50, 10);
 
-            assertThat(result.buildings()).isEqualTo(2);
-            assertThat(result.instructors()).isEqualTo(2);
-            assertThat(result.courses()).isEqualTo(10);
-            assertThat(result.timeSlots()).isEqualTo(30);
-        }
-    }
+			GenerationResult result = service.generateUniversity(config);
 
-    @Nested
-    @DisplayName("clearAll")
-    class ClearAll {
+			assertThat(result.buildings()).isEqualTo(2);
+			assertThat(result.instructors()).isEqualTo(2);
+			assertThat(result.courses()).isEqualTo(10);
+			assertThat(result.timeSlots()).isEqualTo(30);
+		}
+	}
 
-        @Test
-        @DisplayName("should delete all entities in correct order")
-        void shouldDeleteAllEntitiesInCorrectOrder() {
-            service.clearAll();
+	@Nested
+	@DisplayName("clearAll")
+	class ClearAll {
 
-            verify(scheduleRepository).deleteAll();
-            verify(courseRepository).deleteAll();
-            verify(instructorRepository).deleteAll();
-            verify(roomRepository).deleteAll();
-            verify(buildingRepository).deleteAll();
-        }
-    }
+		@Test
+		@DisplayName("should delete all entities in correct order")
+		void shouldDeleteAllEntitiesInCorrectOrder() {
+			service.clearAll();
+
+			verify(scheduleRepository).deleteAll();
+			verify(courseRepository).deleteAll();
+			verify(instructorRepository).deleteAll();
+			verify(roomRepository).deleteAll();
+			verify(buildingRepository).deleteAll();
+		}
+	}
 }

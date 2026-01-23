@@ -18,6 +18,7 @@ import org.campusscheduler.generator.DataGeneratorService.Contact;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -37,6 +38,7 @@ public class UniversityGeneratorService {
     private final CourseRepository courseRepository;
     private final ScheduleRepository scheduleRepository;
     private final TimeSlotRepository timeSlotRepository;
+    private final EntityManager entityManager;
 
     private static final Random random = new Random();
 
@@ -110,6 +112,8 @@ public class UniversityGeneratorService {
         instructorRepository.deleteAll();
         roomRepository.deleteAll();
         buildingRepository.deleteAll();
+        // Flush to ensure deletes are executed before inserts
+        entityManager.flush();
         log.info("All data cleared");
     }
 
