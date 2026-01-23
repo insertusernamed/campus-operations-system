@@ -15,8 +15,8 @@ import ai.timefold.solver.core.api.score.stream.Joiners;
  * - Instructor conflict: An instructor can only teach one course at a time
  *
  * Soft constraints (should be optimized):
- * - Room type preference: Labs should be in lab rooms, lectures in lecture
- * halls
+ * - Room type mismatch: Penalize science courses not in labs, large courses not
+ * in lecture halls
  */
 public class ScheduleConstraintProvider implements ConstraintProvider {
 
@@ -28,7 +28,7 @@ public class ScheduleConstraintProvider implements ConstraintProvider {
                 roomCapacity(factory),
                 instructorConflict(factory),
                 // Soft constraints
-                roomTypePreference(factory)
+                roomTypeMismatch(factory)
         };
     }
 
@@ -40,6 +40,8 @@ public class ScheduleConstraintProvider implements ConstraintProvider {
         return factory.forEachUniquePair(ScheduleAssignment.class,
                 Joiners.equal(ScheduleAssignment::getRoom),
                 Joiners.equal(ScheduleAssignment::getTimeSlot))
+                .filter((a1, a2) -> a1.getRoom() != null && a2.getRoom() != null &&
+                        a1.getTimeSlot() != null && a2.getTimeSlot() != null)
                 .penalize(HardSoftScore.ONE_HARD)
                 .asConstraint("Room conflict");
     }
@@ -64,48 +66,53 @@ public class ScheduleConstraintProvider implements ConstraintProvider {
      */
     Constraint instructorConflict(ConstraintFactory factory) {
         return factory.forEachUniquePair(ScheduleAssignment.class,
-                Joiners.equal(assignment -> assignment.getCourse().getInstructor()),
+                Joiners.equal(assignment -> {
+                    var course = assignment.getCourse();
+                    return course != null && course.getInstructor() != null
+                            ? course.getInstructor().getId()
+                            : null;
+                }),
                 Joiners.equal(ScheduleAssignment::getTimeSlot))
+                .filter((a1, a2) -> a1.getCourse() != null && a2.getCourse() != null &&
+                        a1.getCourse().getInstructor() != null && a2.getCourse().getInstructor() != null &&
+                        a1.getTimeSlot() != null && a2.getTimeSlot() != null)
                 .penalize(HardSoftScore.ONE_HARD)
                 .asConstraint("Instructor conflict");
     }
 
     /**
-     * Prefer matching room types (labs in lab rooms, etc).
-     * Reward when course department matches room type expectations.
+     * Penalize room type mismatches.
+     * Science courses should be in labs, large courses in lecture halls.
      */
-    Constraint roomTypePreference(ConstraintFactory factory) {
+    Constraint roomTypeMismatch(ConstraintFactory factory) {
         return factory.forEach(ScheduleAssignment.class)
                 .filter(assignment -> assignment.getRoom() != null &&
-                        isGoodRoomMatch(assignment))
-                .reward(HardSoftScore.ONE_SOFT)
-                .asConstraint("Room type preference");
+                        assignment.getCourse() != null &&
+                        isRoomTypeMismatch(assignment))
+                .penalize(HardSoftScore.ONE_SOFT)
+                .asConstraint("Room type mismatch");
     }
 
     /**
-     * Check if the room type is a good match for the course.
+     * Check if the room type is a mismatch for the course.
      */
-    private boolean isGoodRoomMatch(ScheduleAssignment assignment) {
+    private boolean isRoomTypeMismatch(ScheduleAssignment assignment) {
         String department = assignment.getCourse().getDepartment();
         String roomType = assignment.getRoom().getType().name();
 
-        // Labs should be in LAB rooms
+        // Science courses should be in LAB rooms
         if (department != null &&
                 (department.contains("Chemistry") || department.contains("Biology") ||
                         department.contains("Physics"))) {
-            return "LAB".equals(roomType);
+            return !"LAB".equals(roomType);
         }
 
         // Large courses should be in lecture halls
         if (assignment.getCourse().getEnrollmentCapacity() > 80) {
-            return "LECTURE_HALL".equals(roomType);
+            return !"LECTURE_HALL".equals(roomType);
         }
 
-        // Small courses prefer seminars or classrooms
-        if (assignment.getCourse().getEnrollmentCapacity() < 25) {
-            return "SEMINAR".equals(roomType) || "CLASSROOM".equals(roomType);
-        }
-
-        return true;
+        // No mismatch for other cases
+        return false;
     }
 }
