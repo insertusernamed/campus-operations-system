@@ -163,4 +163,66 @@ class ScheduleConstraintProviderTest {
                     .penalizesBy(0);
         }
     }
+
+    @Nested
+    @DisplayName("Room Type Mismatch Constraint")
+    class RoomTypeMismatch {
+
+        @Test
+        @DisplayName("should penalize science course not in lab")
+        void shouldPenalizeScienceCourseNotInLab() {
+            Course chemistryCourse = Course.builder().id(3L).code("CHEM101").name("Intro Chemistry")
+                    .enrollmentCapacity(25).instructor(instructor1).department("Chemistry").build();
+
+            ScheduleAssignment assignment = ScheduleAssignment.builder()
+                    .id(1L).course(chemistryCourse).room(room1).timeSlot(slot1).semester("Fall 2026").build();
+
+            constraintVerifier.verifyThat(ScheduleConstraintProvider::roomTypeMismatch)
+                    .given(assignment)
+                    .penalizesBy(1); // Chemistry in CLASSROOM = mismatch
+        }
+
+        @Test
+        @DisplayName("should not penalize science course in lab")
+        void shouldNotPenalizeScienceCourseInLab() {
+            Room labRoom = Room.builder().id(3L).roomNumber("LAB101").capacity(30).type(Room.RoomType.LAB).build();
+            Course physicsCourse = Course.builder().id(3L).code("PHYS101").name("Physics Lab")
+                    .enrollmentCapacity(25).instructor(instructor1).department("Physics").build();
+
+            ScheduleAssignment assignment = ScheduleAssignment.builder()
+                    .id(1L).course(physicsCourse).room(labRoom).timeSlot(slot1).semester("Fall 2026").build();
+
+            constraintVerifier.verifyThat(ScheduleConstraintProvider::roomTypeMismatch)
+                    .given(assignment)
+                    .penalizesBy(0);
+        }
+
+        @Test
+        @DisplayName("should penalize large course not in lecture hall")
+        void shouldPenalizeLargeCourseNotInLectureHall() {
+            Course largeCourse = Course.builder().id(3L).code("CS101").name("Intro CS Large")
+                    .enrollmentCapacity(100).instructor(instructor1).department("Computer Science").build();
+
+            ScheduleAssignment assignment = ScheduleAssignment.builder()
+                    .id(1L).course(largeCourse).room(room1).timeSlot(slot1).semester("Fall 2026").build();
+
+            constraintVerifier.verifyThat(ScheduleConstraintProvider::roomTypeMismatch)
+                    .given(assignment)
+                    .penalizesBy(1); // 100 students in CLASSROOM = mismatch
+        }
+
+        @Test
+        @DisplayName("should not penalize large course in lecture hall")
+        void shouldNotPenalizeLargeCourseInLectureHall() {
+            Course largeCourse = Course.builder().id(3L).code("CS101").name("Intro CS Large")
+                    .enrollmentCapacity(100).instructor(instructor1).department("Computer Science").build();
+
+            ScheduleAssignment assignment = ScheduleAssignment.builder()
+                    .id(1L).course(largeCourse).room(room2).timeSlot(slot1).semester("Fall 2026").build();
+
+            constraintVerifier.verifyThat(ScheduleConstraintProvider::roomTypeMismatch)
+                    .given(assignment)
+                    .penalizesBy(0); // 100 students in LECTURE_HALL = match
+        }
+    }
 }

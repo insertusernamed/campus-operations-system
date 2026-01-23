@@ -55,11 +55,20 @@ public class SolverService {
 
     /**
      * Start solving for the given semester.
+     * Terminates any previously running solver before starting.
      *
      * @param semester the semester to schedule
      * @return the problem ID
      */
+    @Transactional(readOnly = true)
     public Long startSolving(String semester) {
+        // Terminate any previous solver job
+        Long previousId = currentProblemId.get();
+        if (previousId != null && solverManager.getSolverStatus(previousId) == SolverStatus.SOLVING_ACTIVE) {
+            log.info("Terminating previous solver job {}", previousId);
+            solverManager.terminateEarly(previousId);
+        }
+
         Long problemId = problemIdGenerator.incrementAndGet();
         currentProblemId.set(problemId);
 
@@ -71,9 +80,11 @@ public class SolverService {
         solverManager.solveBuilder()
                 .withProblemId(problemId)
                 .withProblem(problem)
-                .withExceptionHandler((id, exception) -> {
-                    log.error("Solver failed for problem {}", id, exception);
+                .withBestSolutionEventConsumer(event -> {
+                    log.debug("New best solution: {}", event.solution().getScore());
+                    bestSolution.set(event.solution());
                 })
+                .withExceptionHandler((id, exception) -> log.error("Solver failed for problem {}", id, exception))
                 .run();
 
         return problemId;
@@ -165,11 +176,20 @@ public class SolverService {
 
     /**
      * Build the initial problem from database data.
+     * Note: We fetch all data within a transaction to avoid lazy loading issues.
+     * Course.instructor is eagerly initialized here.
      */
     private ScheduleSolution buildProblem(String semester) {
         List<Course> courses = courseRepository.findAll();
         List<Room> rooms = roomRepository.findAll();
         List<TimeSlot> timeSlots = timeSlotRepository.findAll();
+
+        // Force initialization of lazy associations within transaction
+        courses.forEach(course -> {
+            if (course.getInstructor() != null) {
+                course.getInstructor().getId(); // Initialize proxy
+            }
+        });
 
         log.info("Building problem: {} courses, {} rooms, {} time slots",
                 courses.size(), rooms.size(), timeSlots.size());
