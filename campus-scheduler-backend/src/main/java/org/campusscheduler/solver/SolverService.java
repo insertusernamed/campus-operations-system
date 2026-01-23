@@ -13,6 +13,8 @@ import org.campusscheduler.domain.schedule.Schedule;
 import org.campusscheduler.domain.schedule.ScheduleRepository;
 import org.campusscheduler.domain.timeslot.TimeSlot;
 import org.campusscheduler.domain.timeslot.TimeSlotRepository;
+import org.campusscheduler.websocket.SolverProgressEvent;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,191 +27,251 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * Service for managing the Timefold solver.
  * Handles starting, stopping, and retrieving solutions.
+ * Broadcasts progress updates via WebSocket.
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class SolverService {
 
-    private final SolverManager<ScheduleSolution, Long> solverManager;
-    private final CourseRepository courseRepository;
-    private final RoomRepository roomRepository;
-    private final TimeSlotRepository timeSlotRepository;
-    private final ScheduleRepository scheduleRepository;
+	private static final String SOLVER_TOPIC = "/topic/solver/progress";
 
-    private static final AtomicLong problemIdGenerator = new AtomicLong(0);
-    private final AtomicReference<Long> currentProblemId = new AtomicReference<>();
-    private final AtomicReference<ScheduleSolution> bestSolution = new AtomicReference<>();
+	private final SolverManager<ScheduleSolution, Long> solverManager;
+	private final CourseRepository courseRepository;
+	private final RoomRepository roomRepository;
+	private final TimeSlotRepository timeSlotRepository;
+	private final ScheduleRepository scheduleRepository;
+	private final SimpMessagingTemplate messagingTemplate;
 
-    /**
-     * DTO for solver status.
-     */
-    public record SolverStatusResponse(
-            SolverStatus status,
-            HardSoftScore score,
-            int assignedCourses,
-            int totalCourses,
-            long hardViolations,
-            long softScore) {
-    }
+	private static final AtomicLong problemIdGenerator = new AtomicLong(0);
+	private final AtomicReference<Long> currentProblemId = new AtomicReference<>();
+	private final AtomicReference<ScheduleSolution> bestSolution = new AtomicReference<>();
 
-    /**
-     * Start solving for the given semester.
-     * Terminates any previously running solver before starting.
-     *
-     * @param semester the semester to schedule
-     * @return the problem ID
-     */
-    @Transactional(readOnly = true)
-    public Long startSolving(String semester) {
-        // Terminate any previous solver job
-        Long previousId = currentProblemId.get();
-        if (previousId != null && solverManager.getSolverStatus(previousId) == SolverStatus.SOLVING_ACTIVE) {
-            log.info("Terminating previous solver job {}", previousId);
-            solverManager.terminateEarly(previousId);
-        }
+	/**
+	 * DTO for solver status.
+	 */
+	public record SolverStatusResponse(
+			SolverStatus status,
+			HardSoftScore score,
+			int assignedCourses,
+			int totalCourses,
+			long hardViolations,
+			long softScore) {
+	}
 
-        Long problemId = problemIdGenerator.incrementAndGet();
-        currentProblemId.set(problemId);
+	/**
+	 * Start solving for the given semester.
+	 * Terminates any previously running solver before starting.
+	 *
+	 * @param semester the semester to schedule
+	 * @return the problem ID
+	 */
+	@Transactional(readOnly = true)
+	public Long startSolving(String semester) {
+		// Terminate any previous solver job
+		Long previousId = currentProblemId.get();
+		if (previousId != null && solverManager.getSolverStatus(previousId) == SolverStatus.SOLVING_ACTIVE) {
+			log.info("Terminating previous solver job {}", previousId);
+			solverManager.terminateEarly(previousId);
+		}
 
-        log.info("Starting solver for semester {} with problem ID {}", semester, problemId);
+		Long problemId = problemIdGenerator.incrementAndGet();
+		currentProblemId.set(problemId);
 
-        ScheduleSolution problem = buildProblem(semester);
-        bestSolution.set(problem);
+		log.info("Starting solver for semester {} with problem ID {}", semester, problemId);
 
-        solverManager.solveBuilder()
-                .withProblemId(problemId)
-                .withProblem(problem)
-                .withBestSolutionEventConsumer(event -> {
-                    log.debug("New best solution: {}", event.solution().getScore());
-                    bestSolution.set(event.solution());
-                })
-                .withExceptionHandler((id, exception) -> log.error("Solver failed for problem {}", id, exception))
-                .run();
+		ScheduleSolution problem = buildProblem(semester);
+		bestSolution.set(problem);
 
-        return problemId;
-    }
+		// Broadcast start event
+		broadcastProgress(SolverStatus.SOLVING_ACTIVE, problem, "Solver started");
 
-    /**
-     * Get the current solver status.
-     */
-    public SolverStatusResponse getStatus() {
-        Long problemId = currentProblemId.get();
-        if (problemId == null) {
-            return new SolverStatusResponse(
-                    SolverStatus.NOT_SOLVING, null, 0, 0, 0, 0);
-        }
+		// Keep reference for error fallback
+		final ScheduleSolution initialProblem = problem;
 
-        SolverStatus status = solverManager.getSolverStatus(problemId);
-        ScheduleSolution solution = bestSolution.get();
+		solverManager.solveBuilder()
+				.withProblemId(problemId)
+				.withProblem(problem)
+				.withBestSolutionEventConsumer(event -> {
+					ScheduleSolution solution = event.solution();
+					log.debug("New best solution: {}", solution.getScore());
+					bestSolution.set(solution);
+					broadcastProgress(SolverStatus.SOLVING_ACTIVE, solution, "New best solution found");
+				})
+				.withFinalBestSolutionConsumer(solution -> {
+					log.info("Solving finished with score: {}", solution.getScore());
+					bestSolution.set(solution);
+					broadcastProgress(SolverStatus.NOT_SOLVING, solution, "Solving complete");
+				})
+				.withExceptionHandler((id, exception) -> {
+					log.error("Solver failed for problem {}", id, exception);
+					// Use bestSolution or fallback to initialProblem for error notification
+					ScheduleSolution solutionForError = bestSolution.get();
+					if (solutionForError == null) {
+						solutionForError = initialProblem;
+					}
+					broadcastProgress(SolverStatus.NOT_SOLVING, solutionForError,
+							"Solver error: " + exception.getMessage());
+				})
+				.run();
 
-        if (solution == null) {
-            return new SolverStatusResponse(status, null, 0, 0, 0, 0);
-        }
+		return problemId;
+	}
 
-        long assignedCourses = solution.getAssignments().stream()
-                .filter(ScheduleAssignment::isInitialized)
-                .count();
+	/**
+	 * Broadcast solver progress to WebSocket clients.
+	 * Silently handles messaging failures to avoid disrupting solver execution.
+	 */
+	private void broadcastProgress(SolverStatus status, ScheduleSolution solution, String message) {
+		if (solution == null) {
+			return;
+		}
 
-        HardSoftScore score = solution.getScore();
-        long hardViolations = score != null ? -score.hardScore() : 0;
-        long softScore = score != null ? score.softScore() : 0;
+		// Null-safe access to assignments
+		var assignments = solution.getAssignments();
+		if (assignments == null) {
+			assignments = java.util.Collections.emptyList();
+		}
 
-        return new SolverStatusResponse(
-                status,
-                score,
-                (int) assignedCourses,
-                solution.getAssignments().size(),
-                hardViolations,
-                softScore);
-    }
+		int assigned = (int) assignments.stream()
+				.filter(ScheduleAssignment::isInitialized)
+				.count();
 
-    /**
-     * Stop the current solving process.
-     */
-    public void stopSolving() {
-        Long problemId = currentProblemId.get();
-        if (problemId != null) {
-            log.info("Stopping solver for problem ID {}", problemId);
-            solverManager.terminateEarly(problemId);
-        }
-    }
+		SolverProgressEvent event = SolverProgressEvent.of(
+				status,
+				solution.getScore(),
+				assigned,
+				assignments.size(),
+				message);
 
-    /**
-     * Get the current best solution.
-     */
-    public ScheduleSolution getBestSolution() {
-        return bestSolution.get();
-    }
+		try {
+			messagingTemplate.convertAndSend(SOLVER_TOPIC, event);
+		} catch (Exception e) {
+			log.warn("Failed to broadcast solver progress: {}", e.getMessage());
+		}
+	}
 
-    /**
-     * Save the current solution as Schedule entities.
-     */
-    @Transactional
-    public int saveSolution() {
-        ScheduleSolution solution = bestSolution.get();
-        if (solution == null || solution.getAssignments() == null) {
-            return 0;
-        }
+	/**
+	 * Get the current solver status.
+	 */
+	public SolverStatusResponse getStatus() {
+		Long problemId = currentProblemId.get();
+		if (problemId == null) {
+			return new SolverStatusResponse(
+					SolverStatus.NOT_SOLVING, null, 0, 0, 0, 0);
+		}
 
-        // Clear existing schedules for this semester
-        String semester = solution.getSemester();
-        scheduleRepository.deleteBySemester(semester);
+		SolverStatus status = solverManager.getSolverStatus(problemId);
+		ScheduleSolution solution = bestSolution.get();
 
-        int count = 0;
-        for (ScheduleAssignment assignment : solution.getAssignments()) {
-            if (assignment.isInitialized()) {
-                Schedule schedule = Schedule.builder()
-                        .course(assignment.getCourse())
-                        .room(assignment.getRoom())
-                        .timeSlot(assignment.getTimeSlot())
-                        .semester(semester)
-                        .build();
-                scheduleRepository.save(schedule);
-                count++;
-            }
-        }
+		if (solution == null) {
+			return new SolverStatusResponse(status, null, 0, 0, 0, 0);
+		}
 
-        log.info("Saved {} schedules for semester {}", count, semester);
-        return count;
-    }
+		long assignedCourses = solution.getAssignments().stream()
+				.filter(ScheduleAssignment::isInitialized)
+				.count();
 
-    /**
-     * Build the initial problem from database data.
-     * Note: We fetch all data within a transaction to avoid lazy loading issues.
-     * Course.instructor is eagerly initialized here.
-     */
-    private ScheduleSolution buildProblem(String semester) {
-        List<Course> courses = courseRepository.findAll();
-        List<Room> rooms = roomRepository.findAll();
-        List<TimeSlot> timeSlots = timeSlotRepository.findAll();
+		HardSoftScore score = solution.getScore();
+		long hardViolations = score != null ? -score.hardScore() : 0;
+		long softScore = score != null ? score.softScore() : 0;
 
-        // Force initialization of lazy associations within transaction
-        courses.forEach(course -> {
-            if (course.getInstructor() != null) {
-                course.getInstructor().getId(); // Initialize proxy
-            }
-        });
+		return new SolverStatusResponse(
+				status,
+				score,
+				(int) assignedCourses,
+				solution.getAssignments().size(),
+				hardViolations,
+				softScore);
+	}
 
-        log.info("Building problem: {} courses, {} rooms, {} time slots",
-                courses.size(), rooms.size(), timeSlots.size());
+	/**
+	 * Stop the current solving process.
+	 */
+	public void stopSolving() {
+		Long problemId = currentProblemId.get();
+		if (problemId != null) {
+			log.info("Stopping solver for problem ID {}", problemId);
+			solverManager.terminateEarly(problemId);
+			broadcastProgress(SolverStatus.NOT_SOLVING, bestSolution.get(), "Solver stopped by user");
+		}
+	}
 
-        List<ScheduleAssignment> assignments = courses.stream()
-                .map(course -> {
-                    ScheduleAssignment assignment = new ScheduleAssignment();
-                    assignment.setId(course.getId());
-                    assignment.setCourse(course);
-                    assignment.setSemester(semester);
-                    // Room and TimeSlot are null - Timefold will assign them
-                    return assignment;
-                })
-                .collect(Collectors.toList());
+	/**
+	 * Get the current best solution.
+	 */
+	public ScheduleSolution getBestSolution() {
+		return bestSolution.get();
+	}
 
-        return ScheduleSolution.builder()
-                .rooms(rooms)
-                .timeSlots(timeSlots)
-                .assignments(assignments)
-                .semester(semester)
-                .build();
-    }
+	/**
+	 * Save the current solution as Schedule entities.
+	 */
+	@Transactional
+	public int saveSolution() {
+		ScheduleSolution solution = bestSolution.get();
+		if (solution == null || solution.getAssignments() == null) {
+			return 0;
+		}
+
+		// Clear existing schedules for this semester
+		String semester = solution.getSemester();
+		scheduleRepository.deleteBySemester(semester);
+
+		int count = 0;
+		for (ScheduleAssignment assignment : solution.getAssignments()) {
+			if (assignment.isInitialized()) {
+				Schedule schedule = Schedule.builder()
+						.course(assignment.getCourse())
+						.room(assignment.getRoom())
+						.timeSlot(assignment.getTimeSlot())
+						.semester(semester)
+						.build();
+				scheduleRepository.save(schedule);
+				count++;
+			}
+		}
+
+		log.info("Saved {} schedules for semester {}", count, semester);
+		return count;
+	}
+
+	/**
+	 * Build the initial problem from database data.
+	 * Note: We fetch all data within a transaction to avoid lazy loading issues.
+	 * Course.instructor is eagerly initialized here.
+	 */
+	private ScheduleSolution buildProblem(String semester) {
+		List<Course> courses = courseRepository.findAll();
+		List<Room> rooms = roomRepository.findAll();
+		List<TimeSlot> timeSlots = timeSlotRepository.findAll();
+
+		// Force initialization of lazy associations within transaction
+		courses.forEach(course -> {
+			if (course.getInstructor() != null) {
+				course.getInstructor().getId(); // Initialize proxy
+			}
+		});
+
+		log.info("Building problem: {} courses, {} rooms, {} time slots",
+				courses.size(), rooms.size(), timeSlots.size());
+
+		List<ScheduleAssignment> assignments = courses.stream()
+				.map(course -> {
+					ScheduleAssignment assignment = new ScheduleAssignment();
+					assignment.setId(course.getId());
+					assignment.setCourse(course);
+					assignment.setSemester(semester);
+					// Room and TimeSlot are null - Timefold will assign them
+					return assignment;
+				})
+				.collect(Collectors.toList());
+
+		return ScheduleSolution.builder()
+				.rooms(rooms)
+				.timeSlots(timeSlots)
+				.assignments(assignments)
+				.semester(semester)
+				.build();
+	}
 }
