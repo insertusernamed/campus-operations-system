@@ -56,4 +56,9 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
      * Count schedules for all rooms in a specific building for a semester.
      */
     long countByRoomBuildingIdAndSemester(Long buildingId, String semester);
+
+    /**
+     * Delete all schedules for a specific semester.
+     */
+    void deleteBySemester(String semester);
 }
