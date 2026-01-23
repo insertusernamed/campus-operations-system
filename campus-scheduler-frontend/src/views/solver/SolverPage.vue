@@ -7,7 +7,7 @@ import { generatorService } from '@/services/generator'
 const semester = ref('Fall 2026')
 const semesters = ['Fall 2026', 'Spring 2026', 'Fall 2025']
 
-const { progress, connected } = useSolverWebSocket()
+const { progress, connected, error: wsError } = useSolverWebSocket()
 
 const isLoading = ref(false)
 const isGenerating = ref(false)
@@ -19,6 +19,7 @@ const isSolving = computed(() => progress.value?.status === 'SOLVING_ACTIVE')
 async function generateData() {
 	isGenerating.value = true
 	errorMessage.value = ''
+	statusMessage.value = ''
 	try {
 		const result = await generatorService.generateSmall()
 		statusMessage.value = `Generated: ${result.buildings} buildings, ${result.rooms} rooms, ${result.instructors} instructors, ${result.courses} courses`
@@ -33,6 +34,7 @@ async function clearData() {
 	if (!confirm('Clear all generated data?')) return
 	isLoading.value = true
 	errorMessage.value = ''
+	statusMessage.value = ''
 	try {
 		await generatorService.reset()
 		statusMessage.value = 'All data cleared'
@@ -46,6 +48,7 @@ async function clearData() {
 async function startSolver() {
 	isLoading.value = true
 	errorMessage.value = ''
+	statusMessage.value = ''
 	try {
 		const result = await solverService.start(semester.value)
 		statusMessage.value = result.message
@@ -95,6 +98,9 @@ const progressPercent = computed(() => {
 			<span :class="connected ? 'text-green-600' : 'text-red-600'">
 				{{ connected ? 'Connected' : 'Disconnected' }}
 			</span>
+			<div v-if="wsError" class="text-red-600 mt-1">
+				WebSocket Error: {{ wsError }}
+			</div>
 		</div>
 
 		<!-- Data Generator Panel -->
