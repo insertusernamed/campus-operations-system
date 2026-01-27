@@ -2,9 +2,11 @@ package org.campusscheduler.generator;
 
 import org.campusscheduler.generator.UniversityGeneratorService.GenerationConfig;
 import org.campusscheduler.generator.UniversityGeneratorService.GenerationResult;
+import org.campusscheduler.generator.UniversityGeneratorService.UniversityStats;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -31,89 +33,98 @@ import lombok.extern.slf4j.Slf4j;
 @Tag(name = "Data Generator", description = "Generate demo data for presentations")
 public class DataGeneratorController {
 
-    private final UniversityGeneratorService universityGeneratorService;
+	private final UniversityGeneratorService universityGeneratorService;
 
-    /**
-     * Request DTO for generating university data.
-     */
-    public record GenerateRequest(
-            @Min(value = 1, message = "At least 1 building required") @Max(value = 12, message = "Maximum 12 buildings allowed") Integer buildings,
+	/**
+	 * Request DTO for generating university data.
+	 */
+	public record GenerateRequest(
+			@Min(value = 1, message = "At least 1 building required") @Max(value = 12, message = "Maximum 12 buildings allowed") Integer buildings,
 
-            @Min(value = 1, message = "At least 1 room per building required") @Max(value = 50, message = "Maximum 50 rooms per building allowed") Integer roomsPerBuilding,
+			@Min(value = 1, message = "At least 1 room per building required") @Max(value = 50, message = "Maximum 50 rooms per building allowed") Integer roomsPerBuilding,
 
-            @Min(value = 1, message = "At least 1 instructor required") @Max(value = 1000, message = "Maximum 1000 instructors allowed") Integer instructors,
+			@Min(value = 1, message = "At least 1 instructor required") @Max(value = 1000, message = "Maximum 1000 instructors allowed") Integer instructors,
 
-            @Min(value = 1, message = "At least 1 course required") @Max(value = 2000, message = "Maximum 2000 courses allowed") Integer courses) {
+			@Min(value = 1, message = "At least 1 course required") @Max(value = 2000, message = "Maximum 2000 courses allowed") Integer courses) {
 
-        /**
-         * Convert to GenerationConfig with defaults for null values.
-         */
-        public GenerationConfig toConfig() {
-            GenerationConfig defaults = GenerationConfig.defaultConfig();
-            return new GenerationConfig(
-                    buildings != null ? buildings : defaults.buildings(),
-                    roomsPerBuilding != null ? roomsPerBuilding : defaults.roomsPerBuilding(),
-                    instructors != null ? instructors : defaults.instructors(),
-                    courses != null ? courses : defaults.courses());
-        }
-    }
+		/**
+		 * Convert to GenerationConfig with defaults for null values.
+		 */
+		public GenerationConfig toConfig() {
+			GenerationConfig defaults = GenerationConfig.defaultConfig();
+			return new GenerationConfig(
+					buildings != null ? buildings : defaults.buildings(),
+					roomsPerBuilding != null ? roomsPerBuilding : defaults.roomsPerBuilding(),
+					instructors != null ? instructors : defaults.instructors(),
+					courses != null ? courses : defaults.courses());
+		}
+	}
 
-    /**
-     * Generate a complete university dataset.
-     */
-    @PostMapping("/university")
-    @Operation(summary = "Generate complete university", description = "Creates buildings, rooms, instructors, and courses. Clears existing data first.")
-    public ResponseEntity<GenerationResult> generateUniversity(
-            @Valid @RequestBody(required = false) GenerateRequest request) {
+	/**
+	 * Generate a complete university dataset.
+	 */
+	@PostMapping("/university")
+	@Operation(summary = "Generate complete university", description = "Creates buildings, rooms, instructors, and courses. Clears existing data first.")
+	public ResponseEntity<GenerationResult> generateUniversity(
+			@Valid @RequestBody(required = false) GenerateRequest request) {
 
-        GenerationConfig config = request != null
-                ? request.toConfig()
-                : GenerationConfig.defaultConfig();
+		GenerationConfig config = request != null
+				? request.toConfig()
+				: GenerationConfig.defaultConfig();
 
-        log.info("Received generate request with config: {}", config);
-        GenerationResult result = universityGeneratorService.generateUniversity(config);
+		log.info("Received generate request with config: {}", config);
+		GenerationResult result = universityGeneratorService.generateUniversity(config);
 
-        return ResponseEntity.ok(result);
-    }
+		return ResponseEntity.ok(result);
+	}
 
-    /**
-     * Generate a small university for quick testing.
-     */
-    @PostMapping("/university/small")
-    @Operation(summary = "Generate small university", description = "Creates a small dataset (4 buildings, 40 rooms, 50 instructors, 100 courses)")
-    public ResponseEntity<GenerationResult> generateSmallUniversity() {
-        log.info("Generating small university");
-        GenerationResult result = universityGeneratorService.generateUniversity(GenerationConfig.small());
-        return ResponseEntity.ok(result);
-    }
+	/**
+	 * Generate a small university for quick testing.
+	 */
+	@PostMapping("/university/small")
+	@Operation(summary = "Generate small university", description = "Creates a small dataset (4 buildings, 40 rooms, 50 instructors, 100 courses)")
+	public ResponseEntity<GenerationResult> generateSmallUniversity() {
+		log.info("Generating small university");
+		GenerationResult result = universityGeneratorService.generateUniversity(GenerationConfig.small());
+		return ResponseEntity.ok(result);
+	}
 
-    /**
-     * Generate a large university for stress testing.
-     */
-    @PostMapping("/university/large")
-    @Operation(summary = "Generate large university", description = "Creates a large dataset (12 buildings, 240 rooms, 300 instructors, 800 courses)")
-    public ResponseEntity<GenerationResult> generateLargeUniversity() {
-        log.info("Generating large university");
-        GenerationResult result = universityGeneratorService.generateUniversity(GenerationConfig.large());
-        return ResponseEntity.ok(result);
-    }
+	/**
+	 * Generate a large university for stress testing.
+	 */
+	@PostMapping("/university/large")
+	@Operation(summary = "Generate large university", description = "Creates a large dataset (12 buildings, 240 rooms, 300 instructors, 800 courses)")
+	public ResponseEntity<GenerationResult> generateLargeUniversity() {
+		log.info("Generating large university");
+		GenerationResult result = universityGeneratorService.generateUniversity(GenerationConfig.large());
+		return ResponseEntity.ok(result);
+	}
 
-    /**
-     * Clear all data from the database.
-     *
-     * <p>
-     * <strong>WARNING:</strong> This endpoint deletes all data without
-     * confirmation.
-     * In production environments, ensure this endpoint is restricted to admin users
-     * only.
-     * See SecurityConfig for authentication/authorization configuration.
-     * </p>
-     */
-    @DeleteMapping("/reset")
-    @Operation(summary = "Reset database", description = "Clears all schedules, courses, instructors, rooms, and buildings. WARNING: For development/demo use only.")
-    public ResponseEntity<Void> resetDatabase() {
-        log.info("Resetting database");
-        universityGeneratorService.clearAll();
-        return ResponseEntity.noContent().build();
-    }
+	/**
+	 * Clear all data from the database.
+	 *
+	 * <p>
+	 * <strong>WARNING:</strong> This endpoint deletes all data without
+	 * confirmation.
+	 * In production environments, ensure this endpoint is restricted to admin users
+	 * only.
+	 * See SecurityConfig for authentication/authorization configuration.
+	 * </p>
+	 */
+	@DeleteMapping("/reset")
+	@Operation(summary = "Reset database", description = "Clears all schedules, courses, instructors, rooms, and buildings. WARNING: For development/demo use only.")
+	public ResponseEntity<Void> resetDatabase() {
+		log.info("Resetting database");
+		universityGeneratorService.clearAll();
+		return ResponseEntity.noContent().build();
+	}
+
+	/**
+	 * Get current database statistics.
+	 */
+	@GetMapping("/stats")
+	@Operation(summary = "Get database stats", description = "Returns counts of buildings, rooms, instructors, courses, and schedules.")
+	public ResponseEntity<UniversityStats> getStats() {
+		return ResponseEntity.ok(universityGeneratorService.getStats());
+	}
 }
