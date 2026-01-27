@@ -148,6 +148,29 @@ public class UniversityGeneratorService {
     }
 
     /**
+     * Statistics about the generated university.
+     */
+    public record UniversityStats(
+            long buildings,
+            long rooms,
+            long instructors,
+            long courses,
+            long schedules) {
+    }
+
+    /**
+     * Get current statistics of the university data.
+     */
+    public UniversityStats getStats() {
+        return new UniversityStats(
+                buildingRepository.count(),
+                roomRepository.count(),
+                instructorRepository.count(),
+                courseRepository.count(),
+                scheduleRepository.count());
+    }
+
+    /**
      * Generates buildings with realistic names.
      */
     private List<Building> generateBuildings(int count) {
