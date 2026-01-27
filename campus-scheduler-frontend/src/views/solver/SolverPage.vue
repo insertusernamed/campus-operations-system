@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useSolverWebSocket } from '@/composables/useSolverWebSocket'
 import { solverService } from '@/services/solver'
 import { generatorService } from '@/services/generator'
+import { toast } from 'vue3-toastify'
+
+const router = useRouter()
 
 const semester = ref('Fall 2026')
 const semesters = ['Fall 2026', 'Spring 2026', 'Fall 2025']
@@ -25,6 +29,7 @@ async function generateData() {
 		statusMessage.value = `Generated: ${result.buildings} buildings, ${result.rooms} rooms, ${result.instructors} instructors, ${result.courses} courses`
 	} catch (e: unknown) {
 		errorMessage.value = e instanceof Error ? e.message : 'Failed to generate data'
+		toast.error(errorMessage.value)
 	} finally {
 		isGenerating.value = false
 	}
@@ -40,6 +45,7 @@ async function clearData() {
 		statusMessage.value = 'All data cleared'
 	} catch (e: unknown) {
 		errorMessage.value = e instanceof Error ? e.message : 'Failed to clear data'
+		toast.error(errorMessage.value)
 	} finally {
 		isLoading.value = false
 	}
@@ -54,6 +60,7 @@ async function startSolver() {
 		statusMessage.value = result.message
 	} catch (e: unknown) {
 		errorMessage.value = e instanceof Error ? e.message : 'Failed to start solver'
+		toast.error(errorMessage.value)
 	} finally {
 		isLoading.value = false
 	}
@@ -66,6 +73,7 @@ async function stopSolver() {
 		statusMessage.value = 'Solver stopped'
 	} catch (e: unknown) {
 		errorMessage.value = e instanceof Error ? e.message : 'Failed to stop solver'
+		toast.error(errorMessage.value)
 	} finally {
 		isLoading.value = false
 	}
@@ -76,8 +84,13 @@ async function saveSolution() {
 	try {
 		const result = await solverService.save()
 		statusMessage.value = result.message
+		toast.success('Solution saved successfully!', {
+			onClick: () => router.push('/schedules'),
+			style: { cursor: 'pointer' },
+		})
 	} catch (e: unknown) {
 		errorMessage.value = e instanceof Error ? e.message : 'Failed to save solution'
+		toast.error('Failed to save solution')
 	} finally {
 		isLoading.value = false
 	}
