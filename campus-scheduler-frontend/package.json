@@ -13,6 +13,7 @@
         "@stomp/stompjs": "^7.2.1",
         "@tailwindcss/vite": "^4.1.18",
         "axios": "^1.13.2",
+        "floating-vue": "^5.2.2",
         "sockjs-client": "^1.6.1",
         "tailwindcss": "^4.1.18",
         "vue": "^3.5.24",
