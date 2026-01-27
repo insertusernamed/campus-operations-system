@@ -184,14 +184,18 @@ const progressPercent = computed(() => {
 					<div class="text-sm text-gray-500">Assigned</div>
 				</div>
 				<div class="text-center p-3 bg-gray-50">
-					<div class="text-2xl font-bold"
+					<div v-tooltip="{ content: 'Critical constraint violations that must be fixed (e.g., two classes in the same room at the same time). Must be 0 for a valid schedule.', distance: 8 }"
+						class="text-2xl font-bold cursor-help"
 						:class="progress.hardViolations > 0 ? 'text-red-600' : 'text-green-600'">
 						{{ progress.hardViolations }}
 					</div>
 					<div class="text-sm text-gray-500">Hard Violations</div>
 				</div>
 				<div class="text-center p-3 bg-gray-50">
-					<div class="text-2xl font-bold">{{ progress.score || 'N/A' }}</div>
+					<div v-tooltip="{ content: 'Solution quality score (format: Xhard/Ysoft). Hard score must be 0 for validity. Lower soft score = better optimization.', distance: 8 }"
+						class="text-2xl font-bold cursor-help">
+						{{ progress.score || 'N/A' }}
+					</div>
 					<div class="text-sm text-gray-500">Score</div>
 				</div>
 			</div>
