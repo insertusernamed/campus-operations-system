@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSolverWebSocket } from '@/composables/useSolverWebSocket'
 import { solverService } from '@/services/solver'
-import { generatorService } from '@/services/generator'
+import { generatorService, type UniversityStats } from '@/services/generator'
 import { toast } from 'vue3-toastify'
 
 const router = useRouter()
@@ -17,16 +17,50 @@ const isLoading = ref(false)
 const isGenerating = ref(false)
 const statusMessage = ref('')
 const errorMessage = ref('')
+const stats = ref<UniversityStats>({
+	buildings: 0,
+	rooms: 0,
+	instructors: 0,
+	courses: 0,
+	schedules: 0
+})
+const datasetSize = ref<'Small' | 'Medium' | 'Large'>('Small')
 
 const isSolving = computed(() => progress.value?.status === 'SOLVING_ACTIVE')
+
+async function fetchStats() {
+	try {
+		stats.value = await generatorService.getStats()
+	} catch (e) {
+		console.error('Failed to fetch stats', e)
+	}
+}
+
+onMounted(() => {
+	fetchStats()
+})
 
 async function generateData() {
 	isGenerating.value = true
 	errorMessage.value = ''
 	statusMessage.value = ''
 	try {
-		const result = await generatorService.generateSmall()
+		let result
+		if (datasetSize.value === 'Small') {
+			result = await generatorService.generateSmall()
+		} else if (datasetSize.value === 'Large') {
+			result = await generatorService.generateLarge()
+		} else {
+			// Medium dataset
+			result = await generatorService.generateUniversity({
+				buildings: 6,
+				roomsPerBuilding: 25,
+				instructors: 100,
+				courses: 300
+			})
+		}
 		statusMessage.value = `Generated: ${result.buildings} buildings, ${result.rooms} rooms, ${result.instructors} instructors, ${result.courses} courses`
+		await fetchStats()
 	} catch (e: unknown) {
 		errorMessage.value = e instanceof Error ? e.message : 'Failed to generate data'
 		toast.error(errorMessage.value)
@@ -43,6 +77,7 @@ async function clearData() {
 	try {
 		await generatorService.reset()
 		statusMessage.value = 'All data cleared'
+		await fetchStats()
 	} catch (e: unknown) {
 		errorMessage.value = e instanceof Error ? e.message : 'Failed to clear data'
 		toast.error(errorMessage.value)
@@ -116,17 +151,53 @@ const progressPercent = computed(() => {
 			</div>
 		</div>
 
+		<!-- Current Statistics -->
+		<div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+			<div
+				class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col items-center justify-center text-center">
+				<div class="text-gray-500 text-sm">Buildings</div>
+				<div class="text-2xl font-bold">{{ stats.buildings }}</div>
+			</div>
+			<div
+				class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col items-center justify-center text-center">
+				<div class="text-gray-500 text-sm">Rooms</div>
+				<div class="text-2xl font-bold">{{ stats.rooms }}</div>
+			</div>
+			<div
+				class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col items-center justify-center text-center">
+				<div class="text-gray-500 text-sm">Instructors</div>
+				<div class="text-2xl font-bold">{{ stats.instructors }}</div>
+			</div>
+			<div
+				class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col items-center justify-center text-center">
+				<div class="text-gray-500 text-sm">Courses</div>
+				<div class="text-2xl font-bold">{{ stats.courses }}</div>
+			</div>
+			<div
+				class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col items-center justify-center text-center">
+				<div class="text-gray-500 text-sm">Scheduled Classes</div>
+				<div class="text-2xl font-bold">{{ stats.schedules }}</div>
+			</div>
+		</div>
+
 		<!-- Data Generator Panel -->
 		<div class="border p-4 mb-6">
 			<h2 class="font-semibold mb-3">Data Generator</h2>
-			<div class="flex gap-3">
+			<div class="flex items-center gap-3">
+				<div>
+					<select v-model="datasetSize" class="border px-3 py-2 rounded bg-white" :disabled="isGenerating">
+						<option value="Small">Small Dataset</option>
+						<option value="Medium">Medium Dataset</option>
+						<option value="Large">Large Dataset</option>
+					</select>
+				</div>
 				<button @click="generateData" :disabled="isGenerating"
-					class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
-					{{ isGenerating ? 'Generating...' : 'Generate Demo Data' }}
+					class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 min-w-35">
+					{{ isGenerating ? 'Generating...' : 'Generate Data' }}
 				</button>
 				<button @click="clearData" :disabled="isLoading"
-					class="px-4 py-2 border border-red-500 text-red-600 hover:bg-red-50 disabled:opacity-50">
-					Clear All Data
+					class="px-4 py-2 border border-red-500 text-red-600 rounded hover:bg-red-50 disabled:opacity-50">
+					Clear All
 				</button>
 			</div>
 		</div>

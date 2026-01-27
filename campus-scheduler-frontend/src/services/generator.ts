@@ -34,4 +34,17 @@ export const generatorService = {
 	async reset(): Promise<void> {
 		await api.delete('/generator/reset')
 	},
+
+	async getStats(): Promise<UniversityStats> {
+		const response = await api.get<UniversityStats>('/generator/stats')
+		return response.data
+	},
+}
+
+export interface UniversityStats {
+	buildings: number
+	rooms: number
+	instructors: number
+	courses: number
+	schedules: number
 }
