@@ -1,6 +1,7 @@
 import { ref, type Ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { AxiosError } from 'axios'
+import { toast } from 'vue3-toastify'
 
 export interface UseCrudOptions<T, TCreate, TUpdate = Partial<TCreate>> {
     /** Service methods */
@@ -55,8 +56,11 @@ export function useCrud<T extends { id: number }, TCreate, TUpdate = Partial<TCr
         try {
             await options.deleteItem(id)
             items.value = items.value.filter(item => item.id !== id)
+            toast.success('Deleted successfully')
         } catch (e) {
-            alert('Failed to delete')
+            const axiosError = e as AxiosError<{ message?: string }>
+            const errorMsg = axiosError.response?.data?.message || 'Failed to delete item'
+            toast.error(errorMsg)
             console.error(e)
         }
     }
@@ -68,13 +72,16 @@ export function useCrud<T extends { id: number }, TCreate, TUpdate = Partial<TCr
         try {
             if (id !== undefined && options.update) {
                 await options.update(id, data as unknown as TUpdate)
+                toast.success('Updated successfully')
             } else if (options.create) {
                 await options.create(data as unknown as TCreate, ...args)
+                toast.success('Created successfully')
             }
             router.push(options.listRoute)
         } catch (e) {
             const axiosError = e as AxiosError<{ message?: string }>
             error.value = axiosError.response?.data?.message || 'Failed to save'
+            toast.error(error.value)
             console.error(e)
         } finally {
             saving.value = false
