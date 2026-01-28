@@ -75,17 +75,22 @@ const filteredRooms = computed(() => {
 
 const buildingChartData = computed<BarChartData[]>(() => {
 	if (!buildingsUtilization.value) return []
-	return buildingsUtilization.value.map((b) => ({
-		label: b.buildingCode || b.buildingName,
-		value: b.utilizationPercentage,
-	}))
+	return buildingsUtilization.value
+		.map((b) => ({
+			label: b.buildingCode || b.buildingName,
+			value: b.utilizationPercentage,
+		}))
+		.sort((a, b) => b.value - a.value)
 })
 
 const roomChartData = computed<BarChartData[]>(() => {
-	return filteredRooms.value.slice(0, MAX_DISPLAYED_ROOMS).map((r) => ({
-		label: `${r.buildingCode}-${r.roomNumber}`,
-		value: r.utilizationPercentage,
-	}))
+	return filteredRooms.value
+		.sort((a, b) => b.utilizationPercentage - a.utilizationPercentage)
+		.slice(0, MAX_DISPLAYED_ROOMS)
+		.map((r) => ({
+			label: `${r.buildingCode}-${r.roomNumber}`,
+			value: r.utilizationPercentage,
+		}))
 })
 
 const daysOfWeek = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY']
