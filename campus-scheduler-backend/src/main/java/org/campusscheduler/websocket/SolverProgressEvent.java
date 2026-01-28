@@ -13,7 +13,8 @@ public record SolverProgressEvent(
         int totalCourses,
         long hardViolations,
         long softScore,
-        String message) {
+        String message,
+        long elapsedSeconds) {
 
     /**
      * Create from solver data.
@@ -23,7 +24,8 @@ public record SolverProgressEvent(
             HardSoftScore score,
             int assignedCourses,
             int totalCourses,
-            String message) {
+            String message,
+            long elapsedSeconds) {
 
         return new SolverProgressEvent(
                 status,
@@ -32,6 +34,7 @@ public record SolverProgressEvent(
                 totalCourses,
                 score != null ? -score.hardScore() : 0,
                 score != null ? score.softScore() : 0,
-                message);
+                message,
+                elapsedSeconds);
     }
 }
