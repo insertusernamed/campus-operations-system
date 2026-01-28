@@ -1,5 +1,8 @@
 package org.campusscheduler.generator;
 
+import java.util.Arrays;
+import java.util.List;
+
 import org.campusscheduler.generator.UniversityGeneratorService.GenerationConfig;
 import org.campusscheduler.generator.UniversityGeneratorService.GenerationResult;
 import org.campusscheduler.generator.UniversityGeneratorService.UniversityStats;
@@ -23,7 +26,7 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * REST controller for generating demo data.
  * Provides endpoints to generate a complete university dataset for
- * presentations.
+ * presentations using research-backed ratios.
  */
 @RestController
 @RequestMapping("/api/generator")
@@ -36,35 +39,130 @@ public class DataGeneratorController {
 	private final UniversityGeneratorService universityGeneratorService;
 
 	/**
-	 * Request DTO for generating university data.
+	 * Request DTO for generating university data using archetype and student population.
 	 */
 	public record GenerateRequest(
-			@Min(value = 1, message = "At least 1 building required") @Max(value = 12, message = "Maximum 12 buildings allowed") Integer buildings,
+			String archetype,
 
-			@Min(value = 1, message = "At least 1 room per building required") @Max(value = 50, message = "Maximum 50 rooms per building allowed") Integer roomsPerBuilding,
-
-			@Min(value = 1, message = "At least 1 instructor required") @Max(value = 1000, message = "Maximum 1000 instructors allowed") Integer instructors,
-
-			@Min(value = 1, message = "At least 1 course required") @Max(value = 2000, message = "Maximum 2000 courses allowed") Integer courses) {
+			@Min(value = 1000, message = "Minimum 1000 students")
+			@Max(value = 100000, message = "Maximum 100000 students")
+			Integer studentPopulation) {
 
 		/**
-		 * Convert to GenerationConfig with defaults for null values.
+		 * Convert to GenerationConfig using research-based ratios.
 		 */
 		public GenerationConfig toConfig() {
-			GenerationConfig defaults = GenerationConfig.defaultConfig();
-			return new GenerationConfig(
-					buildings != null ? buildings : defaults.buildings(),
-					roomsPerBuilding != null ? roomsPerBuilding : defaults.roomsPerBuilding(),
-					instructors != null ? instructors : defaults.instructors(),
-					courses != null ? courses : defaults.courses());
+			UniversityArchetype arch = archetype != null
+					? UniversityArchetype.valueOf(archetype.toUpperCase())
+					: UniversityArchetype.COMMUNITY;
+
+			int population = studentPopulation != null
+					? studentPopulation
+					: 8000;
+
+			return GenerationConfig.fromStudentPopulation(arch, population);
 		}
+	}
+
+	/**
+	 * DTO describing an archetype for the frontend.
+	 */
+	public record ArchetypeInfo(
+			String id,
+			String displayName,
+			String description,
+			int studentsPerBuilding,
+			int coursesPerBuilding,
+			double coursesPerStudent,
+			int minStudents,
+			int maxStudents,
+			double academicBuildingRatio,
+			String[] exampleUniversities) {
+
+		public static ArchetypeInfo from(UniversityArchetype archetype) {
+			String[] examples = switch (archetype) {
+				case METROPOLIS -> new String[]{"University of Toronto", "McGill University", "University of Waterloo"};
+				case CAMPUS_SPRAWL -> new String[]{"University of British Columbia", "University of Alberta"};
+				case COMMUNITY -> new String[]{"Lakehead University"};
+			};
+
+			return new ArchetypeInfo(
+					archetype.name(),
+					archetype.getDisplayName(),
+					archetype.getDescription(),
+					archetype.getStudentsPerBuilding(),
+					archetype.getCoursesPerBuilding(),
+					archetype.getCoursesPerStudent(),
+					archetype.getMinStudents(),
+					archetype.getMaxStudents(),
+					archetype.getAcademicBuildingRatio(),
+					examples
+			);
+		}
+	}
+
+	/**
+	 * Get available archetypes with their research-based ratios.
+	 */
+	@GetMapping("/archetypes")
+	@Operation(summary = "Get university archetypes", description = "Returns available archetypes with research-based ratios and descriptions")
+	public ResponseEntity<List<ArchetypeInfo>> getArchetypes() {
+		List<ArchetypeInfo> archetypes = Arrays.stream(UniversityArchetype.values())
+				.map(ArchetypeInfo::from)
+				.toList();
+		return ResponseEntity.ok(archetypes);
+	}
+
+	/**
+	 * Preview generation without actually creating data.
+	 */
+	@PostMapping("/preview")
+	@Operation(summary = "Preview generation", description = "Returns what would be generated without creating data")
+	public ResponseEntity<GenerationPreview> previewGeneration(
+			@Valid @RequestBody(required = false) GenerateRequest request) {
+
+		GenerationConfig config = request != null
+				? request.toConfig()
+				: GenerationConfig.defaultConfig();
+
+		return ResponseEntity.ok(new GenerationPreview(
+				config.archetype().name(),
+				config.archetype().getDisplayName(),
+				config.studentPopulation(),
+				config.buildings(),
+				config.academicBuildings(),
+				config.roomsPerBuilding(),
+				config.instructors(),
+				config.courses(),
+				config.buildings() * config.roomsPerBuilding(),
+				String.format("Using %s archetype: %d students/building, %d courses/building",
+						config.archetype().getDisplayName(),
+						config.archetype().getStudentsPerBuilding(),
+						config.archetype().getCoursesPerBuilding())
+		));
+	}
+
+	/**
+	 * Preview DTO showing what would be generated.
+	 */
+	public record GenerationPreview(
+			String archetype,
+			String archetypeDisplayName,
+			int studentPopulation,
+			int totalBuildings,
+			int academicBuildings,
+			int roomsPerBuilding,
+			int instructors,
+			int courses,
+			int totalRooms,
+			String ratioInfo) {
 	}
 
 	/**
 	 * Generate a complete university dataset.
 	 */
 	@PostMapping("/university")
-	@Operation(summary = "Generate complete university", description = "Creates buildings, rooms, instructors, and courses. Clears existing data first.")
+	@Operation(summary = "Generate complete university", description = "Creates buildings, rooms, instructors, and courses using research-based ratios. Clears existing data first.")
 	public ResponseEntity<GenerationResult> generateUniversity(
 			@Valid @RequestBody(required = false) GenerateRequest request) {
 
@@ -79,10 +177,10 @@ public class DataGeneratorController {
 	}
 
 	/**
-	 * Generate a small university for quick testing.
+	 * Generate a small community university (5,000 students).
 	 */
 	@PostMapping("/university/small")
-	@Operation(summary = "Generate small university", description = "Creates a small dataset (4 buildings, 40 rooms, 50 instructors, 100 courses)")
+	@Operation(summary = "Generate small university", description = "Creates a small community university (5,000 students) based on Lakehead University ratios")
 	public ResponseEntity<GenerationResult> generateSmallUniversity() {
 		log.info("Generating small university");
 		GenerationResult result = universityGeneratorService.generateUniversity(GenerationConfig.small());
@@ -90,13 +188,24 @@ public class DataGeneratorController {
 	}
 
 	/**
-	 * Generate a large university for stress testing.
+	 * Generate a large metropolis university (50,000 students).
 	 */
 	@PostMapping("/university/large")
-	@Operation(summary = "Generate large university", description = "Creates a large dataset (12 buildings, 240 rooms, 300 instructors, 800 courses)")
+	@Operation(summary = "Generate large university", description = "Creates a large urban university (50,000 students) based on U of T/McGill ratios")
 	public ResponseEntity<GenerationResult> generateLargeUniversity() {
 		log.info("Generating large university");
 		GenerationResult result = universityGeneratorService.generateUniversity(GenerationConfig.large());
+		return ResponseEntity.ok(result);
+	}
+
+	/**
+	 * Generate a research campus university (40,000 students).
+	 */
+	@PostMapping("/university/research")
+	@Operation(summary = "Generate research campus", description = "Creates a sprawling research university (40,000 students) based on UBC/Alberta ratios")
+	public ResponseEntity<GenerationResult> generateResearchUniversity() {
+		log.info("Generating research campus university");
+		GenerationResult result = universityGeneratorService.generateUniversity(GenerationConfig.researchCampus());
 		return ResponseEntity.ok(result);
 	}
 

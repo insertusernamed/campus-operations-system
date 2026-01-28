@@ -2,15 +2,15 @@ package org.campusscheduler.generator;
 
 /**
  * University archetypes based on research analysis of Canadian institutions.
- * 
+ *
  * These archetypes are derived from morphological analysis of Canada's top universities,
  * including University of Toronto, UBC, McGill, University of Alberta, University of Waterloo,
  * and Lakehead University. Each archetype represents a distinct campus morphology with
  * characteristic density ratios.
- * 
+ *
  * Research Source: "Architectonics of Academe: A Comprehensive Analysis of Institutional
  * Morphology and Access Protocols for Procedural Generation" (2026)
- * 
+ *
  * @see <a href="https://www.utoronto.ca/about-u-of-t/quick-facts">University of Toronto Facts</a>
  * @see <a href="https://www.lakeheadu.ca/research-and-innovation/about/facts-figures">Lakehead Facts</a>
  */
@@ -19,7 +19,7 @@ public enum UniversityArchetype {
     /**
      * High-density urban campus with vertical architecture.
      * Based on: University of Toronto (St. George), McGill University, University of Waterloo
-     * 
+     *
      * Characteristics:
      * - Dense building utilization (500 students per building)
      * - Multi-story, multi-department buildings
@@ -42,7 +42,7 @@ public enum UniversityArchetype {
     /**
      * Sprawling research campus with parkland feel.
      * Based on: University of British Columbia, University of Alberta
-     * 
+     *
      * Characteristics:
      * - Low building density (200 students per building)
      * - Many specialized, single-purpose structures
@@ -65,7 +65,7 @@ public enum UniversityArchetype {
     /**
      * Community-focused comprehensive institution.
      * Based on: Lakehead University
-     * 
+     *
      * Characteristics:
      * - Moderate building density (200 students per building)
      * - Efficient use of space, interconnected buildings
@@ -155,7 +155,7 @@ public enum UniversityArchetype {
 
     /**
      * Calculates the number of buildings needed for a given student population.
-     * 
+     *
      * @param studentPopulation the total student population
      * @return the calculated number of buildings
      */
@@ -165,7 +165,7 @@ public enum UniversityArchetype {
 
     /**
      * Calculates the number of academic buildings (for course scheduling).
-     * 
+     *
      * @param totalBuildings the total number of buildings
      * @return the number of academic buildings
      */
@@ -175,7 +175,7 @@ public enum UniversityArchetype {
 
     /**
      * Calculates the number of courses based on academic buildings.
-     * 
+     *
      * @param academicBuildings the number of academic buildings
      * @return the calculated number of courses
      */
@@ -185,7 +185,7 @@ public enum UniversityArchetype {
 
     /**
      * Calculates instructors needed based on courses (assuming ~3 courses per instructor).
-     * 
+     *
      * @param courses the number of courses
      * @return the calculated number of instructors
      */
@@ -195,7 +195,7 @@ public enum UniversityArchetype {
 
     /**
      * Validates if a student population is within the recommended range for this archetype.
-     * 
+     *
      * @param studentPopulation the student population to validate
      * @return true if within recommended range
      */
