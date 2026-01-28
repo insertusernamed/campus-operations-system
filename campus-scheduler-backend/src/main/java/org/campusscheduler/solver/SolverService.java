@@ -1,7 +1,8 @@
 package org.campusscheduler.solver;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -19,33 +20,64 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import ai.timefold.solver.core.api.score.buildin.hardsoft.HardSoftScore;
-import ai.timefold.solver.core.api.solver.SolverManager;
+import ai.timefold.solver.core.api.solver.Solver;
+import ai.timefold.solver.core.api.solver.SolverFactory;
 import ai.timefold.solver.core.api.solver.SolverStatus;
-import lombok.RequiredArgsConstructor;
+import ai.timefold.solver.core.api.solver.event.BestSolutionChangedEvent;
+import ai.timefold.solver.core.impl.phase.event.PhaseLifecycleListenerAdapter;
+import ai.timefold.solver.core.impl.phase.scope.AbstractStepScope;
+import ai.timefold.solver.core.impl.solver.DefaultSolver;
 import lombok.extern.slf4j.Slf4j;
+
+import jakarta.annotation.PreDestroy;
 
 /**
  * Service for managing the Timefold solver.
- * Handles starting, stopping, and retrieving solutions.
- * Broadcasts progress updates via WebSocket.
+ * Uses Solver directly (instead of SolverManager) to enable PhaseLifecycleListeners
+ * for real-time progress updates during Construction Heuristic.
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class SolverService {
 
 	private static final String SOLVER_TOPIC = "/topic/solver/progress";
+	private static final long BROADCAST_THROTTLE_MS = 200; // Min time between broadcasts
 
-	private final SolverManager<ScheduleSolution, Long> solverManager;
+	private final SolverFactory<ScheduleSolution> solverFactory;
 	private final CourseRepository courseRepository;
 	private final RoomRepository roomRepository;
 	private final TimeSlotRepository timeSlotRepository;
 	private final ScheduleRepository scheduleRepository;
 	private final SimpMessagingTemplate messagingTemplate;
 
-	private static final AtomicLong problemIdGenerator = new AtomicLong(0);
-	private final AtomicReference<Long> currentProblemId = new AtomicReference<>();
+	private final ExecutorService solverExecutor = Executors.newSingleThreadExecutor();
+	private final AtomicReference<Solver<ScheduleSolution>> currentSolver = new AtomicReference<>();
 	private final AtomicReference<ScheduleSolution> bestSolution = new AtomicReference<>();
+	private final AtomicReference<SolverStatus> solverStatus = new AtomicReference<>(SolverStatus.NOT_SOLVING);
+
+	private volatile long solverStartTime;
+	private volatile long lastBroadcastTime;
+
+	public SolverService(
+			SolverFactory<ScheduleSolution> solverFactory,
+			CourseRepository courseRepository,
+			RoomRepository roomRepository,
+			TimeSlotRepository timeSlotRepository,
+			ScheduleRepository scheduleRepository,
+			SimpMessagingTemplate messagingTemplate) {
+		this.solverFactory = solverFactory;
+		this.courseRepository = courseRepository;
+		this.roomRepository = roomRepository;
+		this.timeSlotRepository = timeSlotRepository;
+		this.scheduleRepository = scheduleRepository;
+		this.messagingTemplate = messagingTemplate;
+	}
+
+	@PreDestroy
+	public void shutdown() {
+		stopSolving();
+		solverExecutor.shutdownNow();
+	}
 
 	/**
 	 * DTO for solver status.
@@ -62,72 +94,96 @@ public class SolverService {
 	/**
 	 * Start solving for the given semester.
 	 * Terminates any previously running solver before starting.
-	 *
-	 * @param semester the semester to schedule
-	 * @return the problem ID
 	 */
 	@Transactional(readOnly = true)
 	public Long startSolving(String semester) {
-		// Terminate any previous solver job
-		Long previousId = currentProblemId.get();
-		if (previousId != null && solverManager.getSolverStatus(previousId) == SolverStatus.SOLVING_ACTIVE) {
-			log.info("Terminating previous solver job {}", previousId);
-			solverManager.terminateEarly(previousId);
-		}
+		// Terminate any previous solver
+		stopSolving();
 
-		Long problemId = problemIdGenerator.incrementAndGet();
-		currentProblemId.set(problemId);
-
-		log.info("Starting solver for semester {} with problem ID {}", semester, problemId);
+		log.info("Starting solver for semester {}", semester);
 
 		ScheduleSolution problem = buildProblem(semester);
 		bestSolution.set(problem);
+		solverStartTime = System.currentTimeMillis();
+		lastBroadcastTime = 0;
+
+		// Create a new solver instance
+		Solver<ScheduleSolution> solver = solverFactory.buildSolver();
+		currentSolver.set(solver);
+
+		// Add listener for step-by-step progress updates
+		if (solver instanceof DefaultSolver<ScheduleSolution> defaultSolver) {
+			defaultSolver.addPhaseLifecycleListener(new ProgressListener());
+		}
+
+		// Add listener for best solution changes
+		solver.addEventListener(this::onBestSolutionChanged);
 
 		// Broadcast start event
-		broadcastProgress(SolverStatus.SOLVING_ACTIVE, problem, "Solver started");
+		solverStatus.set(SolverStatus.SOLVING_ACTIVE);
+		broadcastProgress(problem, "Solver started");
 
-		// Keep reference for error fallback
-		final ScheduleSolution initialProblem = problem;
+		// Run solver in background thread
+		solverExecutor.submit(() -> {
+			try {
+				ScheduleSolution solution = solver.solve(problem);
+				bestSolution.set(solution);
+				solverStatus.set(SolverStatus.NOT_SOLVING);
+				log.info("Solving finished with score: {}", solution.getScore());
+				broadcastProgress(solution, "Solving complete");
+			} catch (Exception e) {
+				solverStatus.set(SolverStatus.NOT_SOLVING);
+				log.error("Solver failed", e);
+				broadcastProgress(bestSolution.get(), "Solver error: " + e.getMessage());
+			} finally {
+				currentSolver.set(null);
+			}
+		});
 
-		solverManager.solveBuilder()
-				.withProblemId(problemId)
-				.withProblem(problem)
-				.withBestSolutionEventConsumer(event -> {
-					ScheduleSolution solution = event.solution();
-					log.debug("New best solution: {}", solution.getScore());
-					bestSolution.set(solution);
-					broadcastProgress(SolverStatus.SOLVING_ACTIVE, solution, "New best solution found");
-				})
-				.withFinalBestSolutionConsumer(solution -> {
-					log.info("Solving finished with score: {}", solution.getScore());
-					bestSolution.set(solution);
-					broadcastProgress(SolverStatus.NOT_SOLVING, solution, "Solving complete");
-				})
-				.withExceptionHandler((id, exception) -> {
-					log.error("Solver failed for problem {}", id, exception);
-					// Use bestSolution or fallback to initialProblem for error notification
-					ScheduleSolution solutionForError = bestSolution.get();
-					if (solutionForError == null) {
-						solutionForError = initialProblem;
-					}
-					broadcastProgress(SolverStatus.NOT_SOLVING, solutionForError,
-							"Solver error: " + exception.getMessage());
-				})
-				.run();
+		return 1L;
+	}
 
-		return problemId;
+	/**
+	 * Listener for step-by-step progress during solving.
+	 */
+	private class ProgressListener extends PhaseLifecycleListenerAdapter<ScheduleSolution> {
+		@Override
+		public void stepEnded(AbstractStepScope<ScheduleSolution> stepScope) {
+			long now = System.currentTimeMillis();
+			// Throttle broadcasts to avoid flooding
+			if (now - lastBroadcastTime < BROADCAST_THROTTLE_MS) {
+				return;
+			}
+			lastBroadcastTime = now;
+
+			ScheduleSolution solution = stepScope.getWorkingSolution();
+			if (solution != null) {
+				// Update best solution reference for polling
+				bestSolution.set(solution);
+				broadcastProgress(solution, "Solving...");
+			}
+		}
+	}
+
+	/**
+	 * Called when the solver finds a new best solution.
+	 */
+	private void onBestSolutionChanged(BestSolutionChangedEvent<ScheduleSolution> event) {
+		if (event.isEveryProblemChangeProcessed()) {
+			ScheduleSolution solution = event.getNewBestSolution();
+			bestSolution.set(solution);
+			log.debug("New best solution: {}", solution.getScore());
+		}
 	}
 
 	/**
 	 * Broadcast solver progress to WebSocket clients.
-	 * Silently handles messaging failures to avoid disrupting solver execution.
 	 */
-	private void broadcastProgress(SolverStatus status, ScheduleSolution solution, String message) {
+	private void broadcastProgress(ScheduleSolution solution, String message) {
 		if (solution == null) {
 			return;
 		}
 
-		// Null-safe access to assignments
 		var assignments = solution.getAssignments();
 		if (assignments == null) {
 			assignments = java.util.Collections.emptyList();
@@ -137,12 +193,15 @@ public class SolverService {
 				.filter(ScheduleAssignment::isInitialized)
 				.count();
 
+		long elapsedSeconds = (System.currentTimeMillis() - solverStartTime) / 1000;
+
 		SolverProgressEvent event = SolverProgressEvent.of(
-				status,
+				solverStatus.get(),
 				solution.getScore(),
 				assigned,
 				assignments.size(),
-				message);
+				message,
+				elapsedSeconds);
 
 		try {
 			messagingTemplate.convertAndSend(SOLVER_TOPIC, event);
@@ -155,13 +214,7 @@ public class SolverService {
 	 * Get the current solver status.
 	 */
 	public SolverStatusResponse getStatus() {
-		Long problemId = currentProblemId.get();
-		if (problemId == null) {
-			return new SolverStatusResponse(
-					SolverStatus.NOT_SOLVING, null, 0, 0, 0, 0);
-		}
-
-		SolverStatus status = solverManager.getSolverStatus(problemId);
+		SolverStatus status = solverStatus.get();
 		ScheduleSolution solution = bestSolution.get();
 
 		if (solution == null) {
@@ -189,12 +242,13 @@ public class SolverService {
 	 * Stop the current solving process.
 	 */
 	public void stopSolving() {
-		Long problemId = currentProblemId.get();
-		if (problemId != null) {
-			log.info("Stopping solver for problem ID {}", problemId);
-			solverManager.terminateEarly(problemId);
-			broadcastProgress(SolverStatus.NOT_SOLVING, bestSolution.get(), "Solver stopped by user");
+		Solver<ScheduleSolution> solver = currentSolver.get();
+		if (solver != null && solver.isSolving()) {
+			log.info("Stopping solver");
+			solver.terminateEarly();
+			broadcastProgress(bestSolution.get(), "Solver stopped by user");
 		}
+		solverStatus.set(SolverStatus.NOT_SOLVING);
 	}
 
 	/**
@@ -214,7 +268,6 @@ public class SolverService {
 			return 0;
 		}
 
-		// Clear existing schedules for this semester
 		String semester = solution.getSemester();
 		scheduleRepository.deleteBySemester(semester);
 
@@ -238,8 +291,6 @@ public class SolverService {
 
 	/**
 	 * Build the initial problem from database data.
-	 * Note: We fetch all data within a transaction to avoid lazy loading issues.
-	 * Course.instructor is eagerly initialized here.
 	 */
 	private ScheduleSolution buildProblem(String semester) {
 		List<Course> courses = courseRepository.findAll();
@@ -249,7 +300,7 @@ public class SolverService {
 		// Force initialization of lazy associations within transaction
 		courses.forEach(course -> {
 			if (course.getInstructor() != null) {
-				course.getInstructor().getId(); // Initialize proxy
+				course.getInstructor().getId();
 			}
 		});
 
@@ -262,7 +313,6 @@ public class SolverService {
 					assignment.setId(course.getId());
 					assignment.setCourse(course);
 					assignment.setSemester(semester);
-					// Room and TimeSlot are null - Timefold will assign them
 					return assignment;
 				})
 				.collect(Collectors.toList());
