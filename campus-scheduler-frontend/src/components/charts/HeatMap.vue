@@ -55,9 +55,13 @@ const cellMap = computed(() => {
 
 function getColor(value: number, min: number, max: number): string {
 	const normalized = max > min ? (value - min) / (max - min) : 0
-	// Simple blue scale
-	const lightness = 95 - normalized * 50
-	return `hsl(210, 60%, ${lightness}%)`
+	// Green to yellow to red gradient with varying luminance for accessibility
+	// Low values: green (hue 120), High values: red (hue 0)
+	// Luminance also decreases as value increases for colorblind accessibility
+	const hue = 120 - normalized * 120 // 120 (green) -> 0 (red)
+	const saturation = 50 + normalized * 20 // 50% -> 70%
+	const lightness = 85 - normalized * 35 // 85% (light) -> 50% (darker)
+	return `hsl(${hue}, ${saturation}%, ${lightness}%)`
 }
 
 function draw() {
