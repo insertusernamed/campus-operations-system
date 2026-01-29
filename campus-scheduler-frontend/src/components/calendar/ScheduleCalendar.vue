@@ -67,8 +67,8 @@ const calendarsConfig = computed(() => {
 			colorName: buildingCode,
 			lightColors: {
 				main: color,
-				container: color + '20',
-				onContainer: color,
+				container: color + '80', // 50% opacity for better visibility
+				onContainer: '#ffffff',
 			},
 		}
 	}
