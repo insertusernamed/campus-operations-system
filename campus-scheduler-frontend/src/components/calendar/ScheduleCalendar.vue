@@ -22,6 +22,18 @@ const DAY_INDEX: Record<DayOfWeek, number> = {
 	SUNDAY: 6,
 }
 
+// Color palette for buildings (colorName as used by Schedule X)
+const BUILDING_COLORS = [
+	'#3b82f6', // blue
+	'#10b981', // emerald
+	'#f59e0b', // amber
+	'#ef4444', // red
+	'#8b5cf6', // violet
+	'#ec4899', // pink
+	'#06b6d4', // cyan
+	'#84cc16', // lime
+]
+
 // Get a reference Monday (current week)
 function getReferenceMonday(): Temporal.PlainDate {
 	const today = Temporal.Now.plainDateISO()
@@ -31,6 +43,37 @@ function getReferenceMonday(): Temporal.PlainDate {
 
 const referenceMonday = getReferenceMonday()
 const timezone = Temporal.Now.timeZoneId()
+
+// Build a map of building codes to color indices
+const buildingColorMap = computed(() => {
+	const map = new Map<string, number>()
+	let colorIndex = 0
+	for (const schedule of props.schedules) {
+		const buildingCode = schedule.room.buildingCode || 'Unknown'
+		if (!map.has(buildingCode)) {
+			map.set(buildingCode, colorIndex % BUILDING_COLORS.length)
+			colorIndex++
+		}
+	}
+	return map
+})
+
+// Generate calendars config for Schedule X
+const calendarsConfig = computed(() => {
+	const config: Record<string, { colorName: string; lightColors: { main: string; container: string; onContainer: string } }> = {}
+	for (const [buildingCode, colorIndex] of buildingColorMap.value.entries()) {
+		const color = BUILDING_COLORS[colorIndex] ?? '#6b7280'
+		config[buildingCode] = {
+			colorName: buildingCode,
+			lightColors: {
+				main: color,
+				container: color + '20',
+				onContainer: color,
+			},
+		}
+	}
+	return config
+})
 
 // Convert schedule to ScheduleX event format with proper Temporal types
 function scheduleToEvent(schedule: Schedule) {
@@ -58,6 +101,7 @@ function scheduleToEvent(schedule: Schedule) {
 		end,
 		description: `${schedule.course.name}\n${schedule.room.buildingCode} ${schedule.room.roomNumber}`,
 		location: `${schedule.room.buildingCode} ${schedule.room.roomNumber}`,
+		calendarId: schedule.room.buildingCode || 'Unknown',
 	}
 }
 
@@ -83,6 +127,7 @@ const calendarApp = createCalendar({
 	firstDayOfWeek: 1, // Monday
 	isResponsive: true,
 	events: events.value,
+	calendars: calendarsConfig.value,
 }, [eventsService])
 
 // Update events when schedules change
