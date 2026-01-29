@@ -89,7 +89,10 @@ watch(selectedArchetype, () => {
 onMounted(async () => {
 	await fetchStats()
 	await fetchArchetypes()
-	await updatePreview()
+	// Only call updatePreview after archetypes are loaded
+	if (archetypes.value.length > 0) {
+		await updatePreview()
+	}
 })
 
 async function generateData() {
@@ -232,8 +235,10 @@ const progressPercent = computed(() => {
 			</div>
 
 			<!-- Archetype Selection -->
-			<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-				<button v-for="arch in archetypes" :key="arch.id"
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4" role="radiogroup"
+				aria-label="University archetype selection">
+				<button v-for="arch in archetypes" :key="arch.id" role="radio"
+					:aria-checked="selectedArchetype === arch.id"
 					@click="selectedArchetype = arch.id as typeof selectedArchetype" :disabled="isGenerating" :class="[
 						'p-3 border text-left transition-colors',
 						selectedArchetype === arch.id
@@ -255,6 +260,7 @@ const progressPercent = computed(() => {
 				</label>
 				<input type="range" v-model.number="studentPopulation" :min="selectedArchetypeInfo.minStudents"
 					:max="selectedArchetypeInfo.maxStudents" :step="1000" :disabled="isGenerating"
+					aria-label="Student population" :aria-valuetext="`${studentPopulation.toLocaleString()} students`"
 					class="w-full h-2 bg-gray-200 rounded-lg cursor-pointer" />
 				<div class="flex justify-between text-xs text-gray-400 mt-1">
 					<span>{{ selectedArchetypeInfo.minStudents.toLocaleString() }}</span>
