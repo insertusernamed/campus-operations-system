@@ -26,13 +26,17 @@ public enum UniversityArchetype {
      * - High course-per-building ratio (80 courses per building)
      * - Urban integration with porous campus boundaries
      * - Typical enrollment: 40,000 - 80,000 students
+     *
+     * Research notes:
+     * - S/C ratio (studentsPerCourse) of 7.0 means less course variety per student
+     * - High density means fewer buildings serve more students
      */
     METROPOLIS(
         "Urban Titan",
         "High-density urban campus with vertical architecture and intense utilization",
         500,    // studentsPerBuilding (U of T: 583, McGill: 393, Waterloo: 410)
         80,     // coursesPerBuilding (U of T: 83, McGill: 80, Waterloo: 75)
-        5.0,    // coursesPerStudent (inverse of S/C ratio)
+        7.0,    // studentsPerCourse (S/C ratio - U of T: 7.0, higher = less variety)
         40000,  // minStudents
         80000,  // maxStudents
         0.70,   // academicBuildingRatio (70% of buildings are academic)
@@ -49,13 +53,17 @@ public enum UniversityArchetype {
      * - Lower course-per-building ratio (30 courses per building)
      * - Expansive land use, isolated campus feel
      * - Typical enrollment: 30,000 - 60,000 students
+     *
+     * Research notes:
+     * - S/C ratio of 5.5 indicates moderate course variety
+     * - Many specialized research buildings dilute density
      */
     CAMPUS_SPRAWL(
         "Research Park",
         "Expansive campus with parkland feel and specialized research facilities",
         200,    // studentsPerBuilding (UBC: 125, Alberta: 267)
         30,     // coursesPerBuilding (UBC: 22, Alberta: 53)
-        5.5,    // coursesPerStudent
+        5.5,    // studentsPerCourse (S/C ratio - UBC: 5.6, Alberta: 5.0)
         30000,  // minStudents
         60000,  // maxStudents
         0.50,   // academicBuildingRatio (more research/support buildings)
@@ -73,13 +81,17 @@ public enum UniversityArchetype {
      * - High accessibility and personalized attention
      * - Typical enrollment: 5,000 - 15,000 students
      * - Often features tunnel/pedway systems for climate adaptation
+     *
+     * Research notes:
+     * - S/C ratio of 3.6 is the "Golden Number" for student experience
+     * - Lower ratio = more course variety per student = better personalization
      */
     COMMUNITY(
         "Community Hub",
         "Accessible, interconnected campus with personalized attention and efficient space use",
         200,    // studentsPerBuilding (Lakehead: 202)
         55,     // coursesPerBuilding (Lakehead: 56)
-        3.6,    // coursesPerStudent (Lakehead: 3.6 - best student experience ratio)
+        3.6,    // studentsPerCourse (S/C ratio - Lakehead: 3.6, best student experience)
         5000,   // minStudents
         15000,  // maxStudents
         0.60,   // academicBuildingRatio
@@ -90,7 +102,7 @@ public enum UniversityArchetype {
     private final String description;
     private final int studentsPerBuilding;
     private final int coursesPerBuilding;
-    private final double coursesPerStudent;
+    private final double studentsPerCourse; // S/C ratio from research (higher = less variety)
     private final int minStudents;
     private final int maxStudents;
     private final double academicBuildingRatio;
@@ -101,7 +113,7 @@ public enum UniversityArchetype {
             String description,
             int studentsPerBuilding,
             int coursesPerBuilding,
-            double coursesPerStudent,
+            double studentsPerCourse,
             int minStudents,
             int maxStudents,
             double academicBuildingRatio,
@@ -110,7 +122,7 @@ public enum UniversityArchetype {
         this.description = description;
         this.studentsPerBuilding = studentsPerBuilding;
         this.coursesPerBuilding = coursesPerBuilding;
-        this.coursesPerStudent = coursesPerStudent;
+        this.studentsPerCourse = studentsPerCourse;
         this.minStudents = minStudents;
         this.maxStudents = maxStudents;
         this.academicBuildingRatio = academicBuildingRatio;
@@ -133,8 +145,24 @@ public enum UniversityArchetype {
         return coursesPerBuilding;
     }
 
+    /**
+     * Returns the S/C ratio (students per course offering).
+     * Higher values mean less course variety per student.
+     * This is NOT the number of courses a student takes (that's typically 5).
+     *
+     * @return students per course offering (S/C ratio from research)
+     */
+    public double getStudentsPerCourse() {
+        return studentsPerCourse;
+    }
+
+    /**
+     * @deprecated Use {@link #getStudentsPerCourse()} instead. This method exists
+     * for backwards compatibility but the semantics were incorrect.
+     */
+    @Deprecated
     public double getCoursesPerStudent() {
-        return coursesPerStudent;
+        return studentsPerCourse; // Return same value for compatibility
     }
 
     public int getMinStudents() {

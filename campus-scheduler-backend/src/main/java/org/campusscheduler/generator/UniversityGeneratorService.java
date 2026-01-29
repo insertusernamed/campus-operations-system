@@ -130,11 +130,13 @@ public class UniversityGeneratorService {
          */
         private static int calculateRoomsPerBuilding(UniversityArchetype archetype, int students, int academicBuildings) {
             // Average class size assumption: 35 students
-            // Students take ~5 courses, so total course-seats needed = students * 5
+            // Students take ~5 courses per semester (standard full-time load)
+            // Note: This is distinct from coursesPerStudent which represents catalog breadth (S/C ratio)
             // Each room can host ~8 class sessions per day (4 timeslots * 2 days overlap)
             int avgClassSize = 35;
             int avgSessionsPerRoom = 8;
-            int totalSeatsNeeded = (int) (students * archetype.getCoursesPerStudent());
+            double avgCourseLoadPerStudent = 5.0; // Standard semester course load
+            int totalSeatsNeeded = (int) (students * avgCourseLoadPerStudent);
             int totalRoomsNeeded = totalSeatsNeeded / (avgClassSize * avgSessionsPerRoom);
             int roomsPerBuilding = Math.max(10, totalRoomsNeeded / Math.max(1, academicBuildings));
             return Math.min(roomsPerBuilding, 30); // Cap at 30 rooms per building
