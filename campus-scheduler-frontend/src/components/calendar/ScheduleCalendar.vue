@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, watch, shallowRef } from 'vue'
 import { ScheduleXCalendar } from '@schedule-x/vue'
 import { createCalendar, createViewWeek } from '@schedule-x/calendar'
 import { createEventsServicePlugin } from '@schedule-x/events-service'
@@ -107,32 +107,46 @@ function scheduleToEvent(schedule: Schedule) {
 
 const events = computed(() => props.schedules.map(scheduleToEvent))
 
-// Create events service plugin
-const eventsService = createEventsServicePlugin()
+// Reactive calendar app instance
+const calendarApp = shallowRef<any>(null)
+let eventsService: any = null
 
-// Create calendar with weekly view configuration
-const calendarApp = createCalendar({
-	selectedDate: referenceMonday,
-	views: [createViewWeek()],
-	defaultView: 'week',
-	dayBoundaries: {
-		start: '07:00',
-		end: '23:00', // Extended to 11 PM to fit late classes
-	},
-	weekOptions: {
-		nDays: 5,
-		gridHeight: 800, // Increased height for better spacing
-		eventWidth: 95,
-	},
-	firstDayOfWeek: 1, // Monday
-	isResponsive: true,
-	events: events.value,
-	calendars: calendarsConfig.value,
-}, [eventsService])
+function initCalendar() {
+	eventsService = createEventsServicePlugin()
 
-// Update events when schedules change
+	calendarApp.value = createCalendar({
+		selectedDate: referenceMonday,
+		views: [createViewWeek()],
+		defaultView: 'week',
+		dayBoundaries: {
+			start: '07:00',
+			end: '23:00', // Extended to 11 PM to fit late classes
+		},
+		weekOptions: {
+			nDays: 5,
+			gridHeight: 800, // Increased height for better spacing
+			eventWidth: 95,
+		},
+		firstDayOfWeek: 1, // Monday
+		isResponsive: true,
+		events: events.value,
+		calendars: calendarsConfig.value,
+	}, [eventsService])
+}
+
+// Initialize on mount
+initCalendar()
+
+// Recreate calendar when building colors/config changes
+watch(calendarsConfig, () => {
+	initCalendar()
+}, { deep: true })
+
+// Update events when schedules change (using current service instance)
 watch(events, (newEvents) => {
-	eventsService.set(newEvents)
+	if (eventsService) {
+		eventsService.set(newEvents)
+	}
 }, { deep: true })
 </script>
 
