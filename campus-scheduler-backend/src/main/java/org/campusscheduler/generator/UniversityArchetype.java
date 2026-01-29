@@ -1,15 +1,14 @@
 package org.campusscheduler.generator;
 
 /**
- * University archetypes based on research analysis of Canadian institutions.
+ * University archetypes based on analysis of Canadian institutions.
  *
  * These archetypes are derived from morphological analysis of Canada's top universities,
  * including University of Toronto, UBC, McGill, University of Alberta, University of Waterloo,
  * and Lakehead University. Each archetype represents a distinct campus morphology with
  * characteristic density ratios.
  *
- * Research Source: "Architectonics of Academe: A Comprehensive Analysis of Institutional
- * Morphology and Access Protocols for Procedural Generation" (2026)
+ * Ratios are derived from publicly available institutional data.
  *
  * @see <a href="https://www.utoronto.ca/about-u-of-t/quick-facts">University of Toronto Facts</a>
  * @see <a href="https://www.lakeheadu.ca/research-and-innovation/about/facts-figures">Lakehead Facts</a>

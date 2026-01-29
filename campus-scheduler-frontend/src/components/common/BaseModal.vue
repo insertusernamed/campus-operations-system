@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed, watch, onUnmounted } from 'vue'
 
 const props = withDefaults(
 	defineProps<{
@@ -64,9 +64,17 @@ function handleKeydown(e: KeyboardEvent) {
 	}
 }
 
-onMounted(() => {
-	document.addEventListener('keydown', handleKeydown)
-})
+watch(
+	() => props.modelValue,
+	(open) => {
+		if (open) {
+			window.addEventListener('keydown', handleKeydown)
+		} else {
+			window.removeEventListener('keydown', handleKeydown)
+		}
+	},
+	{ immediate: true }
+)
 
 onUnmounted(() => {
 	document.removeEventListener('keydown', handleKeydown)
@@ -77,11 +85,12 @@ onUnmounted(() => {
 	<Teleport to="body">
 		<Transition name="modal">
 			<div v-if="isOpen" class="modal-overlay" @click.self="handleOverlayClick">
-				<div class="modal-container" :class="sizeClasses" role="dialog" aria-modal="true">
+				<div class="modal-container" :class="sizeClasses" role="dialog" aria-modal="true"
+					aria-labelledby="modal-title">
 					<!-- Header -->
 					<div v-if="title || $slots.header || showClose" class="modal-header">
 						<slot name="header">
-							<h2 v-if="title" class="modal-title">{{ title }}</h2>
+							<h2 v-if="title" id="modal-title" class="modal-title">{{ title }}</h2>
 						</slot>
 						<button v-if="showClose" class="close-btn" @click="closeModal" aria-label="Close modal">
 							<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"

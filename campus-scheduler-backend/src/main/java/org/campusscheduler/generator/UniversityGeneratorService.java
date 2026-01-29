@@ -242,11 +242,11 @@ public class UniversityGeneratorService {
         int timeSlots = (int) timeSlotRepository.count();
 
         String ratioInfo = String.format(
-                "Generated using %s archetype ratios: %d students/building, %d courses/building, %.1f courses/student",
+                "Generated using %s archetype ratios: %d students/building, %d courses/building, %.1f students/course",
                 config.archetype().getDisplayName(),
                 config.archetype().getStudentsPerBuilding(),
                 config.archetype().getCoursesPerBuilding(),
-                config.archetype().getCoursesPerStudent()
+                config.archetype().getStudentsPerCourse()
         );
 
         log.info("University generation complete: {} buildings, {} rooms, {} instructors, {} courses",
@@ -296,8 +296,6 @@ public class UniversityGeneratorService {
         List<Building> buildings = new ArrayList<>();
 
         for (int i = 0; i < count; i++) {
-            String baseName;
-            String baseCode;
             String name;
             String code;
 
@@ -308,10 +306,8 @@ public class UniversityGeneratorService {
                 // Generate additional buildings with numbered suffixes
                 int baseIndex = i % BUILDING_NAMES.length;
                 int suffix = (i / BUILDING_NAMES.length) + 1;
-                baseName = BUILDING_NAMES[baseIndex];
-                baseCode = BUILDING_CODES[baseIndex];
-                name = baseName + " " + (suffix + 1);
-                code = baseCode + (suffix + 1);
+                name = BUILDING_NAMES[baseIndex] + " " + suffix;
+                code = BUILDING_CODES[baseIndex] + suffix;
             }
 
             Building building = Building.builder()
