@@ -88,6 +88,7 @@ onMounted(async () => {
 		buildings.value = buildingsData
 	} catch (e) {
 		console.error('Failed to load filter data:', e)
+		error.value = 'Failed to load filter data. Please try reloading the page.' as any
 	}
 })
 </script>
