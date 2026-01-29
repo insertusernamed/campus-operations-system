@@ -94,14 +94,17 @@ class UniversityGeneratorServiceTest {
 	class GenerationConfigTests {
 
 		@Test
-		@DisplayName("default config should have reasonable values")
+		@DisplayName("default config should use research-based ratios for COMMUNITY 8000 students")
 		void defaultConfigShouldHaveReasonableValues() {
 			GenerationConfig config = GenerationConfig.defaultConfig();
 
-			assertThat(config.buildings()).isEqualTo(8);
-			assertThat(config.roomsPerBuilding()).isEqualTo(15);
-			assertThat(config.instructors()).isEqualTo(200);
-			assertThat(config.courses()).isEqualTo(500);
+			// COMMUNITY archetype: 200 students/building, so 8000/200 = 40 buildings
+			assertThat(config.archetype()).isEqualTo(UniversityArchetype.COMMUNITY);
+			assertThat(config.studentPopulation()).isEqualTo(8000);
+			assertThat(config.buildings()).isEqualTo(40);
+			assertThat(config.academicBuildings()).isEqualTo(24); // 60% of 40
+			// Courses = academicBuildings * 55 = 24 * 55 = 1320
+			assertThat(config.courses()).isEqualTo(1320);
 		}
 
 		@Test
@@ -171,7 +174,8 @@ class UniversityGeneratorServiceTest {
 		@Test
 		@DisplayName("should generate buildings")
 		void shouldGenerateBuildings() {
-			GenerationConfig config = new GenerationConfig(4, 9, 50, 100);
+			// Using 4 total buildings, 4 academic buildings to ensure all are generated
+			GenerationConfig config = new GenerationConfig(UniversityArchetype.COMMUNITY, 8000, 4, 4, 9, 50, 100);
 
 			service.generateUniversity(config);
 
@@ -186,7 +190,7 @@ class UniversityGeneratorServiceTest {
 		@Test
 		@DisplayName("should generate rooms for each building")
 		void shouldGenerateRoomsForEachBuilding() {
-			GenerationConfig config = new GenerationConfig(2, 9, 50, 100);
+			GenerationConfig config = new GenerationConfig(UniversityArchetype.COMMUNITY, 8000, 2, 2, 9, 50, 100);
 
 			service.generateUniversity(config);
 
@@ -197,7 +201,7 @@ class UniversityGeneratorServiceTest {
 		@Test
 		@DisplayName("should generate instructors from contacts")
 		void shouldGenerateInstructorsFromContacts() {
-			GenerationConfig config = new GenerationConfig(2, 9, 50, 100);
+			GenerationConfig config = new GenerationConfig(UniversityArchetype.COMMUNITY, 8000, 2, 2, 9, 50, 100);
 
 			service.generateUniversity(config);
 
@@ -211,7 +215,7 @@ class UniversityGeneratorServiceTest {
 		@Test
 		@DisplayName("should return accurate generation result")
 		void shouldReturnAccurateResult() {
-			GenerationConfig config = new GenerationConfig(2, 9, 50, 10);
+			GenerationConfig config = new GenerationConfig(UniversityArchetype.COMMUNITY, 8000, 2, 2, 9, 50, 10);
 
 			GenerationResult result = service.generateUniversity(config);
 
