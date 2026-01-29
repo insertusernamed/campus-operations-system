@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useCrud } from '@/composables/useCrud'
 import { schedulesService, type Schedule } from '@/services/schedules'
+import { roomsService, type Room } from '@/services/rooms'
 import { timeslotsService } from '@/services/timeslots'
 import ScheduleCalendar from '@/components/calendar/ScheduleCalendar.vue'
 
 type ViewMode = 'table' | 'calendar'
 const viewMode = ref<ViewMode>('calendar')
+const selectedRoomId = ref<number | null>(null)
+const rooms = ref<Room[]>([])
 
 const { items, loading, error, fetchAll, handleDelete } = useCrud<Schedule, never>({
 	getAll: schedulesService.getAll,
@@ -16,7 +19,20 @@ const { items, loading, error, fetchAll, handleDelete } = useCrud<Schedule, neve
 	deleteConfirm: 'Are you sure you want to delete this schedule?',
 })
 
-onMounted(fetchAll)
+// Filter schedules by selected room
+const filteredItems = computed(() => {
+	if (!selectedRoomId.value) return items.value
+	return items.value.filter(s => s.room.id === selectedRoomId.value)
+})
+
+onMounted(async () => {
+	await fetchAll()
+	try {
+		rooms.value = await roomsService.getAll()
+	} catch (e) {
+		console.error('Failed to load rooms for filter:', e)
+	}
+})
 </script>
 
 <template>
@@ -24,6 +40,14 @@ onMounted(fetchAll)
 		<div class="flex justify-between items-center mb-6">
 			<h1 class="text-2xl font-semibold text-gray-900">Schedules</h1>
 			<div class="flex items-center gap-4">
+				<!-- Room Filter -->
+				<select v-model="selectedRoomId"
+					class="px-3 py-1.5 text-sm border border-gray-300 rounded bg-white text-gray-700">
+					<option :value="null">All Rooms</option>
+					<option v-for="room in rooms" :key="room.id" :value="room.id">
+						{{ room.buildingCode }} {{ room.roomNumber }}
+					</option>
+				</select>
 				<!-- View Toggle -->
 				<div class="flex border border-gray-300 rounded overflow-hidden">
 					<button @click="viewMode = 'calendar'"
@@ -42,10 +66,10 @@ onMounted(fetchAll)
 
 		<div v-if="loading" class="text-gray-500">Loading...</div>
 		<div v-else-if="error" class="text-red-600">{{ error }}</div>
-		<div v-else-if="items.length === 0" class="text-gray-500">No schedules found.</div>
+		<div v-else-if="filteredItems.length === 0" class="text-gray-500">No schedules found.</div>
 
 		<!-- Calendar View -->
-		<ScheduleCalendar v-else-if="viewMode === 'calendar'" :schedules="items" />
+		<ScheduleCalendar v-else-if="viewMode === 'calendar'" :schedules="filteredItems" />
 
 		<!-- Table View -->
 		<table v-else class="w-full bg-white border border-gray-200">
@@ -59,7 +83,7 @@ onMounted(fetchAll)
 				</tr>
 			</thead>
 			<tbody>
-				<tr v-for="s in items" :key="s.id" class="border-b border-gray-100">
+				<tr v-for="s in filteredItems" :key="s.id" class="border-b border-gray-100">
 					<td class="px-4 py-3">
 						<RouterLink :to="`/courses/${s.course.id}`" class="text-blue-600 hover:underline">{{
 							s.course.code }}</RouterLink>
