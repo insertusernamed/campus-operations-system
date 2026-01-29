@@ -1,16 +1,19 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useCrud } from '@/composables/useCrud'
 import { schedulesService, type Schedule } from '@/services/schedules'
 import { roomsService, type Room } from '@/services/rooms'
+import { buildingsService, type Building } from '@/services/buildings'
 import { timeslotsService } from '@/services/timeslots'
 import ScheduleCalendar from '@/components/calendar/ScheduleCalendar.vue'
 
 type ViewMode = 'table' | 'calendar'
 const viewMode = ref<ViewMode>('calendar')
+const selectedBuildingId = ref<number | null>(null)
 const selectedRoomId = ref<number | null>(null)
 const rooms = ref<Room[]>([])
+const buildings = ref<Building[]>([])
 
 const { items, loading, error, fetchAll, handleDelete } = useCrud<Schedule, never>({
 	getAll: schedulesService.getAll,
@@ -19,18 +22,50 @@ const { items, loading, error, fetchAll, handleDelete } = useCrud<Schedule, neve
 	deleteConfirm: 'Are you sure you want to delete this schedule?',
 })
 
-// Filter schedules by selected room
+// Count schedules per room for indicator
+const scheduleCountByRoom = computed(() => {
+	const counts = new Map<number, number>()
+	for (const schedule of items.value) {
+		const roomId = schedule.room.id
+		counts.set(roomId, (counts.get(roomId) || 0) + 1)
+	}
+	return counts
+})
+
+// Filter rooms by selected building
+const filteredRooms = computed(() => {
+	if (!selectedBuildingId.value) return rooms.value
+	return rooms.value.filter(r => r.buildingId === selectedBuildingId.value)
+})
+
+// Filter schedules by selected building and room
 const filteredItems = computed(() => {
-	if (!selectedRoomId.value) return items.value
-	return items.value.filter(s => s.room.id === selectedRoomId.value)
+	let result = items.value
+	if (selectedBuildingId.value) {
+		result = result.filter(s => s.room.buildingId === selectedBuildingId.value)
+	}
+	if (selectedRoomId.value) {
+		result = result.filter(s => s.room.id === selectedRoomId.value)
+	}
+	return result
+})
+
+// Reset room selection when building changes
+watch(selectedBuildingId, () => {
+	selectedRoomId.value = null
 })
 
 onMounted(async () => {
 	await fetchAll()
 	try {
-		rooms.value = await roomsService.getAll()
+		const [roomsData, buildingsData] = await Promise.all([
+			roomsService.getAll(),
+			buildingsService.getAll()
+		])
+		rooms.value = roomsData
+		buildings.value = buildingsData
 	} catch (e) {
-		console.error('Failed to load rooms for filter:', e)
+		console.error('Failed to load filter data:', e)
 	}
 })
 </script>
@@ -39,13 +74,22 @@ onMounted(async () => {
 	<div>
 		<div class="flex justify-between items-center mb-6">
 			<h1 class="text-2xl font-semibold text-gray-900">Schedules</h1>
-			<div class="flex items-center gap-4">
+			<div class="flex items-center gap-3">
+				<!-- Building Filter -->
+				<select v-model="selectedBuildingId"
+					class="px-3 py-1.5 text-sm border border-gray-300 rounded bg-white text-gray-700">
+					<option :value="null">All Buildings</option>
+					<option v-for="building in buildings" :key="building.id" :value="building.id">
+						{{ building.code }} - {{ building.name }}
+					</option>
+				</select>
 				<!-- Room Filter -->
 				<select v-model="selectedRoomId"
 					class="px-3 py-1.5 text-sm border border-gray-300 rounded bg-white text-gray-700">
 					<option :value="null">All Rooms</option>
-					<option v-for="room in rooms" :key="room.id" :value="room.id">
-						{{ room.buildingCode }} {{ room.roomNumber }}
+					<option v-for="room in filteredRooms" :key="room.id" :value="room.id">
+						{{ room.roomNumber }} ({{ room.capacity }} seats)
+						{{ scheduleCountByRoom.get(room.id) ? `- ${scheduleCountByRoom.get(room.id)} classes` : '' }}
 					</option>
 				</select>
 				<!-- View Toggle -->
