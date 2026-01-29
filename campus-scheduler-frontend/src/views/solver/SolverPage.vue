@@ -1,10 +1,16 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSolverWebSocket } from '@/composables/useSolverWebSocket'
 import { solverService } from '@/services/solver'
-import { generatorService, type UniversityStats } from '@/services/generator'
+import {
+	generatorService,
+	type UniversityStats,
+	type ArchetypeInfo,
+	type GenerationPreview,
+} from '@/services/generator'
 import { toast } from 'vue3-toastify'
+import ResearchModal from '@/components/generator/ResearchModal.vue'
 
 const router = useRouter()
 
@@ -22,9 +28,19 @@ const stats = ref<UniversityStats>({
 	rooms: 0,
 	instructors: 0,
 	courses: 0,
-	schedules: 0
+	schedules: 0,
 })
-const datasetSize = ref<'Small' | 'Medium' | 'Large'>('Small')
+
+// Research-based generator state
+const archetypes = ref<ArchetypeInfo[]>([])
+const selectedArchetype = ref<'METROPOLIS' | 'CAMPUS_SPRAWL' | 'COMMUNITY'>('COMMUNITY')
+const studentPopulation = ref(8000)
+const preview = ref<GenerationPreview | null>(null)
+const showResearchModal = ref(false)
+
+const selectedArchetypeInfo = computed(() => {
+	return archetypes.value.find((a) => a.id === selectedArchetype.value)
+})
 
 const isSolving = computed(() => progress.value?.status === 'SOLVING_ACTIVE')
 
@@ -36,8 +52,44 @@ async function fetchStats() {
 	}
 }
 
-onMounted(() => {
-	fetchStats()
+async function fetchArchetypes() {
+	try {
+		archetypes.value = await generatorService.getArchetypes()
+	} catch (e) {
+		console.error('Failed to fetch archetypes', e)
+	}
+}
+
+async function updatePreview() {
+	try {
+		preview.value = await generatorService.previewGeneration({
+			archetype: selectedArchetype.value,
+			studentPopulation: studentPopulation.value,
+		})
+	} catch (e) {
+		console.error('Failed to get preview', e)
+	}
+}
+
+// Update preview when archetype or population changes
+watch([selectedArchetype, studentPopulation], updatePreview, { immediate: false })
+
+// Clamp student population to archetype limits
+watch(selectedArchetype, () => {
+	const arch = selectedArchetypeInfo.value
+	if (arch) {
+		if (studentPopulation.value < arch.minStudents) {
+			studentPopulation.value = arch.minStudents
+		} else if (studentPopulation.value > arch.maxStudents) {
+			studentPopulation.value = arch.maxStudents
+		}
+	}
+})
+
+onMounted(async () => {
+	await fetchStats()
+	await fetchArchetypes()
+	await updatePreview()
 })
 
 async function generateData() {
@@ -45,20 +97,10 @@ async function generateData() {
 	errorMessage.value = ''
 	statusMessage.value = ''
 	try {
-		let result
-		if (datasetSize.value === 'Small') {
-			result = await generatorService.generateSmall()
-		} else if (datasetSize.value === 'Large') {
-			result = await generatorService.generateLarge()
-		} else {
-			// Medium dataset
-			result = await generatorService.generateUniversity({
-				buildings: 6,
-				roomsPerBuilding: 25,
-				instructors: 100,
-				courses: 300
-			})
-		}
+		const result = await generatorService.generateWithArchetype({
+			archetype: selectedArchetype.value,
+			studentPopulation: studentPopulation.value,
+		})
 		statusMessage.value = `Generated: ${result.buildings} buildings, ${result.rooms} rooms, ${result.instructors} instructors, ${result.courses} courses`
 		await fetchStats()
 	} catch (e: unknown) {
@@ -182,15 +224,72 @@ const progressPercent = computed(() => {
 
 		<!-- Data Generator Panel -->
 		<div class="border p-4 mb-6">
-			<h2 class="font-semibold mb-3">Data Generator</h2>
-			<div class="flex items-center gap-3">
-				<div>
-					<select v-model="datasetSize" class="border px-3 py-2 rounded bg-white" :disabled="isGenerating">
-						<option value="Small">Small Dataset</option>
-						<option value="Medium">Medium Dataset</option>
-						<option value="Large">Large Dataset</option>
-					</select>
+			<div class="flex items-center justify-between mb-4">
+				<h2 class="font-semibold">Data Generator</h2>
+				<button @click="showResearchModal = true" class="text-sm text-blue-600 hover:underline">
+					View Research Data
+				</button>
+			</div>
+
+			<!-- Archetype Selection -->
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+				<button v-for="arch in archetypes" :key="arch.id"
+					@click="selectedArchetype = arch.id as typeof selectedArchetype" :disabled="isGenerating" :class="[
+						'p-3 border text-left transition-colors',
+						selectedArchetype === arch.id
+							? 'border-blue-500 bg-blue-50'
+							: 'border-gray-200 hover:border-gray-300',
+					]">
+					<div class="font-medium text-sm">{{ arch.displayName }}</div>
+					<div class="text-xs text-gray-500 mt-1">{{ arch.description }}</div>
+					<div class="text-xs text-gray-400 mt-1">
+						{{ arch.minStudents.toLocaleString() }} - {{ arch.maxStudents.toLocaleString() }} students
+					</div>
+				</button>
+			</div>
+
+			<!-- Student Population Slider -->
+			<div class="mb-4" v-if="selectedArchetypeInfo">
+				<label class="block text-sm font-medium text-gray-700 mb-2">
+					Student Population: {{ studentPopulation.toLocaleString() }}
+				</label>
+				<input type="range" v-model.number="studentPopulation" :min="selectedArchetypeInfo.minStudents"
+					:max="selectedArchetypeInfo.maxStudents" :step="1000" :disabled="isGenerating"
+					class="w-full h-2 bg-gray-200 rounded-lg cursor-pointer" />
+				<div class="flex justify-between text-xs text-gray-400 mt-1">
+					<span>{{ selectedArchetypeInfo.minStudents.toLocaleString() }}</span>
+					<span>{{ selectedArchetypeInfo.maxStudents.toLocaleString() }}</span>
 				</div>
+			</div>
+
+			<!-- Preview -->
+			<div v-if="preview" class="bg-gray-50 p-3 mb-4 text-sm">
+				<div class="grid grid-cols-2 md:grid-cols-5 gap-2 text-center">
+					<div>
+						<div class="font-semibold">{{ preview.totalBuildings }}</div>
+						<div class="text-xs text-gray-500">Buildings</div>
+					</div>
+					<div>
+						<div class="font-semibold">{{ preview.totalRooms }}</div>
+						<div class="text-xs text-gray-500">Rooms</div>
+					</div>
+					<div>
+						<div class="font-semibold">{{ preview.instructors }}</div>
+						<div class="text-xs text-gray-500">Instructors</div>
+					</div>
+					<div>
+						<div class="font-semibold">{{ preview.courses }}</div>
+						<div class="text-xs text-gray-500">Courses</div>
+					</div>
+					<div class="col-span-2 md:col-span-1">
+						<div class="font-semibold">{{ preview.studentPopulation.toLocaleString() }}</div>
+						<div class="text-xs text-gray-500">Students</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Actions -->
+			<div class="flex items-center gap-3">
 				<button @click="generateData" :disabled="isGenerating"
 					class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 min-w-35">
 					{{ isGenerating ? 'Generating...' : 'Generate Data' }}
@@ -201,6 +300,9 @@ const progressPercent = computed(() => {
 				</button>
 			</div>
 		</div>
+
+		<!-- Research Modal -->
+		<ResearchModal v-model="showResearchModal" />
 
 		<!-- Solver Controls -->
 		<div class="border p-4 mb-6">

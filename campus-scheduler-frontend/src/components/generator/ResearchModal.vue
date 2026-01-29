@@ -77,7 +77,7 @@ const archetypes = [
 			'High-density urban campus with vertical architecture and intense utilization',
 		studentsPerBuilding: 500,
 		coursesPerBuilding: 80,
-		coursesPerStudent: 5.0,
+		studentsPerCourse: 7.0, // S/C ratio - higher means less course variety
 		academicBuildingRatio: 0.7,
 		examples: ['University of Toronto', 'McGill University', 'University of Waterloo'],
 		characteristics: [
@@ -94,7 +94,7 @@ const archetypes = [
 		description: 'Expansive campus with parkland feel and specialized research facilities',
 		studentsPerBuilding: 200,
 		coursesPerBuilding: 30,
-		coursesPerStudent: 5.5,
+		studentsPerCourse: 5.5, // S/C ratio
 		academicBuildingRatio: 0.5,
 		examples: ['University of British Columbia', 'University of Alberta'],
 		characteristics: [
@@ -112,7 +112,7 @@ const archetypes = [
 			'Accessible, interconnected campus with personalized attention and efficient space use',
 		studentsPerBuilding: 200,
 		coursesPerBuilding: 55,
-		coursesPerStudent: 3.6,
+		studentsPerCourse: 3.6, // S/C ratio - lower = more variety = better experience
 		academicBuildingRatio: 0.6,
 		examples: ['Lakehead University'],
 		characteristics: [
@@ -267,8 +267,8 @@ const citations = [
 								<span class="stat-label">Courses/Building</span>
 							</div>
 							<div class="stat">
-								<span class="stat-value">{{ archetype.coursesPerStudent }}</span>
-								<span class="stat-label">Courses/Student</span>
+								<span class="stat-value">{{ archetype.studentsPerCourse }}</span>
+								<span class="stat-label">S/C Ratio</span>
 							</div>
 							<div class="stat">
 								<span class="stat-value">{{ (archetype.academicBuildingRatio * 100).toFixed(0)

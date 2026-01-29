@@ -36,7 +36,7 @@ class DataGeneratorControllerTest {
     @Test
     @DisplayName("POST /api/generator/university should generate with default config")
     void shouldGenerateWithDefaultConfig() throws Exception {
-        GenerationResult result = new GenerationResult(8, 120, 200, 500, 30);
+        GenerationResult result = new GenerationResult("COMMUNITY", 8000, 8, 120, 200, 500, 30, "Test ratios");
         when(universityGeneratorService.generateUniversity(any(GenerationConfig.class)))
                 .thenReturn(result);
 
@@ -52,7 +52,7 @@ class DataGeneratorControllerTest {
     @Test
     @DisplayName("POST /api/generator/university should accept custom config")
     void shouldAcceptCustomConfig() throws Exception {
-        GenerationResult result = new GenerationResult(4, 40, 50, 100, 30);
+        GenerationResult result = new GenerationResult("COMMUNITY", 8000, 4, 40, 50, 100, 30, "Test ratios");
         when(universityGeneratorService.generateUniversity(any(GenerationConfig.class)))
                 .thenReturn(result);
 
@@ -77,7 +77,7 @@ class DataGeneratorControllerTest {
     @Test
     @DisplayName("POST /api/generator/university/small should use small config")
     void shouldGenerateSmallUniversity() throws Exception {
-        GenerationResult result = new GenerationResult(4, 40, 50, 100, 30);
+        GenerationResult result = new GenerationResult("COMMUNITY", 5000, 4, 40, 50, 100, 30, "Small config");
         when(universityGeneratorService.generateUniversity(GenerationConfig.small()))
                 .thenReturn(result);
 
@@ -89,7 +89,7 @@ class DataGeneratorControllerTest {
     @Test
     @DisplayName("POST /api/generator/university/large should use large config")
     void shouldGenerateLargeUniversity() throws Exception {
-        GenerationResult result = new GenerationResult(12, 240, 300, 800, 30);
+        GenerationResult result = new GenerationResult("METROPOLIS", 50000, 12, 240, 300, 800, 30, "Large config");
         when(universityGeneratorService.generateUniversity(GenerationConfig.large()))
                 .thenReturn(result);
 

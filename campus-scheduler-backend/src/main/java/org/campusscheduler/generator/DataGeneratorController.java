@@ -66,6 +66,8 @@ public class DataGeneratorController {
 
 	/**
 	 * DTO describing an archetype for the frontend.
+	 * Note: studentsPerCourse is the S/C ratio (students per course offering).
+	 * Higher values mean less course variety per student.
 	 */
 	public record ArchetypeInfo(
 			String id,
@@ -73,7 +75,7 @@ public class DataGeneratorController {
 			String description,
 			int studentsPerBuilding,
 			int coursesPerBuilding,
-			double coursesPerStudent,
+			double studentsPerCourse,
 			int minStudents,
 			int maxStudents,
 			double academicBuildingRatio,
@@ -92,7 +94,7 @@ public class DataGeneratorController {
 					archetype.getDescription(),
 					archetype.getStudentsPerBuilding(),
 					archetype.getCoursesPerBuilding(),
-					archetype.getCoursesPerStudent(),
+					archetype.getStudentsPerCourse(),
 					archetype.getMinStudents(),
 					archetype.getMaxStudents(),
 					archetype.getAcademicBuildingRatio(),
