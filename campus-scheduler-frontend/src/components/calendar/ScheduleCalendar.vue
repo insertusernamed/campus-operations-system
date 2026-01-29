@@ -117,11 +117,11 @@ const calendarApp = createCalendar({
 	defaultView: 'week',
 	dayBoundaries: {
 		start: '07:00',
-		end: '22:00',
+		end: '23:00', // Extended to 11 PM to fit late classes
 	},
 	weekOptions: {
 		nDays: 5,
-		gridHeight: 700,
+		gridHeight: 800, // Increased height for better spacing
 		eventWidth: 95,
 	},
 	firstDayOfWeek: 1, // Monday
@@ -145,8 +145,8 @@ watch(events, (newEvents) => {
 <style scoped>
 .schedule-calendar-wrapper {
 	width: 100%;
-	height: 700px;
-	max-height: 80vh;
+	height: 800px;
+	max-height: 85vh;
 }
 
 .schedule-calendar-wrapper :deep(.sx__calendar-wrapper) {

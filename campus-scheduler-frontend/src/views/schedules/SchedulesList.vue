@@ -22,10 +22,32 @@ const { items, loading, error, fetchAll, handleDelete } = useCrud<Schedule, neve
 	deleteConfirm: 'Are you sure you want to delete this schedule?',
 })
 
+// Hydrate schedules with full room details (in case backend schedule.room is missing building fields)
+const hydratedItems = computed(() => {
+	if (rooms.value.length === 0) return items.value
+
+	const roomMap = new Map<number, Room>()
+	rooms.value.forEach(r => roomMap.set(r.id, r))
+
+	return items.value.map(s => {
+		const fullRoom = roomMap.get(s.room.id)
+		if (fullRoom) {
+			return {
+				...s,
+				room: {
+					...s.room,
+					...fullRoom // Merge full room details including buildingId/Code
+				}
+			}
+		}
+		return s
+	})
+})
+
 // Count schedules per room for indicator
 const scheduleCountByRoom = computed(() => {
 	const counts = new Map<number, number>()
-	for (const schedule of items.value) {
+	for (const schedule of items.value) { // Use raw items for counting to avoid circular dependency if needed, but hydrated is fine too
 		const roomId = schedule.room.id
 		counts.set(roomId, (counts.get(roomId) || 0) + 1)
 	}
@@ -40,7 +62,7 @@ const filteredRooms = computed(() => {
 
 // Filter schedules by selected building and room
 const filteredItems = computed(() => {
-	let result = items.value
+	let result = hydratedItems.value
 	if (selectedBuildingId.value) {
 		result = result.filter(s => s.room.buildingId === selectedBuildingId.value)
 	}
