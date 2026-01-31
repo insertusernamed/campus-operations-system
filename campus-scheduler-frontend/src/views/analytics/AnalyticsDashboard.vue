@@ -12,6 +12,7 @@ import { buildingsService, type Building } from '@/services/buildings'
 import StatCard from '@/components/charts/StatCard.vue'
 import BarChart, { type BarChartData } from '@/components/charts/BarChart.vue'
 import HeatMap, { type HeatmapCell } from '@/components/charts/HeatMap.vue'
+import DashboardSkeleton from '@/components/common/DashboardSkeleton.vue'
 
 const selectedSemester = ref('Fall 2026')
 const selectedBuildingId = ref<number | null>(null)
@@ -144,7 +145,7 @@ onMounted(fetchAllData)
 			</div>
 		</div>
 
-		<div v-if="isLoading" class="py-12 text-center text-gray-500">Loading...</div>
+		<DashboardSkeleton v-if="isLoading" />
 
 		<div v-else-if="summaryError || roomsError || buildingsError || peakHoursError"
 			class="border border-red-300 p-4 text-red-600">

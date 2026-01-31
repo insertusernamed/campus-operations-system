@@ -8,6 +8,7 @@ import { buildingsService, type Building } from '@/services/buildings'
 import { timeslotsService } from '@/services/timeslots'
 import ScheduleCalendar from '@/components/calendar/ScheduleCalendar.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import TableSkeleton from '@/components/common/TableSkeleton.vue'
 
 type ViewMode = 'table' | 'calendar'
 const viewMode = ref<ViewMode>('calendar')
@@ -132,7 +133,7 @@ onMounted(async () => {
 			</div>
 		</div>
 
-		<div v-if="loading" class="text-gray-500">Loading...</div>
+		<TableSkeleton v-if="loading" :columns="5" :rows="6" />
 		<div v-else-if="error" class="text-red-600">{{ error }}</div>
 		<EmptyState v-else-if="filteredItems.length === 0" title="No schedules yet"
 			description="Schedules connect courses to rooms and time slots. Create your first schedule manually or use the auto-scheduler."

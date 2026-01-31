@@ -1,5 +1,7 @@
 <script setup lang="ts" generic="T extends { id: number }">
+import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
+import TableSkeleton from './TableSkeleton.vue'
 
 export interface Column<T> {
 	key: keyof T | string
@@ -10,7 +12,7 @@ export interface Column<T> {
 	linkTo?: (item: T) => string
 }
 
-defineProps<{
+const props = defineProps<{
 	title: string
 	items: T[]
 	columns: Column<T>[]
@@ -21,6 +23,12 @@ defineProps<{
 	editRoute?: (item: T) => string
 	onDelete?: (id: number) => void
 }>()
+
+const skeletonColumns = computed(() => {
+	const base = props.columns.length
+	const hasActions = props.editRoute || props.onDelete
+	return hasActions ? base + 1 : base
+})
 
 function getValue<T>(item: T, col: Column<T>): string {
 	if (col.render) {
@@ -41,7 +49,9 @@ function getValue<T>(item: T, col: Column<T>): string {
 			</RouterLink>
 		</div>
 
-		<div v-if="loading" class="text-gray-500">Loading...</div>
+		<div v-if="loading">
+			<TableSkeleton :columns="skeletonColumns" :rows="5" />
+		</div>
 		<div v-else-if="error" class="text-red-600">{{ error }}</div>
 		<template v-else-if="items.length === 0">
 			<slot name="empty">

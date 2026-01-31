@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import { timeslotsService, type TimeSlot, DAY_OF_WEEK_OPTIONS } from '@/services/timeslots'
 import EmptyState from '@/components/common/EmptyState.vue'
+import TableSkeleton from '@/components/common/TableSkeleton.vue'
 
 const timeslots = ref<TimeSlot[]>([])
 const loading = ref(true)
@@ -46,7 +47,7 @@ async function handleDelete(id: number) {
 			<RouterLink to="/timeslots/new" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Add Time
 				Slot</RouterLink>
 		</div>
-		<div v-if="loading" class="text-gray-500">Loading...</div>
+		<TableSkeleton v-if="loading" :columns="3" :rows="8" />
 		<div v-else-if="error" class="text-red-600">{{ error }}</div>
 		<EmptyState v-else-if="timeslots.length === 0" title="No time slots yet"
 			description="Time slots define when classes can be scheduled. They specify day of week, start time, and end time."
