@@ -1,46 +1,55 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 
-const routes: RouteRecordRaw[] = [
-	{ path: '/', name: 'home', component: () => import('@/views/HomeView.vue') },
+// Eagerly load lightweight nav routes (~15KB total)
+// Heavy routes (Schedules, Solver, Analytics) stay lazy-loaded
+import HomeView from '@/views/HomeView.vue'
+import BuildingsList from '@/views/buildings/BuildingsList.vue'
+import RoomsList from '@/views/rooms/RoomsList.vue'
+import InstructorsList from '@/views/instructors/InstructorsList.vue'
+import CoursesList from '@/views/courses/CoursesList.vue'
+import TimeSlotsList from '@/views/timeslots/TimeSlotsList.vue'
 
-	// Analytics
+const routes: RouteRecordRaw[] = [
+	{ path: '/', name: 'home', component: HomeView },
+
+	// Analytics (lazy - has charts)
 	{ path: '/analytics', name: 'analytics', component: () => import('@/views/analytics/AnalyticsDashboard.vue') },
 
 	// Buildings
-	{ path: '/buildings', name: 'buildings', component: () => import('@/views/buildings/BuildingsList.vue') },
+	{ path: '/buildings', name: 'buildings', component: BuildingsList },
 	{ path: '/buildings/new', name: 'building-create', component: () => import('@/views/buildings/BuildingForm.vue') },
 	{ path: '/buildings/:id', name: 'building-detail', component: () => import('@/views/buildings/BuildingDetail.vue') },
 	{ path: '/buildings/:id/edit', name: 'building-edit', component: () => import('@/views/buildings/BuildingForm.vue') },
 
 	// Rooms
-	{ path: '/rooms', name: 'rooms', component: () => import('@/views/rooms/RoomsList.vue') },
+	{ path: '/rooms', name: 'rooms', component: RoomsList },
 	{ path: '/rooms/new', name: 'room-create', component: () => import('@/views/rooms/RoomForm.vue') },
 	{ path: '/rooms/:id', name: 'room-detail', component: () => import('@/views/rooms/RoomDetail.vue') },
 	{ path: '/rooms/:id/edit', name: 'room-edit', component: () => import('@/views/rooms/RoomForm.vue') },
 
 	// Instructors
-	{ path: '/instructors', name: 'instructors', component: () => import('@/views/instructors/InstructorsList.vue') },
+	{ path: '/instructors', name: 'instructors', component: InstructorsList },
 	{ path: '/instructors/new', name: 'instructor-create', component: () => import('@/views/instructors/InstructorForm.vue') },
 	{ path: '/instructors/:id', name: 'instructor-detail', component: () => import('@/views/instructors/InstructorDetail.vue') },
 	{ path: '/instructors/:id/edit', name: 'instructor-edit', component: () => import('@/views/instructors/InstructorForm.vue') },
 
 	// Courses
-	{ path: '/courses', name: 'courses', component: () => import('@/views/courses/CoursesList.vue') },
+	{ path: '/courses', name: 'courses', component: CoursesList },
 	{ path: '/courses/new', name: 'course-create', component: () => import('@/views/courses/CourseForm.vue') },
 	{ path: '/courses/:id', name: 'course-detail', component: () => import('@/views/courses/CourseDetail.vue') },
 	{ path: '/courses/:id/edit', name: 'course-edit', component: () => import('@/views/courses/CourseForm.vue') },
 
 	// Time Slots
-	{ path: '/timeslots', name: 'timeslots', component: () => import('@/views/timeslots/TimeSlotsList.vue') },
+	{ path: '/timeslots', name: 'timeslots', component: TimeSlotsList },
 	{ path: '/timeslots/new', name: 'timeslot-create', component: () => import('@/views/timeslots/TimeSlotForm.vue') },
 	{ path: '/timeslots/:id/edit', name: 'timeslot-edit', component: () => import('@/views/timeslots/TimeSlotForm.vue') },
 
-	// Schedules
+	// Schedules (lazy - has calendar component ~240KB)
 	{ path: '/schedules', name: 'schedules', component: () => import('@/views/schedules/SchedulesList.vue') },
 	{ path: '/schedules/new', name: 'schedule-create', component: () => import('@/views/schedules/ScheduleForm.vue') },
 
-	// Solver
+	// Solver (lazy - heavy component ~88KB)
 	{ path: '/solver', name: 'solver', component: () => import('@/views/solver/SolverPage.vue') },
 ]
 
