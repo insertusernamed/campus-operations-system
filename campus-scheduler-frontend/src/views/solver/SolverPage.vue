@@ -180,6 +180,30 @@ const progressPercent = computed(() => {
 	if (!progress.value || progress.value.totalCourses === 0) return 0
 	return Math.round((progress.value.assignedCourses / progress.value.totalCourses) * 100)
 })
+
+// Solution quality based on assignment percentage
+const solutionQuality = computed(() => {
+	if (!progress.value) return null
+
+	const assigned = progress.value.assignedCourses || 0
+	const total = progress.value.totalCourses || 0
+	const hardViolations = progress.value.hardViolations || 0
+
+	if (total === 0) return null
+
+	// Hard violations take priority
+	if (hardViolations > 0) {
+		return { label: 'Conflicts', class: 'bg-red-100 text-red-800' }
+	}
+
+	const pct = (assigned / total) * 100
+
+	if (pct >= 100) return { label: 'Complete', class: 'bg-green-100 text-green-800' }
+	if (pct >= 90) return { label: 'Nearly Done', class: 'bg-green-50 text-green-700' }
+	if (pct >= 70) return { label: 'Partial', class: 'bg-yellow-100 text-yellow-700' }
+	if (pct >= 50) return { label: 'Incomplete', class: 'bg-orange-100 text-orange-700' }
+	return { label: 'Early', class: 'bg-gray-100 text-gray-600' }
+})
 </script>
 
 <template>
@@ -376,6 +400,10 @@ const progressPercent = computed(() => {
 						{{ progress.score || 'N/A' }}
 					</div>
 					<div class="text-sm text-gray-500">Score</div>
+					<span v-if="solutionQuality" class="inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded"
+						:class="solutionQuality.class">
+						{{ solutionQuality.label }}
+					</span>
 				</div>
 			</div>
 
