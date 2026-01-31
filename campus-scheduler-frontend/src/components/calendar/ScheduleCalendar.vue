@@ -22,8 +22,8 @@ const DAY_INDEX: Record<DayOfWeek, number> = {
 	SUNDAY: 6,
 }
 
-// Color palette for buildings (colorName as used by Schedule X)
-const BUILDING_COLORS = [
+// Color palette for events
+const EVENT_COLORS = [
 	'#3b82f6', // blue
 	'#10b981', // emerald
 	'#f59e0b', // amber
@@ -44,14 +44,21 @@ function getReferenceMonday(): Temporal.PlainDate {
 const referenceMonday = getReferenceMonday()
 const timezone = Temporal.Now.timeZoneId()
 
-// Build a map of building codes to color indices
-const buildingColorMap = computed(() => {
+// Sanitize key for Schedule X
+function sanitizeKey(key: string): string {
+	return key.replace(/[^a-zA-Z0-9-]/g, '-')
+}
+
+// Build a map of departments to color indices
+const departmentColorMap = computed(() => {
 	const map = new Map<string, number>()
 	let colorIndex = 0
 	for (const schedule of props.schedules) {
-		const buildingCode = schedule.room.buildingCode || 'Unknown'
-		if (!map.has(buildingCode)) {
-			map.set(buildingCode, colorIndex % BUILDING_COLORS.length)
+		const rawDept = schedule.course.department || 'General'
+		const deptKey = sanitizeKey(rawDept)
+
+		if (!map.has(deptKey)) {
+			map.set(deptKey, colorIndex % EVENT_COLORS.length)
 			colorIndex++
 		}
 	}
@@ -61,13 +68,13 @@ const buildingColorMap = computed(() => {
 // Generate calendars config for Schedule X
 const calendarsConfig = computed(() => {
 	const config: Record<string, { colorName: string; lightColors: { main: string; container: string; onContainer: string } }> = {}
-	for (const [buildingCode, colorIndex] of buildingColorMap.value.entries()) {
-		const color = BUILDING_COLORS[colorIndex] ?? '#6b7280'
-		config[buildingCode] = {
-			colorName: buildingCode,
+	for (const [deptKey, colorIndex] of departmentColorMap.value.entries()) {
+		const color = EVENT_COLORS[colorIndex] ?? '#6b7280'
+		config[deptKey] = {
+			colorName: deptKey, // This label is for internal use mostly
 			lightColors: {
 				main: color,
-				container: color + '80', // 50% opacity for better visibility
+				container: color,
 				onContainer: '#ffffff',
 			},
 		}
@@ -94,6 +101,8 @@ function scheduleToEvent(schedule: Schedule) {
 		plainTime: Temporal.PlainTime.from({ hour: endHour, minute: endMin })
 	})
 
+	const deptKey = sanitizeKey(schedule.course.department || 'General')
+
 	return {
 		id: schedule.id,
 		title: schedule.course.code,
@@ -101,7 +110,7 @@ function scheduleToEvent(schedule: Schedule) {
 		end,
 		description: `${schedule.course.name}\n${schedule.room.buildingCode} ${schedule.room.roomNumber}`,
 		location: `${schedule.room.buildingCode} ${schedule.room.roomNumber}`,
-		calendarId: schedule.room.buildingCode || 'Unknown',
+		calendarId: deptKey,
 	}
 }
 
@@ -109,6 +118,7 @@ const events = computed(() => props.schedules.map(scheduleToEvent))
 
 // Reactive calendar app instance
 const calendarApp = shallowRef<any>(null)
+const calendarKey = shallowRef(0)
 let eventsService: any = null
 
 function initCalendar() {
@@ -120,18 +130,20 @@ function initCalendar() {
 		defaultView: 'week',
 		dayBoundaries: {
 			start: '07:00',
-			end: '23:00', // Extended to 11 PM to fit late classes
+			end: '23:00', // Extended to 11 PM
 		},
 		weekOptions: {
 			nDays: 5,
-			gridHeight: 800, // Increased height for better spacing
+			gridHeight: 800,
 			eventWidth: 95,
 		},
-		firstDayOfWeek: 1, // Monday
+		firstDayOfWeek: 1,
 		isResponsive: true,
 		events: events.value,
 		calendars: calendarsConfig.value,
 	}, [eventsService])
+
+	calendarKey.value++
 }
 
 // Initialize on mount
@@ -144,6 +156,8 @@ watch(calendarsConfig, () => {
 
 // Update events when schedules change (using current service instance)
 watch(events, (newEvents) => {
+	// Only update events if we didn't just recreate the calendar
+	// (initCalendar uses the latest events already)
 	if (eventsService) {
 		eventsService.set(newEvents)
 	}
@@ -152,7 +166,7 @@ watch(events, (newEvents) => {
 
 <template>
 	<div class="schedule-calendar-wrapper">
-		<ScheduleXCalendar :calendar-app="calendarApp" />
+		<ScheduleXCalendar v-if="calendarApp" :key="calendarKey" :calendar-app="calendarApp" />
 	</div>
 </template>
 
