@@ -43,7 +43,7 @@ public class SolverService {
 	private static final String SOLVER_TOPIC = "/topic/solver/progress";
 	private static final long BROADCAST_THROTTLE_MS = 200; // Min time between broadcasts
 
-	private final SolverFactory<ScheduleSolution> solverFactory;
+	private final SolverManagerConfiguration solverConfig;
 	private final CourseRepository courseRepository;
 	private final RoomRepository roomRepository;
 	private final TimeSlotRepository timeSlotRepository;
@@ -59,13 +59,13 @@ public class SolverService {
 	private volatile long lastBroadcastTime;
 
 	public SolverService(
-			SolverFactory<ScheduleSolution> solverFactory,
+			SolverManagerConfiguration solverConfig,
 			CourseRepository courseRepository,
 			RoomRepository roomRepository,
 			TimeSlotRepository timeSlotRepository,
 			ScheduleRepository scheduleRepository,
 			SimpMessagingTemplate messagingTemplate) {
-		this.solverFactory = solverFactory;
+		this.solverConfig = solverConfig;
 		this.courseRepository = courseRepository;
 		this.roomRepository = roomRepository;
 		this.timeSlotRepository = timeSlotRepository;
@@ -107,8 +107,12 @@ public class SolverService {
 		solverStartTime = System.currentTimeMillis();
 		lastBroadcastTime = 0;
 
-		// Create a new solver instance
-		Solver<ScheduleSolution> solver = solverFactory.buildSolver();
+		// Create solver with timeout based on problem size
+		int courseCount = problem.getAssignments().size();
+		SolverFactory<ScheduleSolution> factory = solverConfig.createSolverFactory(courseCount);
+		Solver<ScheduleSolution> solver = factory.buildSolver();
+		log.info("Solver timeout set to {} for {} courses",
+				solverConfig.calculateTimeout(courseCount), courseCount);
 		currentSolver.set(solver);
 
 		// Add listener for step-by-step progress updates
