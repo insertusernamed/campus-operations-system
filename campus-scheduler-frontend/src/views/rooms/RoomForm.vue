@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { roomsService, type CreateRoomRequest } from '@/services/rooms'
 import { buildingsService, type Building } from '@/services/buildings'
+import FormSkeleton from '@/components/common/FormSkeleton.vue'
 import type { AxiosError } from 'axios'
 
 const route = useRoute()
@@ -63,7 +64,7 @@ async function handleSubmit() {
 		</div>
 		<div class="bg-white border border-gray-200 p-6 max-w-xl">
 			<h1 class="text-2xl font-semibold text-gray-900 mb-6">{{ isEdit ? 'Edit Room' : 'New Room' }}</h1>
-			<div v-if="loading" class="text-gray-500">Loading...</div>
+			<FormSkeleton v-if="loading" :fields="5" />
 			<form v-else @submit.prevent="handleSubmit" class="space-y-4">
 				<div v-if="error" class="p-3 bg-red-50 border border-red-200 text-red-600 rounded">{{ error }}</div>
 				<div class="grid grid-cols-2 gap-4">
