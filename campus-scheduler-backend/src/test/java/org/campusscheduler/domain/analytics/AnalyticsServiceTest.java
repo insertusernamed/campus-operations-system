@@ -191,7 +191,7 @@ class AnalyticsServiceTest {
             when(buildingRepository.findById(1L)).thenReturn(Optional.of(testBuilding));
             when(timeSlotRepository.count()).thenReturn(10L);
             // Optimized query mock
-            when(scheduleRepository.countByRoomBuildingIdAndSemester(1L, TEST_SEMESTER)).thenReturn(13L);
+            when(scheduleRepository.countSchedulesByBuildingAndSemester(1L, TEST_SEMESTER)).thenReturn(13L);
 
             Optional<BuildingUtilizationDTO> result = analyticsService.getBuildingUtilization(1L, TEST_SEMESTER);
 
@@ -234,8 +234,8 @@ class AnalyticsServiceTest {
             when(buildingRepository.findAll()).thenReturn(List.of(testBuilding, testBuilding2));
             when(timeSlotRepository.count()).thenReturn(10L);
             // Optimized query mocks
-            when(scheduleRepository.countByRoomBuildingIdAndSemester(1L, TEST_SEMESTER)).thenReturn(5L);
-            when(scheduleRepository.countByRoomBuildingIdAndSemester(2L, TEST_SEMESTER)).thenReturn(8L);
+            when(scheduleRepository.countSchedulesByBuildingAndSemester(1L, TEST_SEMESTER)).thenReturn(5L);
+            when(scheduleRepository.countSchedulesByBuildingAndSemester(2L, TEST_SEMESTER)).thenReturn(8L);
 
             List<BuildingUtilizationDTO> result = analyticsService.getAllBuildingsUtilization(TEST_SEMESTER);
 

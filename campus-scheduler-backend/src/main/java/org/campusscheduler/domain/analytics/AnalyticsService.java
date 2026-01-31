@@ -200,7 +200,7 @@ public class AnalyticsService {
         List<Room> rooms = building.getRooms();
 
         // Optimized: Single query to count all schedules for this building
-        long scheduledSlots = scheduleRepository.countByRoomBuildingIdAndSemester(building.getId(), semester);
+        long scheduledSlots = scheduleRepository.countSchedulesByBuildingAndSemester(building.getId(), semester);
         long totalAvailableSlots = rooms.size() * totalSlots;
 
         double utilization = totalAvailableSlots > 0

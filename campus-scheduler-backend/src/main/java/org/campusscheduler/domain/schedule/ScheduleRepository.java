@@ -58,7 +58,7 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
 	 * Count schedules for all rooms in a specific building for a semester.
 	 */
 	@Query("SELECT COUNT(s) FROM Schedule s WHERE s.room.building.id = :buildingId AND s.semester = :semester")
-	long countByRoomBuildingIdAndSemester(@Param("buildingId") Long buildingId, @Param("semester") String semester);
+	long countSchedulesByBuildingAndSemester(@Param("buildingId") Long buildingId, @Param("semester") String semester);
 
 	/**
 	 * Delete all schedules for a specific semester.
