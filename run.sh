@@ -50,6 +50,11 @@ run_frontend() {
     npm run dev 2>&1 | sed "s/^/$(printf "${GREEN}[FRONTEND]${NC} ")/"
 }
 
+# Kill any existing processes on ports 5173 and 8080
+echo "Killing any existing services on ports 5173 and 8080..."
+kill -9 $(lsof -ti:5173) 2>/dev/null || true
+kill -9 $(lsof -ti:8080) 2>/dev/null || true
+
 echo "Starting services..."
 
 # Run both services in the background and store PIDs
