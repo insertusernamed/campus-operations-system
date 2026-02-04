@@ -39,6 +39,7 @@ public class ScheduleController {
 	public ResponseEntity<List<Schedule>> getAll(
 			@Parameter(description = "Filter by room ID") @RequestParam(required = false) Long roomId,
 			@Parameter(description = "Filter by course ID") @RequestParam(required = false) Long courseId,
+			@Parameter(description = "Filter by instructor ID") @RequestParam(required = false) Long instructorId,
 			@Parameter(description = "Filter by semester") @RequestParam(required = false) String semester) {
 
 		if (roomId != null) {
@@ -46,6 +47,9 @@ public class ScheduleController {
 		}
 		if (courseId != null) {
 			return ResponseEntity.ok(scheduleService.findByCourseId(courseId));
+		}
+		if (instructorId != null) {
+			return ResponseEntity.ok(scheduleService.findByInstructorId(instructorId));
 		}
 		if (semester != null && !semester.isBlank()) {
 			return ResponseEntity.ok(scheduleService.findBySemester(semester));

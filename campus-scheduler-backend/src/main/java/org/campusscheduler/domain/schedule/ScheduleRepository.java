@@ -24,6 +24,26 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
 	List<Schedule> findByCourseId(Long courseId);
 
 	/**
+	 * Find schedules by instructor ID.
+	 */
+	List<Schedule> findByCourseInstructorId(Long instructorId);
+
+	/**
+	 * Find schedules by instructor ID and semester.
+	 */
+	List<Schedule> findByCourseInstructorIdAndSemester(Long instructorId, String semester);
+
+	/**
+	 * Find schedules by instructor ID, semester, and day of week (for overlap detection).
+	 */
+	List<Schedule> findByCourseInstructorIdAndSemesterAndTimeSlotDayOfWeek(Long instructorId, String semester, java.time.DayOfWeek dayOfWeek);
+
+	/**
+	 * Find schedules by instructor ID, time slot, and semester.
+	 */
+	List<Schedule> findByCourseInstructorIdAndTimeSlotIdAndSemester(Long instructorId, Long timeSlotId, String semester);
+
+	/**
 	 * Find schedules by time slot ID.
 	 */
 	List<Schedule> findByTimeSlotId(Long timeSlotId);
@@ -32,6 +52,11 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
 	 * Find schedules by room and time slot (for conflict detection).
 	 */
 	List<Schedule> findByRoomIdAndTimeSlotId(Long roomId, Long timeSlotId);
+
+	/**
+	 * Find schedules by room and semester (for overlap detection).
+	 */
+	List<Schedule> findByRoomIdAndSemester(Long roomId, String semester);
 
 	/**
 	 * Find schedules by room, time slot, and semester (for semester-specific

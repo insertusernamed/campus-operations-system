@@ -3,6 +3,8 @@ package org.campusscheduler.domain.room;
 import org.campusscheduler.domain.building.Building;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -32,7 +34,8 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
 	 * @param buildingId the building ID
 	 * @return list of rooms
 	 */
-	List<Room> findByBuildingId(Long buildingId);
+	@Query("SELECT r FROM Room r WHERE r.building.id = :buildingId")
+	List<Room> findByBuildingId(@Param("buildingId") Long buildingId);
 
 	/**
 	 * Find a room by room number within a building.
@@ -41,7 +44,8 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
 	 * @param buildingId the building ID
 	 * @return optional containing the room if found
 	 */
-	Optional<Room> findByRoomNumberAndBuildingId(String roomNumber, Long buildingId);
+	@Query("SELECT r FROM Room r WHERE r.roomNumber = :roomNumber AND r.building.id = :buildingId")
+	Optional<Room> findByRoomNumberAndBuildingId(@Param("roomNumber") String roomNumber, @Param("buildingId") Long buildingId);
 
 	/**
 	 * Find rooms by type.
