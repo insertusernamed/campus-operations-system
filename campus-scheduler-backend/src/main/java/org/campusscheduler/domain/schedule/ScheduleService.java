@@ -55,6 +55,13 @@ public class ScheduleService {
     }
 
     /**
+     * Find schedules by instructor ID.
+     */
+    public List<Schedule> findByInstructorId(Long instructorId) {
+        return scheduleRepository.findByCourseInstructorId(instructorId);
+    }
+
+    /**
      * Find schedules by time slot ID.
      */
     public List<Schedule> findByTimeSlotId(Long timeSlotId) {
@@ -133,6 +140,33 @@ public class ScheduleService {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Update schedule room and time slot.
+     */
+    @Transactional
+    public Optional<Schedule> updateScheduleRoomTime(Long scheduleId, Long roomId, Long timeSlotId) {
+        Optional<Schedule> scheduleOpt = scheduleRepository.findById(scheduleId);
+        if (scheduleOpt.isEmpty()) {
+            return Optional.empty();
+        }
+
+        Optional<Room> roomOpt = roomRepository.findById(roomId);
+        if (roomOpt.isEmpty()) {
+            return Optional.empty();
+        }
+
+        Optional<TimeSlot> timeSlotOpt = timeSlotRepository.findById(timeSlotId);
+        if (timeSlotOpt.isEmpty()) {
+            return Optional.empty();
+        }
+
+        Schedule schedule = scheduleOpt.get();
+        schedule.setRoom(roomOpt.get());
+        schedule.setTimeSlot(timeSlotOpt.get());
+
+        return Optional.of(scheduleRepository.save(schedule));
     }
 
     /**
