@@ -10,6 +10,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -18,6 +19,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import io.swagger.v3.oas.annotations.media.Schema;
 import org.campusscheduler.domain.instructor.Instructor;
 import org.campusscheduler.domain.room.Room;
 import org.campusscheduler.domain.schedule.Schedule;
@@ -30,12 +32,21 @@ import java.util.Objects;
  * Represents a requested change to an existing schedule.
  */
 @Entity
-@Table(name = "schedule_change_requests")
+@Table(
+        name = "schedule_change_requests",
+        indexes = {
+                @Index(name = "idx_change_request_status", columnList = "status"),
+                @Index(name = "idx_change_request_instructor", columnList = "requested_by_instructor_id"),
+                @Index(name = "idx_change_request_semester", columnList = "original_semester"),
+                @Index(name = "idx_change_request_schedule", columnList = "schedule_id")
+        }
+)
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@Schema(description = "A requested change to an existing schedule")
 public class ScheduleChangeRequest {
 
     @Id

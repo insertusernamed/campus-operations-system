@@ -20,7 +20,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * Service layer for schedule change request business logic.
@@ -63,6 +62,10 @@ public class ScheduleChangeRequestService {
             return Optional.empty();
         }
 
+        if (request.getProposedRoomId() == null && request.getProposedTimeSlotId() == null) {
+            throw new ChangeRequestStateException("At least one proposed change is required");
+        }
+
         Schedule schedule = scheduleOpt.get();
         Room proposedRoom = resolveRoom(request.getProposedRoomId());
         if (request.getProposedRoomId() != null && proposedRoom == null) {
@@ -101,7 +104,7 @@ public class ScheduleChangeRequestService {
 
         ScheduleChangeRequest changeRequest = changeRequestOpt.get();
         if (changeRequest.getStatus() != ChangeRequestStatus.PENDING) {
-            throw new ChangeRequestConflictException("Change request has already been resolved", List.of());
+            throw new ChangeRequestStateException("Change request has already been resolved");
         }
 
         Room overrideRoom = resolveRoom(decisionRequest.getProposedRoomId());
@@ -122,6 +125,9 @@ public class ScheduleChangeRequestService {
         }
 
         Schedule schedule = changeRequest.getSchedule();
+        if (changeRequest.getProposedRoom() == null && changeRequest.getProposedTimeSlot() == null) {
+            throw new ChangeRequestStateException("At least one proposed change is required");
+        }
         Room targetRoom = changeRequest.getProposedRoom() != null ? changeRequest.getProposedRoom() : schedule.getRoom();
         TimeSlot targetTimeSlot = changeRequest.getProposedTimeSlot() != null ? changeRequest.getProposedTimeSlot() : schedule.getTimeSlot();
 
@@ -130,8 +136,16 @@ public class ScheduleChangeRequestService {
             throw new ChangeRequestConflictException("Change request conflicts with existing schedules", validation.getHardConflicts());
         }
 
-        if (scheduleService.updateScheduleRoomTime(schedule.getId(), targetRoom.getId(), targetTimeSlot.getId()).isEmpty()) {
-            return Optional.empty();
+        try {
+            if (scheduleService.updateScheduleRoomTime(
+                    schedule.getId(),
+                    targetRoom.getId(),
+                    targetTimeSlot.getId(),
+                    () -> validateChange(schedule, targetRoom, targetTimeSlot).getHardConflicts()).isEmpty()) {
+                return Optional.empty();
+            }
+        } catch (org.campusscheduler.domain.schedule.ScheduleConflictException ex) {
+            throw new ChangeRequestConflictException(ex.getMessage(), List.of(ex.getMessage()));
         }
 
         LocalDateTime now = LocalDateTime.now();
@@ -152,7 +166,7 @@ public class ScheduleChangeRequestService {
 
         ScheduleChangeRequest changeRequest = changeRequestOpt.get();
         if (changeRequest.getStatus() != ChangeRequestStatus.PENDING) {
-            throw new ChangeRequestConflictException("Change request has already been resolved", List.of());
+            throw new ChangeRequestStateException("Change request has already been resolved");
         }
 
         changeRequest.setStatus(ChangeRequestStatus.REJECTED);
@@ -166,6 +180,10 @@ public class ScheduleChangeRequestService {
         Optional<Schedule> scheduleOpt = scheduleRepository.findById(request.getScheduleId());
         if (scheduleOpt.isEmpty()) {
             return Optional.empty();
+        }
+
+        if (request.getProposedRoomId() == null && request.getProposedTimeSlotId() == null) {
+            throw new ChangeRequestStateException("At least one proposed change is required");
         }
 
         Schedule schedule = scheduleOpt.get();
@@ -214,32 +232,58 @@ public class ScheduleChangeRequestService {
         }
 
         Course course = schedule.getCourse();
-
-        if (room.getCapacity() < course.getEnrollmentCapacity()) {
-            hardConflicts.add("Room capacity (" + room.getCapacity() + ") is insufficient for enrollment ("
-                    + course.getEnrollmentCapacity() + ")");
+        if (course == null) {
+            hardConflicts.add("Course information is required for validation");
+            return ChangeRequestValidationResponse.of(hardConflicts, softWarnings);
         }
 
-        List<Schedule> roomConflicts = scheduleRepository
-                .findByRoomIdAndTimeSlotIdAndSemester(room.getId(), timeSlot.getId(), schedule.getSemester())
-                .stream()
-                .filter(existing -> !existing.getId().equals(schedule.getId()))
-                .collect(Collectors.toList());
-        if (!roomConflicts.isEmpty()) {
-            Schedule conflicting = roomConflicts.get(0);
-            hardConflicts.add("Room conflict with " + conflicting.getCourse().getCode() + " at this time");
+        Integer enrollmentCapacity = course.getEnrollmentCapacity();
+        if (enrollmentCapacity == null) {
+            softWarnings.add("Course enrollment capacity is not specified; skipping room capacity validation");
+        } else if (room.getCapacity() < enrollmentCapacity) {
+            hardConflicts.add("Room capacity (" + room.getCapacity() + ") is insufficient for enrollment ("
+                    + enrollmentCapacity + ")");
+        }
+
+        for (Schedule existing : scheduleRepository.findByRoomIdAndSemester(room.getId(), schedule.getSemester())) {
+            if (existing.getId().equals(schedule.getId())) {
+                continue;
+            }
+            TimeSlot existingTimeSlot = existing.getTimeSlot();
+            if (existingTimeSlot == null || existingTimeSlot.getDayOfWeek() == null) {
+                continue;
+            }
+            if (!existingTimeSlot.getDayOfWeek().equals(timeSlot.getDayOfWeek())) {
+                continue;
+            }
+            if (existingTimeSlot.overlapsWith(timeSlot)) {
+                String courseCode = existing.getCourse() != null ? existing.getCourse().getCode() : "another course";
+                hardConflicts.add("Room conflict with " + courseCode + " at this time");
+                break;
+            }
         }
 
         if (course.getInstructor() != null) {
             Long instructorId = course.getInstructor().getId();
-            List<Schedule> instructorConflicts = scheduleRepository
-                    .findByCourseInstructorIdAndTimeSlotIdAndSemester(instructorId, timeSlot.getId(), schedule.getSemester())
-                    .stream()
-                    .filter(existing -> !existing.getId().equals(schedule.getId()))
-                    .collect(Collectors.toList());
-            if (!instructorConflicts.isEmpty()) {
-                Schedule conflicting = instructorConflicts.get(0);
-                hardConflicts.add("Instructor conflict with " + conflicting.getCourse().getCode() + " at this time");
+            List<Schedule> instructorSchedules = scheduleRepository
+                    .findByCourseInstructorIdAndSemesterAndTimeSlotDayOfWeek(
+                            instructorId,
+                            schedule.getSemester(),
+                            timeSlot.getDayOfWeek());
+
+            for (Schedule existing : instructorSchedules) {
+                if (existing.getId().equals(schedule.getId())) {
+                    continue;
+                }
+                TimeSlot existingTimeSlot = existing.getTimeSlot();
+                if (existingTimeSlot == null) {
+                    continue;
+                }
+                if (existingTimeSlot.overlapsWith(timeSlot)) {
+                    String courseCode = existing.getCourse() != null ? existing.getCourse().getCode() : "another course";
+                    hardConflicts.add("Instructor conflict with " + courseCode + " at this time");
+                    break;
+                }
             }
 
             softWarnings.addAll(buildTravelWarnings(course, instructorId, room, timeSlot, schedule));
@@ -260,10 +304,13 @@ public class ScheduleChangeRequestService {
             TimeSlot targetTimeSlot,
             Schedule schedule) {
         List<String> warnings = new ArrayList<>();
-        List<Schedule> instructorSchedules = scheduleRepository
-                .findByCourseInstructorIdAndSemester(instructorId, schedule.getSemester());
+        List<Schedule> sameDaySchedules = scheduleRepository
+                .findByCourseInstructorIdAndSemesterAndTimeSlotDayOfWeek(
+                        instructorId,
+                        schedule.getSemester(),
+                        targetTimeSlot.getDayOfWeek());
 
-        for (Schedule other : instructorSchedules) {
+        for (Schedule other : sameDaySchedules) {
             if (other.getId().equals(schedule.getId())) {
                 continue;
             }
@@ -282,10 +329,11 @@ public class ScheduleChangeRequestService {
                 continue;
             }
             String otherCourse = other.getCourse() != null ? other.getCourse().getCode() : "another course";
+            String targetCourse = course != null ? course.getCode() : "this course";
             String targetBuilding = targetRoom.getBuildingCode() != null ? targetRoom.getBuildingCode() : "another building";
             String otherBuilding = otherRoom.getBuildingCode() != null ? otherRoom.getBuildingCode() : "another building";
             warnings.add("Back-to-back classes in different buildings within " + BACK_TO_BACK_MINUTES
-                    + " minutes: " + course.getCode() + " and " + otherCourse + " (" + otherBuilding + " -> "
+                    + " minutes: " + targetCourse + " and " + otherCourse + " (" + otherBuilding + " -> "
                     + targetBuilding + ")");
         }
 
@@ -297,9 +345,12 @@ public class ScheduleChangeRequestService {
                 || isWithinMinutes(b.getEndTime(), a.getStartTime());
     }
 
-    private boolean isWithinMinutes(java.time.LocalTime end, java.time.LocalTime start) {
-        long minutes = Duration.between(end, start).toMinutes();
-        return minutes >= 0 && minutes <= BACK_TO_BACK_MINUTES;
+    private boolean isWithinMinutes(java.time.LocalTime firstEnd, java.time.LocalTime secondStart) {
+        if (secondStart.isBefore(firstEnd)) {
+            return false;
+        }
+        long minutes = Duration.between(firstEnd, secondStart).toMinutes();
+        return minutes <= BACK_TO_BACK_MINUTES;
     }
 
     private String roomTypeMismatchMessage(Course course, Room room) {

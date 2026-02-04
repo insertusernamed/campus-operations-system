@@ -147,6 +147,18 @@ public class ScheduleService {
      */
     @Transactional
     public Optional<Schedule> updateScheduleRoomTime(Long scheduleId, Long roomId, Long timeSlotId) {
+        return updateScheduleRoomTime(scheduleId, roomId, timeSlotId, null);
+    }
+
+    /**
+     * Update schedule room and time slot with conflict validation.
+     */
+    @Transactional
+    public Optional<Schedule> updateScheduleRoomTime(
+            Long scheduleId,
+            Long roomId,
+            Long timeSlotId,
+            java.util.function.Supplier<List<String>> conflictValidator) {
         Optional<Schedule> scheduleOpt = scheduleRepository.findById(scheduleId);
         if (scheduleOpt.isEmpty()) {
             return Optional.empty();
@@ -160,6 +172,13 @@ public class ScheduleService {
         Optional<TimeSlot> timeSlotOpt = timeSlotRepository.findById(timeSlotId);
         if (timeSlotOpt.isEmpty()) {
             return Optional.empty();
+        }
+
+        if (conflictValidator != null) {
+            List<String> conflicts = conflictValidator.get();
+            if (!conflicts.isEmpty()) {
+                throw new ScheduleConflictException(conflicts.get(0));
+            }
         }
 
         Schedule schedule = scheduleOpt.get();
