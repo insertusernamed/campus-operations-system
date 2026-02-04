@@ -119,4 +119,13 @@ public class ScheduleChangeRequestController {
                         "hardConflicts", ex.getHardConflicts()
                 ));
     }
+
+    @ExceptionHandler(ChangeRequestStateException.class)
+    public ResponseEntity<Map<String, Object>> handleStateError(ChangeRequestStateException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of(
+                        "error", ex.getMessage(),
+                        "code", "CHANGE_REQUEST_STATE"
+                ));
+    }
 }

@@ -19,9 +19,11 @@ public interface ScheduleChangeRequestRepository extends JpaRepository<ScheduleC
             "schedule.course",
             "schedule.course.instructor",
             "schedule.room",
+            "schedule.room.building",
             "schedule.timeSlot",
             "requestedByInstructor",
             "proposedRoom",
+            "proposedRoom.building",
             "proposedTimeSlot"
     })
     @Query("""

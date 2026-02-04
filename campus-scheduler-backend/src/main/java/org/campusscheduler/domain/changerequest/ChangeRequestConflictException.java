@@ -2,6 +2,10 @@ package org.campusscheduler.domain.changerequest;
 
 import java.util.List;
 
+/**
+ * Thrown when a change request cannot be applied because it would introduce
+ * one or more non-resolvable ("hard") schedule conflicts.
+ */
 public class ChangeRequestConflictException extends RuntimeException {
 
     private final List<String> hardConflicts;
