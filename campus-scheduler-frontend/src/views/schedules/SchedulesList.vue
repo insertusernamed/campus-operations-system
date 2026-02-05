@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import { useCrud } from '@/composables/useCrud'
 import { schedulesService, type Schedule } from '@/services/schedules'
 import { roomsService, type Room } from '@/services/rooms'
@@ -10,6 +10,8 @@ import { useRole } from '@/composables/useRole'
 import ScheduleCalendar from '@/components/calendar/ScheduleCalendar.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import TableSkeleton from '@/components/common/TableSkeleton.vue'
+import BaseModal from '@/components/common/BaseModal.vue'
+import { changeRequestIssueOptions, type ChangeRequestIssue } from '@/constants/changeRequestIssues'
 
 type ViewMode = 'table' | 'calendar'
 const viewMode = ref<ViewMode>('calendar')
@@ -19,10 +21,15 @@ const rooms = ref<Room[]>([])
 const buildings = ref<Building[]>([])
 
 const { role, instructorId } = useRole()
+const router = useRouter()
+
+const requestModalOpen = ref(false)
+const selectedScheduleId = ref<number | null>(null)
+const selectedIssue = ref<ChangeRequestIssue | ''>('')
 
 const { items, loading, error, fetchAll, handleDelete } = useCrud<Schedule, never>({
 	getAll: () => schedulesService.getAll({
-		instructorId: role.value === 'instructor' ? (instructorId.value ?? undefined) : undefined
+		instructorId: role.value === 'admin' ? undefined : (instructorId.value ?? undefined)
 	}),
 	deleteItem: schedulesService.delete,
 	listRoute: '/schedules',
@@ -79,6 +86,11 @@ const filteredItems = computed(() => {
 	return result
 })
 
+const selectedSchedule = computed(() => {
+	if (!selectedScheduleId.value) return null
+	return hydratedItems.value.find(schedule => schedule.id === selectedScheduleId.value) ?? null
+})
+
 // Reset room selection when building changes
 watch(selectedBuildingId, () => {
 	selectedRoomId.value = null
@@ -103,6 +115,27 @@ onMounted(async () => {
 		error.value = 'Failed to load filter data. Please try reloading the page.' as any
 	}
 })
+
+function handleEventClick(scheduleId: number) {
+	if (role.value !== 'instructor') {
+		return
+	}
+	selectedScheduleId.value = scheduleId
+	selectedIssue.value = ''
+	requestModalOpen.value = true
+}
+
+function handleStartRequest() {
+	if (!selectedScheduleId.value || !selectedIssue.value) return
+	requestModalOpen.value = false
+	router.push({
+		path: '/requests/new',
+		query: {
+			scheduleId: String(selectedScheduleId.value),
+			issue: selectedIssue.value,
+		},
+	})
+}
 </script>
 
 <template>
@@ -138,7 +171,8 @@ onMounted(async () => {
 						Table
 					</button>
 				</div>
-				<RouterLink to="/schedules/new" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Add
+				<RouterLink v-if="role === 'admin'" to="/schedules/new"
+					class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Add
 					Schedule</RouterLink>
 			</div>
 		</div>
@@ -147,12 +181,14 @@ onMounted(async () => {
 		<div v-else-if="error" class="text-red-600">{{ error }}</div>
 		<EmptyState v-else-if="filteredItems.length === 0" title="No schedules yet"
 			description="Schedules connect courses to rooms and time slots. Create your first schedule manually or use the auto-scheduler."
-			action-label="Add Schedule" action-route="/schedules/new" secondary-label="Use Solver"
-			secondary-route="/solver"
+			:action-label="role === 'admin' ? 'Add Schedule' : undefined"
+			:action-route="role === 'admin' ? '/schedules/new' : undefined"
+			:secondary-label="role === 'admin' ? 'Use Solver' : undefined"
+			:secondary-route="role === 'admin' ? '/solver' : undefined"
 			hint="The solver can generate an optimized schedule for all your courses at once." />
 
 		<!-- Calendar View -->
-		<ScheduleCalendar v-else-if="viewMode === 'calendar'" :schedules="filteredItems" />
+		<ScheduleCalendar v-else-if="viewMode === 'calendar'" :schedules="filteredItems" @event-click="handleEventClick" />
 
 		<!-- Table View -->
 		<table v-else class="w-full bg-white border border-gray-200">
@@ -179,10 +215,54 @@ onMounted(async () => {
 					<td class="px-4 py-3 text-gray-600">{{ timeslotsService.formatTimeSlot(s.timeSlot) }}</td>
 					<td class="px-4 py-3 text-gray-600">{{ s.semester }}</td>
 					<td class="px-4 py-3">
-						<button @click="handleDelete(s.id)" class="text-red-600 hover:underline">Delete</button>
+						<button v-if="role === 'admin'" @click="handleDelete(s.id)"
+							class="text-red-600 hover:underline">Delete</button>
 					</td>
 				</tr>
 			</tbody>
 		</table>
+
+		<BaseModal :model-value="requestModalOpen" title="Request a Change"
+			@update:model-value="requestModalOpen = $event">
+			<div v-if="selectedSchedule" class="space-y-3 text-sm text-gray-700">
+				<div class="text-base font-medium text-gray-900">
+					{{ selectedSchedule.course.code }} - {{ selectedSchedule.course.name }}
+				</div>
+				<div>
+					<span class="font-medium text-gray-900">Current time:</span>
+					{{ timeslotsService.formatTimeSlot(selectedSchedule.timeSlot) }}
+				</div>
+				<div>
+					<span class="font-medium text-gray-900">Current room:</span>
+					{{ selectedSchedule.room.buildingCode }} {{ selectedSchedule.room.roomNumber }}
+				</div>
+				<p class="text-gray-600">
+					Start a change request for this class. You can refine the details on the next step.
+				</p>
+				<div>
+					<label for="request-change-issue" class="block text-sm font-medium text-gray-700 mb-1">Why is this a problem?</label>
+					<select id="request-change-issue" v-model="selectedIssue" class="w-full px-3 py-2 border border-gray-300 rounded">
+						<option value="" disabled>Select a reason</option>
+						<option v-for="option in changeRequestIssueOptions" :key="option.value" :value="option.value">
+							{{ option.label }}
+						</option>
+					</select>
+				</div>
+			</div>
+			<div v-else class="text-sm text-gray-600">Select a class to request a change.</div>
+
+			<template #footer>
+				<div class="flex justify-end gap-2">
+					<button class="px-4 py-2 border border-gray-300 rounded" @click="requestModalOpen = false">
+						Cancel
+					</button>
+					<button :disabled="!selectedSchedule || !selectedIssue"
+						class="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+						@click="handleStartRequest">
+						Request Change
+					</button>
+				</div>
+			</template>
+		</BaseModal>
 	</div>
 </template>

@@ -31,6 +31,8 @@ const navigation: NavGroup[] = [
 		items: [
 			{ name: 'Solver', path: '/solver', icon: 'bolt', roles: ['admin'] },
 			{ name: 'Schedules', path: '/schedules', icon: 'calendar', roles: ['admin', 'instructor', 'student'] },
+			{ name: 'Requests', path: '/requests', icon: 'calendar', roles: ['instructor'] },
+			{ name: 'Change Requests', path: '/requests/admin', icon: 'calendar', roles: ['admin'] },
 			{ name: 'Time Slots', path: '/timeslots', icon: 'clock', roles: ['admin'] },
 		],
 	},
