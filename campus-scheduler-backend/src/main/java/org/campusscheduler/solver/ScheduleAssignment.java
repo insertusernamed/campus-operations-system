@@ -5,6 +5,7 @@ import org.campusscheduler.domain.room.Room;
 import org.campusscheduler.domain.timeslot.TimeSlot;
 
 import ai.timefold.solver.core.api.domain.entity.PlanningEntity;
+import ai.timefold.solver.core.api.domain.entity.PlanningPin;
 import ai.timefold.solver.core.api.domain.lookup.PlanningId;
 import ai.timefold.solver.core.api.domain.variable.PlanningVariable;
 import lombok.AllArgsConstructor;
@@ -51,6 +52,12 @@ public class ScheduleAssignment {
      */
     @PlanningVariable(valueRangeProviderRefs = "timeSlotRange")
     private TimeSlot timeSlot;
+
+    /**
+     * Whether this assignment is pinned (fixed) during solving.
+     */
+    @PlanningPin
+    private boolean pinned;
 
     /**
      * Check if this assignment has been initialized (room and timeSlot assigned).
