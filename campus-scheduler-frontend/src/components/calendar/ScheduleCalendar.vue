@@ -12,6 +12,10 @@ const props = defineProps<{
 	schedules: Schedule[]
 }>()
 
+const emit = defineEmits<{
+	(e: 'event-click', scheduleId: number): void
+}>()
+
 const DAY_INDEX: Record<DayOfWeek, number> = {
 	MONDAY: 0,
 	TUESDAY: 1,
@@ -141,6 +145,14 @@ function initCalendar() {
 		isResponsive: true,
 		events: events.value,
 		calendars: calendarsConfig.value,
+		callbacks: {
+			onEventClick: (event) => {
+				const parsedId = Number(event.id)
+				if (!Number.isNaN(parsedId)) {
+					emit('event-click', parsedId)
+				}
+			},
+		},
 	}, [eventsService])
 
 	calendarKey.value++
