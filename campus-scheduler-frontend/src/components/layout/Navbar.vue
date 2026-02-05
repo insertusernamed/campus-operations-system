@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useRole, type Role } from '@/composables/useRole'
-import { instructorsService, type Instructor } from '@/services/instructors'
+import { useInstructors } from '@/composables/useInstructors'
 
 const { role, instructorId, setRole, setInstructorId } = useRole()
-const instructors = ref<Instructor[]>([])
-const loadingInstructors = ref(false)
+const { instructors, loading: loadingInstructors, loadInstructors } = useInstructors()
 
 const roleModel = computed({
 	get: () => role.value,
@@ -20,26 +19,19 @@ const instructorModel = computed({
 	},
 })
 
-async function loadInstructors() {
-	loadingInstructors.value = true
-	try {
-		instructors.value = await instructorsService.getAll()
-	} catch (error) {
-		console.error('Failed to load instructors', error)
-	} finally {
-		loadingInstructors.value = false
-	}
-}
-
 watch([role, instructors], () => {
 	if ((role.value === 'instructor' || role.value === 'student') && !instructorId.value) {
-		if (instructors.value.length > 0) {
+		if (instructors.value.length > 0 && instructors.value[0]) {
 			setInstructorId(instructors.value[0].id)
 		}
 	}
 })
 
-onMounted(loadInstructors)
+onMounted(() => {
+	loadInstructors()
+	// Listen for data regeneration events
+	window.addEventListener('data-regenerated', loadInstructors)
+})
 </script>
 
 <template>
