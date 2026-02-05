@@ -59,8 +59,9 @@ public class SolverManagerConfiguration {
     }
 
     /**
-     * Build a SolverFactory for impact analysis with a short timeout and
-     * constraint match enabled for explanations.
+     * Build a SolverFactory for impact analysis with a short timeout, suitable
+     * for use with {@code SolutionManager.explain()} to obtain constraint-match
+     * based explanations.
      */
     public SolverFactory<ScheduleSolution> createImpactSolverFactory() {
         Duration timeout = Duration.ofSeconds(5);

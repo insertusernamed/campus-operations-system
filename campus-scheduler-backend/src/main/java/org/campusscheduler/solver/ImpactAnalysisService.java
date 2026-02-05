@@ -65,6 +65,9 @@ public class ImpactAnalysisService {
         if (targetTimeSlot == null) {
             targetTimeSlot = schedule.getTimeSlot();
         }
+        if (targetRoom == null || targetTimeSlot == null) {
+            throw new ImpactAnalysisStateException("Schedule must have a room and time slot or provide proposed values");
+        }
 
         String semester = schedule.getSemester();
         List<Schedule> schedules = scheduleRepository.findBySemester(semester);
@@ -208,6 +211,9 @@ public class ImpactAnalysisService {
                     continue;
                 }
                 if (schedule.getTimeSlot() == null || timeSlot == null) {
+                    continue;
+                }
+                if (!schedule.getTimeSlot().getDayOfWeek().equals(timeSlot.getDayOfWeek())) {
                     continue;
                 }
                 if (schedule.getTimeSlot().overlapsWith(timeSlot)) {
