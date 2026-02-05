@@ -37,6 +37,10 @@ const form = ref({
     notes: '',
 })
 
+type RoomScope = 'any' | 'same-building'
+
+const roomScope = ref<RoomScope>('any')
+
 const validation = ref<{ hardConflicts: string[]; softWarnings: string[] }>({
     hardConflicts: [],
     softWarnings: [],
@@ -45,6 +49,7 @@ const validation = ref<{ hardConflicts: string[]; softWarnings: string[] }>({
 interface ImpactSuggestion {
     id: string
     timeSlot: TimeSlot
+    room: Room
     impact: ImpactAnalysisResponse
 }
 
@@ -60,6 +65,11 @@ const canSubmit = computed(() => {
 
 const availableSchedules = computed(() => schedules.value)
 const canGenerateSuggestions = computed(() => !!selectedSchedule.value && !!form.value.issue)
+
+function formatRoom(room: Room): string {
+    const parts = [room.buildingCode, room.roomNumber].filter(Boolean)
+    return parts.join(' ')
+}
 
 async function loadData() {
     loading.value = true
@@ -150,10 +160,39 @@ function getCandidateTimeSlots(schedule: Schedule, issue: ChangeRequestIssue): T
     return candidates
 }
 
+function getCandidateRooms(schedule: Schedule, scope: RoomScope): Room[] {
+    const courseCapacity = schedule.course.enrollmentCapacity
+    const roomMap = new Map<number, Room>()
+
+    const roomsToConsider = scope === 'same-building' && schedule.room.buildingId
+        ? rooms.value.filter(room => room.buildingId === schedule.room.buildingId)
+        : rooms.value
+
+    roomsToConsider.forEach(room => roomMap.set(room.id, room))
+
+    if (!roomMap.has(schedule.room.id)) {
+        roomMap.set(schedule.room.id, schedule.room)
+    }
+
+    const uniqueRooms = Array.from(roomMap.values())
+
+    uniqueRooms.sort((a, b) => {
+        const aFits = a.capacity >= courseCapacity
+        const bFits = b.capacity >= courseCapacity
+        if (aFits !== bFits) return aFits ? -1 : 1
+        const aDiff = Math.abs(a.capacity - courseCapacity)
+        const bDiff = Math.abs(b.capacity - courseCapacity)
+        if (aDiff !== bDiff) return aDiff - bDiff
+        return a.roomNumber.localeCompare(b.roomNumber)
+    })
+
+    return uniqueRooms
+}
+
 function applySuggestion(suggestion: ImpactSuggestion) {
     selectedSuggestionId.value = suggestion.id
     form.value.proposedTimeSlotId = suggestion.timeSlot.id
-    form.value.proposedRoomId = null
+    form.value.proposedRoomId = suggestion.room.id
 }
 
 function buildPreviewSchedules(moves: ImpactAnalysisMove[]): Schedule[] {
@@ -206,33 +245,55 @@ async function generateSuggestions() {
         return
     }
 
-    const candidates = getCandidateTimeSlots(selectedSchedule.value, form.value.issue)
-    if (candidates.length === 0) {
+    const candidateTimeSlots = getCandidateTimeSlots(selectedSchedule.value, form.value.issue)
+    if (candidateTimeSlots.length === 0) {
         suggestionsError.value = 'No available time slots found for this day.'
+        return
+    }
+
+    const candidateRooms = getCandidateRooms(selectedSchedule.value, roomScope.value)
+    if (candidateRooms.length === 0) {
+        suggestionsError.value = 'No rooms available for this option.'
         return
     }
 
     suggestionsLoading.value = true
     try {
+        const maxCalls = 6
+        const pairs: { slot: TimeSlot; room: Room }[] = []
+        const slots = candidateTimeSlots.slice(0, 3)
+        const roomsForSlots = candidateRooms.slice(0, 3)
+
+        for (const slot of slots) {
+            for (const room of roomsForSlots) {
+                if (pairs.length >= maxCalls) break
+                pairs.push({ slot, room })
+            }
+            if (pairs.length >= maxCalls) break
+        }
+
         const results = await Promise.allSettled(
-            candidates.slice(0, 5).map(async (slot) => {
+            pairs.map(async ({ slot, room }) => {
                 const impact = await solverService.analyzeImpact({
                     scheduleId: selectedSchedule.value!.id,
                     proposedTimeSlotId: slot.id,
+                    proposedRoomId: room.id,
                 })
-                return { slot, impact }
+                return { slot, room, impact }
             })
         )
 
         const resolved = results
-            .filter((result): result is PromiseFulfilledResult<{ slot: TimeSlot; impact: ImpactAnalysisResponse }> => result.status === 'fulfilled')
+            .filter((result): result is PromiseFulfilledResult<{ slot: TimeSlot; room: Room; impact: ImpactAnalysisResponse }> => result.status === 'fulfilled')
             .map(result => result.value)
             .filter(result => (result.impact.moves ?? []).length > 0)
+            .sort((a, b) => (a.impact.moves?.length ?? 0) - (b.impact.moves?.length ?? 0))
             .slice(0, 3)
 
         suggestions.value = resolved.map((result) => ({
-            id: `slot-${result.slot.id}`,
+            id: `slot-${result.slot.id}-room-${result.room.id}`,
             timeSlot: result.slot,
+            room: result.room,
             impact: result.impact,
         }))
 
@@ -351,6 +412,12 @@ watch(() => form.value.issue, () => {
     selectedSuggestionId.value = null
     suggestionsError.value = null
 })
+
+watch(roomScope, () => {
+    suggestions.value = []
+    selectedSuggestionId.value = null
+    suggestionsError.value = null
+})
 </script>
 
 <template>
@@ -395,6 +462,26 @@ watch(() => form.value.issue, () => {
                                 {{ suggestionsLoading ? 'Generating...' : 'Generate options' }}
                             </button>
                         </div>
+                        <div class="text-sm text-gray-600">
+                            Room scope
+                            <div class="mt-2 space-y-2 text-sm text-gray-700">
+                                <label class="flex items-start gap-2">
+                                    <input type="radio" value="any" v-model="roomScope" class="mt-1" />
+                                    <span>
+                                        Any building (recommended)
+                                        <span class="block text-xs text-gray-500">Best chance of a workable option.</span>
+                                    </span>
+                                </label>
+                                <label class="flex items-start gap-2">
+                                    <input type="radio" value="same-building" v-model="roomScope" class="mt-1" />
+                                    <span>
+                                        Same building only
+                                        <span class="block text-xs text-gray-500">More likely to conflict.</span>
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="border-t border-gray-200" />
                         <div v-if="suggestionsError" class="text-sm text-red-600">{{ suggestionsError }}</div>
                         <div v-else-if="suggestions.length === 0" class="text-sm text-gray-500">
                             Generate options to see suggestions.
@@ -406,7 +493,7 @@ watch(() => form.value.issue, () => {
                                     @change="applySuggestion(suggestion)" />
                                 <div>
                                     <div class="font-medium text-gray-900">
-                                        {{ timeslotsService.formatTimeSlot(suggestion.timeSlot) }}
+                                        {{ timeslotsService.formatTimeSlot(suggestion.timeSlot) }} • {{ formatRoom(suggestion.room) }}
                                     </div>
                                     <div class="text-xs text-gray-500">
                                         {{ suggestionSummary(suggestion) }}
