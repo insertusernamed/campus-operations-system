@@ -22,7 +22,7 @@ const { role, instructorId } = useRole()
 
 const { items, loading, error, fetchAll, handleDelete } = useCrud<Schedule, never>({
 	getAll: () => schedulesService.getAll({
-		instructorId: role.value === 'instructor' ? (instructorId.value ?? undefined) : undefined
+		instructorId: role.value === 'admin' ? undefined : (instructorId.value ?? undefined)
 	}),
 	deleteItem: schedulesService.delete,
 	listRoute: '/schedules',
