@@ -13,6 +13,8 @@ import {
     resolveIssueOption,
     type ChangeRequestIssue,
 } from '@/constants/changeRequestIssues'
+import { solverService, type ImpactAnalysisMove, type ImpactAnalysisResponse } from '@/services/solver'
+import ScheduleCalendar from '@/components/calendar/ScheduleCalendar.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -24,6 +26,8 @@ const timeSlots = ref<TimeSlot[]>([])
 const loading = ref(false)
 const saving = ref(false)
 const error = ref<string | null>(null)
+const suggestionsLoading = ref(false)
+const suggestionsError = ref<string | null>(null)
 
 const form = ref({
     scheduleId: 0,
@@ -38,11 +42,24 @@ const validation = ref<{ hardConflicts: string[]; softWarnings: string[] }>({
     softWarnings: [],
 })
 
+interface ImpactSuggestion {
+    id: string
+    timeSlot: TimeSlot
+    impact: ImpactAnalysisResponse
+}
+
+const suggestions = ref<ImpactSuggestion[]>([])
+const selectedSuggestionId = ref<string | null>(null)
+
+const selectedSchedule = computed(() => schedules.value.find(schedule => schedule.id === form.value.scheduleId) ?? null)
+const selectedSuggestion = computed(() => suggestions.value.find(suggestion => suggestion.id === selectedSuggestionId.value) ?? null)
+
 const canSubmit = computed(() => {
     return !!form.value.scheduleId && !!form.value.issue && (form.value.proposedRoomId || form.value.proposedTimeSlotId)
 })
 
 const availableSchedules = computed(() => schedules.value)
+const canGenerateSuggestions = computed(() => !!selectedSchedule.value && !!form.value.issue)
 
 async function loadData() {
     loading.value = true
@@ -61,6 +78,174 @@ async function loadData() {
         error.value = 'Failed to load data'
     } finally {
         loading.value = false
+    }
+}
+
+function timeToMinutes(time: string): number {
+    const [hours, minutes] = time.split(':').map(Number)
+    return hours * 60 + minutes
+}
+
+function overlaps(a: TimeSlot, b: TimeSlot): boolean {
+    if (a.dayOfWeek !== b.dayOfWeek) return false
+    const aStart = timeToMinutes(a.startTime)
+    const aEnd = timeToMinutes(a.endTime)
+    const bStart = timeToMinutes(b.startTime)
+    const bEnd = timeToMinutes(b.endTime)
+    return aStart < bEnd && aEnd > bStart
+}
+
+function getCandidateTimeSlots(schedule: Schedule, issue: ChangeRequestIssue): TimeSlot[] {
+    const day = schedule.timeSlot.dayOfWeek
+    const currentStart = timeToMinutes(schedule.timeSlot.startTime)
+    const currentEnd = timeToMinutes(schedule.timeSlot.endTime)
+
+    const sameDayTimeSlots = timeSlots.value.filter(slot => slot.dayOfWeek === day && slot.id !== schedule.timeSlot.id)
+    const instructorOtherSlots = schedules.value
+        .filter(item => item.id !== schedule.id && item.timeSlot.dayOfWeek === day)
+        .map(item => item.timeSlot)
+
+    const availableSlots = sameDayTimeSlots.filter(slot =>
+        !instructorOtherSlots.some(other => overlaps(slot, other))
+    )
+
+    const previous = schedules.value
+        .filter(item => item.id !== schedule.id && item.timeSlot.dayOfWeek === day)
+        .filter(item => timeToMinutes(item.timeSlot.endTime) <= currentStart)
+        .sort((a, b) => timeToMinutes(b.timeSlot.endTime) - timeToMinutes(a.timeSlot.endTime))[0]
+
+    const next = schedules.value
+        .filter(item => item.id !== schedule.id && item.timeSlot.dayOfWeek === day)
+        .filter(item => timeToMinutes(item.timeSlot.startTime) >= currentEnd)
+        .sort((a, b) => timeToMinutes(a.timeSlot.startTime) - timeToMinutes(b.timeSlot.startTime))[0]
+
+    let candidates = availableSlots
+
+    if (issue === 'GAP_TOO_LARGE_BEFORE') {
+        const previousEnd = previous ? timeToMinutes(previous.timeSlot.endTime) : null
+        candidates = availableSlots.filter(slot => timeToMinutes(slot.startTime) < currentStart)
+        if (previousEnd !== null) {
+            candidates = candidates.filter(slot => timeToMinutes(slot.startTime) >= previousEnd)
+            candidates = candidates.sort((a, b) => (timeToMinutes(a.startTime) - previousEnd) - (timeToMinutes(b.startTime) - previousEnd))
+        } else {
+            candidates = candidates.sort((a, b) => Math.abs(currentStart - timeToMinutes(a.startTime)) - Math.abs(currentStart - timeToMinutes(b.startTime)))
+        }
+    } else if (issue === 'GAP_TOO_LARGE_AFTER') {
+        const nextStart = next ? timeToMinutes(next.timeSlot.startTime) : null
+        candidates = availableSlots.filter(slot => timeToMinutes(slot.startTime) > currentStart)
+        if (nextStart !== null) {
+            candidates = candidates.filter(slot => timeToMinutes(slot.endTime) <= nextStart)
+            candidates = candidates.sort((a, b) => (nextStart - timeToMinutes(a.endTime)) - (nextStart - timeToMinutes(b.endTime)))
+        } else {
+            candidates = candidates.sort((a, b) => (timeToMinutes(a.startTime) - currentEnd) - (timeToMinutes(b.startTime) - currentEnd))
+        }
+    } else {
+        candidates = availableSlots.sort((a, b) => Math.abs(currentStart - timeToMinutes(a.startTime)) - Math.abs(currentStart - timeToMinutes(b.startTime)))
+    }
+
+    if (candidates.length === 0) {
+        candidates = availableSlots.sort((a, b) => Math.abs(currentStart - timeToMinutes(a.startTime)) - Math.abs(currentStart - timeToMinutes(b.startTime)))
+    }
+
+    return candidates
+}
+
+function applySuggestion(suggestion: ImpactSuggestion) {
+    selectedSuggestionId.value = suggestion.id
+    form.value.proposedTimeSlotId = suggestion.timeSlot.id
+    form.value.proposedRoomId = null
+}
+
+function buildPreviewSchedules(moves: ImpactAnalysisMove[]): Schedule[] {
+    if (moves.length === 0) {
+        return schedules.value
+    }
+
+    const moveMap = new Map<number, ImpactAnalysisMove>(moves.map(move => [move.scheduleId, move]))
+
+    return schedules.value.map(schedule => {
+        const move = moveMap.get(schedule.id)
+        if (!move) return schedule
+
+        const nextRoom = rooms.value.find(room => room.id === move.toRoomId) ?? schedule.room
+        const nextTimeSlot = timeSlots.value.find(slot => slot.id === move.toTimeSlotId) ?? schedule.timeSlot
+
+        return {
+            ...schedule,
+            room: nextRoom,
+            timeSlot: nextTimeSlot,
+        }
+    })
+}
+
+const previewSchedules = computed(() => {
+    if (!selectedSuggestion.value) return []
+    return buildPreviewSchedules(selectedSuggestion.value.impact.moves ?? [])
+})
+
+function suggestionSummary(suggestion: ImpactSuggestion): string {
+    const moves = suggestion.impact.moves ?? []
+    const chain = moves.length <= 1
+        ? 'No chain reaction needed.'
+        : `${moves.length - 1} other class${moves.length === 2 ? '' : 'es'} would move.`
+
+    if (suggestion.impact.status === 'NO_SOLUTION') {
+        return `${chain} Hard conflicts remain.`
+    }
+
+    return chain
+}
+
+async function generateSuggestions() {
+    suggestionsError.value = null
+    suggestions.value = []
+    selectedSuggestionId.value = null
+
+    if (!selectedSchedule.value || !form.value.issue) {
+        suggestionsError.value = 'Select a class and reason first.'
+        return
+    }
+
+    const candidates = getCandidateTimeSlots(selectedSchedule.value, form.value.issue)
+    if (candidates.length === 0) {
+        suggestionsError.value = 'No available time slots found for this day.'
+        return
+    }
+
+    suggestionsLoading.value = true
+    try {
+        const results = await Promise.allSettled(
+            candidates.slice(0, 5).map(async (slot) => {
+                const impact = await solverService.analyzeImpact({
+                    scheduleId: selectedSchedule.value!.id,
+                    proposedTimeSlotId: slot.id,
+                })
+                return { slot, impact }
+            })
+        )
+
+        const resolved = results
+            .filter((result): result is PromiseFulfilledResult<{ slot: TimeSlot; impact: ImpactAnalysisResponse }> => result.status === 'fulfilled')
+            .map(result => result.value)
+            .filter(result => (result.impact.moves ?? []).length > 0)
+            .slice(0, 3)
+
+        suggestions.value = resolved.map((result) => ({
+            id: `slot-${result.slot.id}`,
+            timeSlot: result.slot,
+            impact: result.impact,
+        }))
+
+        if (suggestions.value.length === 0) {
+            suggestionsError.value = 'No viable options found. Try adjusting manually.'
+        } else {
+            applySuggestion(suggestions.value[0])
+        }
+    } catch (e) {
+        console.error(e)
+        suggestionsError.value = 'Failed to generate options. Please try again.'
+    } finally {
+        suggestionsLoading.value = false
     }
 }
 
@@ -154,6 +339,18 @@ watch(() => route.query.scheduleId, () => {
 watch(() => route.query.issue, () => {
     applyIssuePrefill()
 })
+
+watch(() => form.value.scheduleId, () => {
+    suggestions.value = []
+    selectedSuggestionId.value = null
+    suggestionsError.value = null
+})
+
+watch(() => form.value.issue, () => {
+    suggestions.value = []
+    selectedSuggestionId.value = null
+    suggestionsError.value = null
+})
 </script>
 
 <template>
@@ -180,6 +377,53 @@ watch(() => route.query.issue, () => {
                     </div>
 
                     <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Why is this a problem?</label>
+                        <select v-model="form.issue" class="w-full px-3 py-2 border border-gray-300 rounded">
+                            <option value="" disabled>Select a reason</option>
+                            <option v-for="option in changeRequestIssueOptions" :key="option.value" :value="option.value">
+                                {{ option.label }}
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="border border-gray-200 rounded p-4 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div class="text-sm font-medium text-gray-900">Solver suggestions</div>
+                            <button :disabled="!canGenerateSuggestions || suggestionsLoading"
+                                class="px-3 py-1.5 text-sm border border-gray-300 rounded disabled:opacity-50"
+                                @click="generateSuggestions">
+                                {{ suggestionsLoading ? 'Generating...' : 'Generate options' }}
+                            </button>
+                        </div>
+                        <div v-if="suggestionsError" class="text-sm text-red-600">{{ suggestionsError }}</div>
+                        <div v-else-if="suggestions.length === 0" class="text-sm text-gray-500">
+                            Generate options to see suggestions.
+                        </div>
+                        <div v-else class="space-y-2">
+                            <label v-for="suggestion in suggestions" :key="suggestion.id"
+                                class="flex items-start gap-2 text-sm text-gray-700">
+                                <input type="radio" class="mt-1" :value="suggestion.id" v-model="selectedSuggestionId"
+                                    @change="applySuggestion(suggestion)" />
+                                <div>
+                                    <div class="font-medium text-gray-900">
+                                        {{ timeslotsService.formatTimeSlot(suggestion.timeSlot) }}
+                                    </div>
+                                    <div class="text-xs text-gray-500">
+                                        {{ suggestionSummary(suggestion) }}
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                        <div v-if="selectedSuggestion" class="pt-2">
+                            <div class="text-sm font-medium text-gray-900 mb-2">Calendar preview</div>
+                            <ScheduleCalendar
+                                :schedules="previewSchedules"
+                                :height="520"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Proposed Room</label>
                         <select v-model="form.proposedRoomId" class="w-full px-3 py-2 border border-gray-300 rounded">
                             <option :value="null">Keep current</option>
@@ -195,16 +439,6 @@ watch(() => route.query.issue, () => {
                             <option :value="null">Keep current</option>
                             <option v-for="slot in timeSlots" :key="slot.id" :value="slot.id">
                                 {{ timeslotsService.formatTimeSlot(slot) }}
-                            </option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Why is this a problem?</label>
-                        <select v-model="form.issue" class="w-full px-3 py-2 border border-gray-300 rounded">
-                            <option value="" disabled>Select a reason</option>
-                            <option v-for="option in changeRequestIssueOptions" :key="option.value" :value="option.value">
-                                {{ option.label }}
                             </option>
                         </select>
                     </div>

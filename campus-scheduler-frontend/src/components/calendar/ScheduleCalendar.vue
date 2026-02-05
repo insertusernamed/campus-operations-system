@@ -10,7 +10,10 @@ import type { DayOfWeek } from '@/services/timeslots'
 
 const props = defineProps<{
 	schedules: Schedule[]
+	height?: number
 }>()
+
+const calendarHeight = computed(() => props.height ?? 800)
 
 const emit = defineEmits<{
 	(e: 'event-click', scheduleId: number): void
@@ -134,11 +137,11 @@ function initCalendar() {
 		defaultView: 'week',
 		dayBoundaries: {
 			start: '07:00',
-			end: '23:00', // Extended to 11 PM
+			end: '23:00',
 		},
 		weekOptions: {
 			nDays: 5,
-			gridHeight: 800,
+			gridHeight: calendarHeight.value,
 			eventWidth: 95,
 		},
 		firstDayOfWeek: 1,
@@ -162,7 +165,7 @@ function initCalendar() {
 initCalendar()
 
 // Recreate calendar when building colors/config changes
-watch(calendarsConfig, () => {
+watch([calendarsConfig, calendarHeight], () => {
 	initCalendar()
 }, { deep: true })
 
@@ -177,7 +180,7 @@ watch(events, (newEvents) => {
 </script>
 
 <template>
-	<div class="schedule-calendar-wrapper">
+	<div class="schedule-calendar-wrapper" :style="{ height: `${calendarHeight}px`, minHeight: `${calendarHeight}px` }">
 		<ScheduleXCalendar v-if="calendarApp" :key="calendarKey" :calendar-app="calendarApp" />
 	</div>
 </template>
@@ -187,6 +190,8 @@ watch(events, (newEvents) => {
 	width: 100%;
 	height: 800px;
 	max-height: 85vh;
+	position: relative;
+	overflow: auto;
 }
 
 .schedule-calendar-wrapper :deep(.sx__calendar-wrapper) {
