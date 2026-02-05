@@ -224,7 +224,7 @@ onMounted(loadData)
             </tbody>
         </table>
 
-        <BaseModal :is-open="modalOpen" title="Review Request" @close="modalOpen = false">
+        <BaseModal v-model="modalOpen" title="Review Request">
             <template #default>
                 <div v-if="selectedRequest" class="space-y-4">
                     <div>
