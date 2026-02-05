@@ -54,6 +54,30 @@ const showAnalyze = computed(() => {
     return validation.value.hardConflicts.length > 0 || validation.value.softWarnings.length > 0
 })
 
+const requestedMove = computed(() => {
+    if (!impact.value || !selectedRequest.value) return null
+    return impact.value.moves.find(move => move.scheduleId === selectedRequest.value?.schedule.id) ?? null
+})
+
+const chainMoves = computed(() => {
+    if (!impact.value || !selectedRequest.value) return []
+    return impact.value.moves.filter(move => move.scheduleId !== selectedRequest.value?.schedule.id)
+})
+
+const roomLabel = (roomId: number | null) => {
+    if (!roomId) return 'Keep current'
+    const room = rooms.value.find(item => item.id === roomId)
+    if (!room) return 'Unknown room'
+    return `${room.buildingCode} ${room.roomNumber}`
+}
+
+const timeSlotLabel = (timeSlotId: number | null) => {
+    if (!timeSlotId) return 'Keep current'
+    const slot = timeSlots.value.find(item => item.id === timeSlotId)
+    if (!slot) return 'Unknown time'
+    return timeslotsService.formatTimeSlot(slot)
+}
+
 const filteredRequests = computed(() => {
     if (statusFilter.value === 'ALL') return requests.value
     return requests.value.filter(req => req.status === statusFilter.value)
@@ -279,14 +303,39 @@ onMounted(loadData)
 
                     <div v-if="impact" class="bg-gray-50 border border-gray-200 text-gray-700 p-3 rounded">
                         <p class="text-sm font-medium">Impact Analysis</p>
-                        <p class="text-xs text-gray-500">{{ impact.scoreSummary }}</p>
-                        <ul v-if="impact.moves?.length" class="mt-2 text-xs">
-                            <li v-for="move in impact.moves" :key="move.scheduleId">
-                                {{ move.courseCode }}: {{ move.fromRoomLabel }} / {{ move.fromTimeSlotLabel }} →
-                                {{ move.toRoomLabel }} / {{ move.toTimeSlotLabel }}
-                            </li>
-                        </ul>
-                        <p v-else class="text-xs text-gray-500">No moves suggested.</p>
+                        <p class="text-xs text-gray-500">Status: {{ impact.status }} · Score: {{ impact.score || 'N/A' }}</p>
+
+                        <div class="mt-2 text-xs text-gray-600">
+                            <p class="font-medium text-gray-700">Requested change</p>
+                            <p>
+                                {{ selectedRequest?.schedule.course.code }}:
+                                {{ selectedRequest?.schedule.room.buildingCode }}
+                                {{ selectedRequest?.schedule.room.roomNumber }}
+                                /
+                                {{ selectedRequest?.schedule.timeSlot ? timeslotsService.formatTimeSlot(selectedRequest.schedule.timeSlot) : 'Unknown time' }}
+                                → {{ roomLabel(overrideRoomId) }} / {{ timeSlotLabel(overrideTimeSlotId) }}
+                            </p>
+                        </div>
+
+                        <div v-if="requestedMove" class="mt-2 text-xs text-gray-600">
+                            <p class="font-medium text-gray-700">Solver result for request</p>
+                            <p>
+                                {{ requestedMove.courseCode }}:
+                                {{ requestedMove.fromRoomLabel }} / {{ requestedMove.fromTimeSlotLabel }}
+                                → {{ requestedMove.toRoomLabel }} / {{ requestedMove.toTimeSlotLabel }}
+                            </p>
+                        </div>
+
+                        <div class="mt-2 text-xs text-gray-600">
+                            <p class="font-medium text-gray-700">Chain reaction</p>
+                            <ul v-if="chainMoves.length" class="mt-1 text-xs">
+                                <li v-for="move in chainMoves" :key="move.scheduleId">
+                                    {{ move.courseCode }}: {{ move.fromRoomLabel }} / {{ move.fromTimeSlotLabel }} →
+                                    {{ move.toRoomLabel }} / {{ move.toTimeSlotLabel }}
+                                </li>
+                            </ul>
+                            <p v-else class="text-xs text-gray-500">No additional moves required.</p>
+                        </div>
                     </div>
                 </div>
             </template>
