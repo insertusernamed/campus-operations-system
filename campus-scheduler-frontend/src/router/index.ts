@@ -9,6 +9,7 @@ import RoomsList from '@/views/rooms/RoomsList.vue'
 import InstructorsList from '@/views/instructors/InstructorsList.vue'
 import CoursesList from '@/views/courses/CoursesList.vue'
 import TimeSlotsList from '@/views/timeslots/TimeSlotsList.vue'
+import { useRole } from '@/composables/useRole'
 
 const routes: RouteRecordRaw[] = [
 	{ path: '/', name: 'home', component: HomeView },
@@ -51,11 +52,38 @@ const routes: RouteRecordRaw[] = [
 
 	// Solver (lazy - heavy component ~88KB)
 	{ path: '/solver', name: 'solver', component: () => import('@/views/solver/SolverPage.vue') },
+
+	// Change Requests
+	{ path: '/requests', name: 'requests', component: () => import('@/views/requests/MyRequests.vue') },
+	{ path: '/requests/new', name: 'requests-new', component: () => import('@/views/requests/RequestChangeForm.vue') },
+	{ path: '/requests/admin', name: 'requests-admin', component: () => import('@/views/requests/ChangeRequestsAdmin.vue') },
 ]
 
 const router = createRouter({
 	history: createWebHistory(import.meta.env.BASE_URL),
 	routes,
+})
+
+router.beforeEach((to, _from, next) => {
+	const { role } = useRole()
+
+	if (to.path === '/requests/admin' && role.value !== 'admin') {
+		return next('/requests')
+	}
+	if (to.path === '/requests/new' && role.value === 'admin') {
+		return next('/requests/admin')
+	}
+	if (to.path === '/requests' && role.value === 'admin') {
+		return next('/requests/admin')
+	}
+	if ((to.path === '/requests' || to.path === '/requests/new') && role.value === 'student') {
+		return next('/schedules')
+	}
+	if (to.path === '/schedules/new' && role.value !== 'admin') {
+		return next('/schedules')
+	}
+
+	return next()
 })
 
 export default router
