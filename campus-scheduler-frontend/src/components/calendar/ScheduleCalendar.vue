@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch, shallowRef } from 'vue'
+import { computed, watch, shallowRef, ref, onMounted, onUnmounted } from 'vue'
 import { ScheduleXCalendar } from '@schedule-x/vue'
 import { createCalendar, createViewWeek } from '@schedule-x/calendar'
 import { createEventsServicePlugin } from '@schedule-x/events-service'
@@ -11,6 +11,9 @@ import type { DayOfWeek } from '@/services/timeslots'
 const props = defineProps<{
 	schedules: Schedule[]
 	height?: number
+	ghostSchedules?: Schedule[]
+	movedScheduleIds?: number[]
+	arrowScheduleId?: number | null
 }>()
 
 const calendarHeight = computed(() => props.height ?? 800)
@@ -90,7 +93,10 @@ const calendarsConfig = computed(() => {
 })
 
 // Convert schedule to ScheduleX event format with proper Temporal types
-function scheduleToEvent(schedule: Schedule) {
+function scheduleToEvent(
+	schedule: Schedule,
+	options?: { eventId?: string; additionalClasses?: string[] }
+) {
 	const dayOffset = DAY_INDEX[schedule.timeSlot.dayOfWeek]
 	const eventDate = referenceMonday.add({ days: dayOffset })
 
@@ -111,22 +117,36 @@ function scheduleToEvent(schedule: Schedule) {
 	const deptKey = sanitizeKey(schedule.course.department || 'General')
 
 	return {
-		id: schedule.id,
+		id: options?.eventId ?? schedule.id,
 		title: schedule.course.code,
 		start,
 		end,
 		description: `${schedule.course.name}\n${schedule.room.buildingCode} ${schedule.room.roomNumber}`,
 		location: `${schedule.room.buildingCode} ${schedule.room.roomNumber}`,
 		calendarId: deptKey,
+		_options: options?.additionalClasses ? { additionalClasses: options.additionalClasses } : undefined,
 	}
 }
 
-const events = computed(() => props.schedules.map(scheduleToEvent))
+const movedIds = computed(() => new Set(props.movedScheduleIds ?? []))
+const baseEvents = computed(() =>
+	props.schedules.map(schedule =>
+		scheduleToEvent(schedule, movedIds.value.has(schedule.id) ? { additionalClasses: ['cs-moved'] } : undefined)
+	)
+)
+const ghostEvents = computed(() =>
+	(props.ghostSchedules ?? []).map(schedule =>
+		scheduleToEvent(schedule, { eventId: `ghost-${schedule.id}`, additionalClasses: ['cs-ghost'] })
+	)
+)
+const events = computed(() => [...baseEvents.value, ...ghostEvents.value])
 
 // Reactive calendar app instance
 const calendarApp = shallowRef<any>(null)
 const calendarKey = shallowRef(0)
 let eventsService: any = null
+const containerRef = ref<HTMLDivElement | null>(null)
+const arrow = ref<{ x1: number; y1: number; x2: number; y2: number; width: number; height: number } | null>(null)
 
 function initCalendar() {
 	eventsService = createEventsServicePlugin()
@@ -161,8 +181,96 @@ function initCalendar() {
 	calendarKey.value++
 }
 
+function updateArrow() {
+	const scheduleId = props.arrowScheduleId
+	if (!scheduleId || !containerRef.value) {
+		arrow.value = null
+		return
+	}
+
+	const container = containerRef.value
+	const ghostEl = container.querySelector<HTMLElement>(`[data-event-id="ghost-${scheduleId}"]`)
+	const movedEl = container.querySelector<HTMLElement>(`[data-event-id="${scheduleId}"]`)
+
+	if (!ghostEl || !movedEl) {
+		arrow.value = null
+		return
+	}
+
+	const containerRect = container.getBoundingClientRect()
+	const ghostRect = ghostEl.getBoundingClientRect()
+	const movedRect = movedEl.getBoundingClientRect()
+	const scrollLeft = container.scrollLeft
+	const scrollTop = container.scrollTop
+
+	// Centers of each box relative to the container
+	const cx1 = ghostRect.left - containerRect.left + scrollLeft + ghostRect.width / 2
+	const cy1 = ghostRect.top - containerRect.top + scrollTop + ghostRect.height / 2
+	const cx2 = movedRect.left - containerRect.left + scrollLeft + movedRect.width / 2
+	const cy2 = movedRect.top - containerRect.top + scrollTop + movedRect.height / 2
+
+	const dx = cx2 - cx1
+	const dy = cy2 - cy1
+	const length = Math.hypot(dx, dy)
+
+	if (length === 0) {
+		arrow.value = null
+		return
+	}
+
+	// Find where the line from center exits the rectangle border
+	function borderIntersect(hw: number, hh: number, dirX: number, dirY: number): { x: number; y: number } {
+		// hw = half-width, hh = half-height of the box
+		// dirX, dirY = direction vector (from center outward)
+		if (dirX === 0 && dirY === 0) return { x: 0, y: 0 }
+		// Scale factor to reach each edge
+		const sx = dirX !== 0 ? Math.abs(hw / dirX) : Infinity
+		const sy = dirY !== 0 ? Math.abs(hh / dirY) : Infinity
+		const s = Math.min(sx, sy)
+		return { x: dirX * s, y: dirY * s }
+	}
+
+	const ghostOffset = borderIntersect(ghostRect.width / 2, ghostRect.height / 2, dx, dy)
+	const movedOffset = borderIntersect(movedRect.width / 2, movedRect.height / 2, -dx, -dy)
+
+	const ux = dx / length
+	const uy = dy / length
+
+	const x1 = cx1 + ghostOffset.x + ux
+	const y1 = cy1 + ghostOffset.y + uy
+	const x2 = cx2 + movedOffset.x - ux
+	const y2 = cy2 + movedOffset.y - uy
+
+	// Check the arrow still points in the right direction (boxes aren't overlapping)
+	const arrowDx = x2 - x1
+	const arrowDy = y2 - y1
+	if (arrowDx * dx + arrowDy * dy <= 0) {
+		arrow.value = null
+		return
+	}
+
+	arrow.value = {
+		x1,
+		y1,
+		x2,
+		y2,
+		width: container.scrollWidth,
+		height: container.scrollHeight,
+	}
+}
+
 // Initialize on mount
 initCalendar()
+onMounted(() => {
+	requestAnimationFrame(() => updateArrow())
+	window.addEventListener('resize', updateArrow)
+	containerRef.value?.addEventListener('scroll', updateArrow)
+})
+
+onUnmounted(() => {
+	window.removeEventListener('resize', updateArrow)
+	containerRef.value?.removeEventListener('scroll', updateArrow)
+})
 
 // Recreate calendar when building colors/config changes
 watch([calendarsConfig, calendarHeight], () => {
@@ -176,11 +284,27 @@ watch(events, (newEvents) => {
 	if (eventsService) {
 		eventsService.set(newEvents)
 	}
+	requestAnimationFrame(() => updateArrow())
 }, { deep: true })
+
+watch(() => props.arrowScheduleId, () => {
+	requestAnimationFrame(() => updateArrow())
+})
 </script>
 
 <template>
-	<div class="schedule-calendar-wrapper" :style="{ height: `${calendarHeight}px`, minHeight: `${calendarHeight}px` }">
+	<div ref="containerRef" class="schedule-calendar-wrapper"
+		:style="{ height: `${calendarHeight}px`, minHeight: `${calendarHeight}px` }">
+		<svg v-if="arrow" class="cs-move-arrow" :width="arrow.width" :height="arrow.height"
+			:viewBox="`0 0 ${arrow.width} ${arrow.height}`">
+			<defs>
+				<marker id="cs-arrow-head" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+					<path d="M0,0 L0,6 L6,3 z" fill="#2563eb" />
+				</marker>
+			</defs>
+			<path :d="`M ${arrow.x1} ${arrow.y1} L ${arrow.x2} ${arrow.y2}`" stroke="#2563eb" stroke-width="2"
+				fill="none" marker-end="url(#cs-arrow-head)" />
+		</svg>
 		<ScheduleXCalendar v-if="calendarApp" :key="calendarKey" :calendar-app="calendarApp" />
 	</div>
 </template>
@@ -196,5 +320,47 @@ watch(events, (newEvents) => {
 
 .schedule-calendar-wrapper :deep(.sx__calendar-wrapper) {
 	height: 100%;
+}
+
+.schedule-calendar-wrapper :deep(.cs-ghost) {
+	opacity: 0.35;
+	border: 1px dashed rgba(0, 0, 0, 0.4);
+	pointer-events: none;
+	position: relative;
+}
+
+.schedule-calendar-wrapper :deep(.cs-moved) {
+	position: relative;
+}
+
+.schedule-calendar-wrapper :deep(.cs-ghost::after),
+.schedule-calendar-wrapper :deep(.cs-moved::after) {
+	position: absolute;
+	top: 2px;
+	right: 4px;
+	font-size: 9px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.02em;
+	padding: 1px 4px;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.85);
+	color: #111827;
+}
+
+.schedule-calendar-wrapper :deep(.cs-ghost::after) {
+	content: 'Original';
+}
+
+.schedule-calendar-wrapper :deep(.cs-moved::after) {
+	content: 'Moved';
+}
+
+.cs-move-arrow {
+	position: absolute;
+	top: 0;
+	left: 0;
+	pointer-events: none;
+	z-index: 3;
 }
 </style>

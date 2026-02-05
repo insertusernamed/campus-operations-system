@@ -222,6 +222,29 @@ const previewSchedules = computed(() => {
     return buildPreviewSchedules(selectedSuggestion.value.impact.moves ?? [])
 })
 
+const previewMoveMeta = computed(() => {
+    if (!selectedSchedule.value || !selectedSuggestion.value) return null
+    const movedTime = selectedSuggestion.value.timeSlot.id !== selectedSchedule.value.timeSlot.id
+    const movedRoom = selectedSuggestion.value.room.id !== selectedSchedule.value.room.id
+    if (!movedTime && !movedRoom) return null
+    return {
+        scheduleId: selectedSchedule.value.id,
+        ghost: selectedSchedule.value,
+    }
+})
+
+const previewGhostSchedules = computed(() => {
+    return previewMoveMeta.value ? [previewMoveMeta.value.ghost] : []
+})
+
+const previewMovedIds = computed(() => {
+    return previewMoveMeta.value ? [previewMoveMeta.value.scheduleId] : []
+})
+
+const previewArrowId = computed(() => {
+    return previewMoveMeta.value ? previewMoveMeta.value.scheduleId : null
+})
+
 function suggestionSummary(suggestion: ImpactSuggestion): string {
     const moves = suggestion.impact.moves ?? []
     const chain = moves.length <= 1
@@ -506,6 +529,9 @@ watch(roomScope, () => {
                             <ScheduleCalendar
                                 :schedules="previewSchedules"
                                 :height="520"
+                                :ghost-schedules="previewGhostSchedules"
+                                :moved-schedule-ids="previewMovedIds"
+                                :arrow-schedule-id="previewArrowId"
                             />
                         </div>
                     </div>
