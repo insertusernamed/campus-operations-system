@@ -3,10 +3,16 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRouter, useRoute } from 'vue-router'
 import { toast } from 'vue3-toastify'
 import { useRole } from '@/composables/useRole'
-import { changeRequestsService, type ChangeRequestReason } from '@/services/changeRequests'
+import { changeRequestsService } from '@/services/changeRequests'
 import { schedulesService, type Schedule } from '@/services/schedules'
 import { roomsService, type Room } from '@/services/rooms'
 import { timeslotsService, type TimeSlot } from '@/services/timeslots'
+import {
+    buildReasonDetails,
+    changeRequestIssueOptions,
+    resolveIssueOption,
+    type ChangeRequestIssue,
+} from '@/constants/changeRequestIssues'
 
 const router = useRouter()
 const route = useRoute()
@@ -23,8 +29,8 @@ const form = ref({
     scheduleId: 0,
     proposedRoomId: null as number | null,
     proposedTimeSlotId: null as number | null,
-    reasonCategory: 'MEDICAL' as ChangeRequestReason,
-    reasonDetails: '',
+    issue: '' as ChangeRequestIssue | '',
+    notes: '',
 })
 
 const validation = ref<{ hardConflicts: string[]; softWarnings: string[] }>({
@@ -33,7 +39,7 @@ const validation = ref<{ hardConflicts: string[]; softWarnings: string[] }>({
 })
 
 const canSubmit = computed(() => {
-    return !!form.value.scheduleId && (form.value.proposedRoomId || form.value.proposedTimeSlotId)
+    return !!form.value.scheduleId && !!form.value.issue && (form.value.proposedRoomId || form.value.proposedTimeSlotId)
 })
 
 const availableSchedules = computed(() => schedules.value)
@@ -63,7 +69,15 @@ function applySchedulePrefill() {
 	if (typeof rawScheduleId !== 'string') return
 	const parsedId = Number(rawScheduleId)
 	if (!Number.isFinite(parsedId) || parsedId <= 0) return
-	form.value.scheduleId = parsedId
+    form.value.scheduleId = parsedId
+}
+
+function applyIssuePrefill() {
+    const rawIssue = route.query.issue
+    if (typeof rawIssue !== 'string') return
+    if (resolveIssueOption(rawIssue)) {
+        form.value.issue = rawIssue as ChangeRequestIssue
+    }
 }
 
 async function runValidation() {
@@ -89,7 +103,7 @@ async function runValidation() {
 
 async function handleSubmit() {
     if (!canSubmit.value) {
-        error.value = 'Select a schedule and proposed change'
+        error.value = 'Select a schedule, reason, and proposed change'
         return
     }
     if (!instructorId.value) {
@@ -100,12 +114,16 @@ async function handleSubmit() {
     saving.value = true
     error.value = null
     try {
+        const issueOption = resolveIssueOption(form.value.issue)
+        const reasonCategory = issueOption?.category ?? 'OTHER'
+        const reasonDetails = buildReasonDetails(form.value.issue, form.value.notes)
+
         await changeRequestsService.create({
             scheduleId: form.value.scheduleId,
             requestedByInstructorId: instructorId.value,
             requestedByRole: role.value === 'admin' ? 'ADMIN' : 'INSTRUCTOR',
-            reasonCategory: form.value.reasonCategory,
-            reasonDetails: form.value.reasonDetails || undefined,
+            reasonCategory,
+            reasonDetails,
             proposedRoomId: form.value.proposedRoomId,
             proposedTimeSlotId: form.value.proposedTimeSlotId,
         })
@@ -124,12 +142,17 @@ watch(() => [form.value.scheduleId, form.value.proposedRoomId, form.value.propos
 })
 
 onMounted(async () => {
-	await loadData()
-	applySchedulePrefill()
+    await loadData()
+    applySchedulePrefill()
+    applyIssuePrefill()
 })
 
 watch(() => route.query.scheduleId, () => {
-	applySchedulePrefill()
+    applySchedulePrefill()
+})
+
+watch(() => route.query.issue, () => {
+    applyIssuePrefill()
 })
 </script>
 
@@ -177,18 +200,18 @@ watch(() => route.query.scheduleId, () => {
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Reason</label>
-                        <select v-model="form.reasonCategory" class="w-full px-3 py-2 border border-gray-300 rounded">
-                            <option value="MEDICAL">Medical</option>
-                            <option value="EQUIPMENT_FAILURE">Equipment Failure</option>
-                            <option value="PEDAGOGICAL_CONFLICT">Pedagogical Conflict</option>
-                            <option value="OTHER">Other</option>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Why is this a problem?</label>
+                        <select v-model="form.issue" class="w-full px-3 py-2 border border-gray-300 rounded">
+                            <option value="" disabled>Select a reason</option>
+                            <option v-for="option in changeRequestIssueOptions" :key="option.value" :value="option.value">
+                                {{ option.label }}
+                            </option>
                         </select>
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Details</label>
-                        <textarea v-model="form.reasonDetails" rows="3"
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Additional details (optional)</label>
+                        <textarea v-model="form.notes" rows="3"
                             class="w-full px-3 py-2 border border-gray-300 rounded"></textarea>
                     </div>
 

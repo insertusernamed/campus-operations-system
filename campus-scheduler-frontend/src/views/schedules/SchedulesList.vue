@@ -11,6 +11,7 @@ import ScheduleCalendar from '@/components/calendar/ScheduleCalendar.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import TableSkeleton from '@/components/common/TableSkeleton.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
+import { changeRequestIssueOptions, type ChangeRequestIssue } from '@/constants/changeRequestIssues'
 
 type ViewMode = 'table' | 'calendar'
 const viewMode = ref<ViewMode>('calendar')
@@ -24,6 +25,7 @@ const router = useRouter()
 
 const requestModalOpen = ref(false)
 const selectedScheduleId = ref<number | null>(null)
+const selectedIssue = ref<ChangeRequestIssue | ''>('')
 
 const { items, loading, error, fetchAll, handleDelete } = useCrud<Schedule, never>({
 	getAll: () => schedulesService.getAll({
@@ -119,13 +121,20 @@ function handleEventClick(scheduleId: number) {
 		return
 	}
 	selectedScheduleId.value = scheduleId
+	selectedIssue.value = ''
 	requestModalOpen.value = true
 }
 
 function handleStartRequest() {
-	if (!selectedScheduleId.value) return
+	if (!selectedScheduleId.value || !selectedIssue.value) return
 	requestModalOpen.value = false
-	router.push({ path: '/requests/new', query: { scheduleId: String(selectedScheduleId.value) } })
+	router.push({
+		path: '/requests/new',
+		query: {
+			scheduleId: String(selectedScheduleId.value),
+			issue: selectedIssue.value,
+		},
+	})
 }
 </script>
 
@@ -230,6 +239,15 @@ function handleStartRequest() {
 				<p class="text-gray-600">
 					Start a change request for this class. You can refine the details on the next step.
 				</p>
+				<div>
+					<label class="block text-sm font-medium text-gray-700 mb-1">Why is this a problem?</label>
+					<select v-model="selectedIssue" class="w-full px-3 py-2 border border-gray-300 rounded">
+						<option value="" disabled>Select a reason</option>
+						<option v-for="option in changeRequestIssueOptions" :key="option.value" :value="option.value">
+							{{ option.label }}
+						</option>
+					</select>
+				</div>
 			</div>
 			<div v-else class="text-sm text-gray-600">Select a class to request a change.</div>
 
@@ -238,7 +256,7 @@ function handleStartRequest() {
 					<button class="px-4 py-2 border border-gray-300 rounded" @click="requestModalOpen = false">
 						Cancel
 					</button>
-					<button :disabled="!selectedSchedule"
+					<button :disabled="!selectedSchedule || !selectedIssue"
 						class="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
 						@click="handleStartRequest">
 						Request Change
