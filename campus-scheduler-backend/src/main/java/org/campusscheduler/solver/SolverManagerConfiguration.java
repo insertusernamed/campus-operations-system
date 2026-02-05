@@ -57,4 +57,28 @@ public class SolverManagerConfiguration {
 
         return SolverFactory.create(solverConfig);
     }
+
+    /**
+     * Build a SolverFactory for impact analysis with a short timeout, suitable
+     * for use with {@code SolutionManager.explain()} to obtain constraint-match
+     * based explanations.
+     */
+    public SolverFactory<ScheduleSolution> createImpactSolverFactory() {
+        Duration timeout = Duration.ofSeconds(5);
+
+        ConstructionHeuristicPhaseConfig chConfig = new ConstructionHeuristicPhaseConfig();
+        LocalSearchPhaseConfig lsConfig = new LocalSearchPhaseConfig();
+
+        SolverConfig solverConfig = new SolverConfig()
+                .withSolutionClass(ScheduleSolution.class)
+                .withEntityClasses(ScheduleAssignment.class)
+                .withConstraintProviderClass(ScheduleConstraintProvider.class)
+                .withTerminationConfig(
+                        new TerminationConfig()
+                                .withSpentLimit(timeout));
+
+        solverConfig.setPhaseConfigList(List.of(chConfig, lsConfig));
+
+        return SolverFactory.create(solverConfig);
+    }
 }
