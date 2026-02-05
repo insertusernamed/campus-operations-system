@@ -1,12 +1,16 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
+import { useRole, type Role } from '@/composables/useRole'
 
 const route = useRoute()
+const { role } = useRole()
 
 interface NavItem {
 	name: string
 	path: string
 	icon: string
+	roles?: Role[]
 }
 
 interface NavGroup {
@@ -18,33 +22,42 @@ const navigation: NavGroup[] = [
 	{
 		title: 'Overview',
 		items: [
-			{ name: 'Dashboard', path: '/', icon: 'home' },
-			{ name: 'Analytics', path: '/analytics', icon: 'chart' },
+			{ name: 'Dashboard', path: '/', icon: 'home', roles: ['admin', 'instructor', 'student'] },
+			{ name: 'Analytics', path: '/analytics', icon: 'chart', roles: ['admin'] },
 		],
 	},
 	{
 		title: 'Scheduling',
 		items: [
-			{ name: 'Solver', path: '/solver', icon: 'bolt' },
-			{ name: 'Schedules', path: '/schedules', icon: 'calendar' },
-			{ name: 'Time Slots', path: '/timeslots', icon: 'clock' },
+			{ name: 'Solver', path: '/solver', icon: 'bolt', roles: ['admin'] },
+			{ name: 'Schedules', path: '/schedules', icon: 'calendar', roles: ['admin', 'instructor', 'student'] },
+			{ name: 'Time Slots', path: '/timeslots', icon: 'clock', roles: ['admin'] },
 		],
 	},
 	{
 		title: 'Resources',
 		items: [
-			{ name: 'Buildings', path: '/buildings', icon: 'building' },
-			{ name: 'Rooms', path: '/rooms', icon: 'door' },
+			{ name: 'Buildings', path: '/buildings', icon: 'building', roles: ['admin'] },
+			{ name: 'Rooms', path: '/rooms', icon: 'door', roles: ['admin'] },
 		],
 	},
 	{
 		title: 'Academics',
 		items: [
-			{ name: 'Courses', path: '/courses', icon: 'book' },
-			{ name: 'Instructors', path: '/instructors', icon: 'user' },
+			{ name: 'Courses', path: '/courses', icon: 'book', roles: ['admin'] },
+			{ name: 'Instructors', path: '/instructors', icon: 'user', roles: ['admin'] },
 		],
 	},
 ]
+
+const visibleNavigation = computed(() =>
+	navigation
+		.map(group => ({
+			...group,
+			items: group.items.filter(item => !item.roles || item.roles.includes(role.value)),
+		}))
+		.filter(group => group.items.length > 0)
+)
 
 function isActive(path: string): boolean {
 	if (path === '/') return route.path === '/'
@@ -55,7 +68,7 @@ function isActive(path: string): boolean {
 <template>
 	<aside class="w-56 bg-white border-r border-gray-200 flex flex-col">
 		<nav class="flex-1 py-4">
-			<div v-for="group in navigation" :key="group.title" class="mb-6">
+			<div v-for="group in visibleNavigation" :key="group.title" class="mb-6">
 				<h3 class="px-4 mb-1 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
 					{{ group.title }}
 				</h3>
