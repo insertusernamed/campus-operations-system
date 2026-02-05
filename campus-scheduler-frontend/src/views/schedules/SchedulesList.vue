@@ -138,7 +138,8 @@ onMounted(async () => {
 						Table
 					</button>
 				</div>
-				<RouterLink to="/schedules/new" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Add
+				<RouterLink v-if="role === 'admin'" to="/schedules/new"
+					class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Add
 					Schedule</RouterLink>
 			</div>
 		</div>
@@ -147,8 +148,10 @@ onMounted(async () => {
 		<div v-else-if="error" class="text-red-600">{{ error }}</div>
 		<EmptyState v-else-if="filteredItems.length === 0" title="No schedules yet"
 			description="Schedules connect courses to rooms and time slots. Create your first schedule manually or use the auto-scheduler."
-			action-label="Add Schedule" action-route="/schedules/new" secondary-label="Use Solver"
-			secondary-route="/solver"
+			:action-label="role === 'admin' ? 'Add Schedule' : undefined"
+			:action-route="role === 'admin' ? '/schedules/new' : undefined"
+			:secondary-label="role === 'admin' ? 'Use Solver' : undefined"
+			:secondary-route="role === 'admin' ? '/solver' : undefined"
 			hint="The solver can generate an optimized schedule for all your courses at once." />
 
 		<!-- Calendar View -->
@@ -179,7 +182,8 @@ onMounted(async () => {
 					<td class="px-4 py-3 text-gray-600">{{ timeslotsService.formatTimeSlot(s.timeSlot) }}</td>
 					<td class="px-4 py-3 text-gray-600">{{ s.semester }}</td>
 					<td class="px-4 py-3">
-						<button @click="handleDelete(s.id)" class="text-red-600 hover:underline">Delete</button>
+						<button v-if="role === 'admin'" @click="handleDelete(s.id)"
+							class="text-red-600 hover:underline">Delete</button>
 					</td>
 				</tr>
 			</tbody>
