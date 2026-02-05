@@ -6,6 +6,7 @@ import { schedulesService, type Schedule } from '@/services/schedules'
 import { roomsService, type Room } from '@/services/rooms'
 import { buildingsService, type Building } from '@/services/buildings'
 import { timeslotsService } from '@/services/timeslots'
+import { useRole } from '@/composables/useRole'
 import ScheduleCalendar from '@/components/calendar/ScheduleCalendar.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import TableSkeleton from '@/components/common/TableSkeleton.vue'
@@ -17,8 +18,12 @@ const selectedRoomId = ref<number | null>(null)
 const rooms = ref<Room[]>([])
 const buildings = ref<Building[]>([])
 
+const { role, instructorId } = useRole()
+
 const { items, loading, error, fetchAll, handleDelete } = useCrud<Schedule, never>({
-	getAll: schedulesService.getAll,
+	getAll: () => schedulesService.getAll({
+		instructorId: role.value === 'instructor' ? (instructorId.value ?? undefined) : undefined
+	}),
 	deleteItem: schedulesService.delete,
 	listRoute: '/schedules',
 	deleteConfirm: 'Are you sure you want to delete this schedule?',
@@ -77,6 +82,11 @@ const filteredItems = computed(() => {
 // Reset room selection when building changes
 watch(selectedBuildingId, () => {
 	selectedRoomId.value = null
+})
+
+// Refetch when role or instructor changes
+watch([role, instructorId], () => {
+	fetchAll()
 })
 
 onMounted(async () => {
