@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { RouterLink, useRouter, useRoute } from 'vue-router'
 import { toast } from 'vue3-toastify'
 import { useRole } from '@/composables/useRole'
 import { changeRequestsService, type ChangeRequestReason } from '@/services/changeRequests'
@@ -9,6 +9,7 @@ import { roomsService, type Room } from '@/services/rooms'
 import { timeslotsService, type TimeSlot } from '@/services/timeslots'
 
 const router = useRouter()
+const route = useRoute()
 const { role, instructorId } = useRole()
 
 const schedules = ref<Schedule[]>([])
@@ -55,6 +56,14 @@ async function loadData() {
     } finally {
         loading.value = false
     }
+}
+
+function applySchedulePrefill() {
+	const rawScheduleId = route.query.scheduleId
+	if (typeof rawScheduleId !== 'string') return
+	const parsedId = Number(rawScheduleId)
+	if (!Number.isFinite(parsedId) || parsedId <= 0) return
+	form.value.scheduleId = parsedId
 }
 
 async function runValidation() {
@@ -114,7 +123,14 @@ watch(() => [form.value.scheduleId, form.value.proposedRoomId, form.value.propos
     runValidation()
 })
 
-onMounted(loadData)
+onMounted(async () => {
+	await loadData()
+	applySchedulePrefill()
+})
+
+watch(() => route.query.scheduleId, () => {
+	applySchedulePrefill()
+})
 </script>
 
 <template>

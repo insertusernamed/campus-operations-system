@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { RouterLink } from 'vue-router'
 import { useRole } from '@/composables/useRole'
 import { changeRequestsService, type ScheduleChangeRequest } from '@/services/changeRequests'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -38,6 +39,9 @@ onMounted(loadData)
     <div>
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-2xl font-semibold text-gray-900">My Requests</h1>
+            <RouterLink to="/requests/new" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                Request Change
+            </RouterLink>
         </div>
 
         <TableSkeleton v-if="loading" :columns="5" :rows="6" />
