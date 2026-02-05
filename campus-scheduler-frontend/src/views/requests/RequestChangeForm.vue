@@ -26,8 +26,10 @@ const timeSlots = ref<TimeSlot[]>([])
 const loading = ref(false)
 const saving = ref(false)
 const error = ref<string | null>(null)
+const prefillError = ref<string | null>(null)
 const suggestionsLoading = ref(false)
 const suggestionsError = ref<string | null>(null)
+const validationError = ref<string | null>(null)
 
 const form = ref({
     scheduleId: 0,
@@ -92,7 +94,12 @@ async function loadData() {
 }
 
 function timeToMinutes(time: string): number {
-    const [hours, minutes] = time.split(':').map(Number)
+    const [rawHours = '0', rawMinutes = '0'] = time.split(':')
+    const hours = Number(rawHours)
+    const minutes = Number(rawMinutes)
+    if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+        return 0
+    }
     return hours * 60 + minutes
 }
 
@@ -282,17 +289,18 @@ async function generateSuggestions() {
 
     suggestionsLoading.value = true
     try {
-        const maxCalls = 6
+        // Limit how many slot-room combinations we evaluate per click.
+        const maxPairs = 6
         const pairs: { slot: TimeSlot; room: Room }[] = []
         const slots = candidateTimeSlots.slice(0, 3)
         const roomsForSlots = candidateRooms.slice(0, 3)
 
         for (const slot of slots) {
             for (const room of roomsForSlots) {
-                if (pairs.length >= maxCalls) break
+                if (pairs.length >= maxPairs) break
                 pairs.push({ slot, room })
             }
-            if (pairs.length >= maxCalls) break
+            if (pairs.length >= maxPairs) break
         }
 
         const results = await Promise.allSettled(
@@ -309,7 +317,7 @@ async function generateSuggestions() {
         const resolved = results
             .filter((result): result is PromiseFulfilledResult<{ slot: TimeSlot; room: Room; impact: ImpactAnalysisResponse }> => result.status === 'fulfilled')
             .map(result => result.value)
-            .filter(result => (result.impact.moves ?? []).length > 0)
+            .filter(result => (result.impact.moves ?? []).some(move => move.scheduleId === selectedSchedule.value!.id))
             .sort((a, b) => (a.impact.moves?.length ?? 0) - (b.impact.moves?.length ?? 0))
             .slice(0, 3)
 
@@ -323,7 +331,10 @@ async function generateSuggestions() {
         if (suggestions.value.length === 0) {
             suggestionsError.value = 'No viable options found. Try adjusting manually.'
         } else {
-            applySuggestion(suggestions.value[0])
+            const firstSuggestion = suggestions.value[0]
+            if (firstSuggestion) {
+                applySuggestion(firstSuggestion)
+            }
         }
     } catch (e) {
         console.error(e)
@@ -334,10 +345,17 @@ async function generateSuggestions() {
 }
 
 function applySchedulePrefill() {
+    prefillError.value = null
 	const rawScheduleId = route.query.scheduleId
 	if (typeof rawScheduleId !== 'string') return
 	const parsedId = Number(rawScheduleId)
 	if (!Number.isFinite(parsedId) || parsedId <= 0) return
+    const exists = schedules.value.some(schedule => schedule.id === parsedId)
+    if (!exists) {
+        form.value.scheduleId = 0
+        prefillError.value = 'The selected class is unavailable. Please choose a class from the list.'
+        return
+    }
     form.value.scheduleId = parsedId
 }
 
@@ -351,6 +369,7 @@ function applyIssuePrefill() {
 
 async function runValidation() {
     validation.value = { hardConflicts: [], softWarnings: [] }
+    validationError.value = null
     if (!form.value.scheduleId || (!form.value.proposedRoomId && !form.value.proposedTimeSlotId)) {
         return
     }
@@ -367,6 +386,7 @@ async function runValidation() {
         }
     } catch (e) {
         console.error(e)
+        validationError.value = 'Failed to validate this option. Conflict checks may be incomplete.'
     }
 }
 
@@ -454,6 +474,7 @@ watch(roomScope, () => {
             <div v-if="loading" class="text-sm text-gray-500">Loading...</div>
             <div v-else>
                 <div v-if="error" class="mb-4 text-red-600">{{ error }}</div>
+                <div v-if="prefillError" class="mb-4 text-red-600">{{ prefillError }}</div>
 
                 <div class="space-y-4">
                     <div>
@@ -575,6 +596,7 @@ watch(roomScope, () => {
                             <li v-for="warning in validation.softWarnings" :key="warning">{{ warning }}</li>
                         </ul>
                     </div>
+                    <div v-if="validationError" class="text-sm text-red-600">{{ validationError }}</div>
 
                     <div class="flex gap-3 pt-2">
                         <button :disabled="!canSubmit || saving" @click="handleSubmit"

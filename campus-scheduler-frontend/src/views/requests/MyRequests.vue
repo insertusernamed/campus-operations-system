@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useRole } from '@/composables/useRole'
 import { changeRequestsService, type ScheduleChangeRequest } from '@/services/changeRequests'
@@ -10,8 +10,6 @@ const { instructorId } = useRole()
 const loading = ref(false)
 const error = ref<string | null>(null)
 const items = ref<ScheduleChangeRequest[]>([])
-
-const filteredItems = computed(() => items.value)
 
 async function loadData() {
     if (!instructorId.value) {
@@ -46,7 +44,7 @@ onMounted(loadData)
 
         <TableSkeleton v-if="loading" :columns="5" :rows="6" />
         <div v-else-if="error" class="text-red-600">{{ error }}</div>
-        <EmptyState v-else-if="filteredItems.length === 0" title="No requests yet"
+        <EmptyState v-else-if="items.length === 0" title="No requests yet"
             description="Submit a change request to adjust your schedule." action-label="Request Change"
             action-route="/requests/new" />
 
@@ -60,7 +58,7 @@ onMounted(loadData)
                 </tr>
             </thead>
             <tbody>
-                <tr v-for="request in filteredItems" :key="request.id" class="border-b border-gray-100">
+                <tr v-for="request in items" :key="request.id" class="border-b border-gray-100">
                     <td class="px-4 py-3">
                         <div class="text-sm text-gray-900">{{ request.schedule.course.code }}</div>
                         <div class="text-xs text-gray-500">{{ request.schedule.course.name }}</div>

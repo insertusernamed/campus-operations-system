@@ -240,8 +240,8 @@ function handleStartRequest() {
 					Start a change request for this class. You can refine the details on the next step.
 				</p>
 				<div>
-					<label class="block text-sm font-medium text-gray-700 mb-1">Why is this a problem?</label>
-					<select v-model="selectedIssue" class="w-full px-3 py-2 border border-gray-300 rounded">
+					<label for="request-change-issue" class="block text-sm font-medium text-gray-700 mb-1">Why is this a problem?</label>
+					<select id="request-change-issue" v-model="selectedIssue" class="w-full px-3 py-2 border border-gray-300 rounded">
 						<option value="" disabled>Select a reason</option>
 						<option v-for="option in changeRequestIssueOptions" :key="option.value" :value="option.value">
 							{{ option.label }}

@@ -7,25 +7,7 @@ import { roomsService, type Room } from '@/services/rooms'
 import { timeslotsService, type TimeSlot } from '@/services/timeslots'
 import EmptyState from '@/components/common/EmptyState.vue'
 import TableSkeleton from '@/components/common/TableSkeleton.vue'
-import api from '@/services/api'
-
-interface ImpactMove {
-    scheduleId: number
-    courseCode: string
-    fromRoomLabel: string
-    toRoomLabel: string
-    fromTimeSlotLabel: string
-    toTimeSlotLabel: string
-    toRoomId: number
-    toTimeSlotId: number
-}
-
-interface ImpactResponse {
-    status: 'SOLVED' | 'NO_SOLUTION'
-    score: string | null
-    scoreSummary: string | null
-    moves: ImpactMove[]
-}
+import { solverService, type ImpactAnalysisResponse } from '@/services/solver'
 
 const loading = ref(false)
 const error = ref<string | null>(null)
@@ -43,8 +25,9 @@ const validation = ref<{ hardConflicts: string[]; softWarnings: string[] }>({
     hardConflicts: [],
     softWarnings: [],
 })
+const validationError = ref<string | null>(null)
 
-const impact = ref<ImpactResponse | null>(null)
+const impact = ref<ImpactAnalysisResponse | null>(null)
 const impactLoading = ref(false)
 
 const showAnalyze = computed(() => {
@@ -109,6 +92,7 @@ function openModal(request: ScheduleChangeRequest) {
     overrideRoomId.value = request.proposedRoom?.id ?? null
     overrideTimeSlotId.value = request.proposedTimeSlot?.id ?? null
     validation.value = { hardConflicts: [], softWarnings: [] }
+    validationError.value = null
     impact.value = null
     modalOpen.value = true
     runValidation()
@@ -116,6 +100,7 @@ function openModal(request: ScheduleChangeRequest) {
 
 async function runValidation() {
     if (!selectedRequest.value) return
+    validationError.value = null
     if (!overrideRoomId.value && !overrideTimeSlotId.value) {
         validation.value = { hardConflicts: [], softWarnings: [] }
         return
@@ -132,6 +117,7 @@ async function runValidation() {
         }
     } catch (e) {
         console.error(e)
+        validationError.value = 'Failed to validate this option. Conflict checks may be incomplete.'
     }
 }
 
@@ -172,12 +158,12 @@ async function analyzeImpact() {
     impactLoading.value = true
     impact.value = null
     try {
-        const response = await api.post<ImpactResponse>('/solver/impact', {
+        const result = await solverService.analyzeImpact({
             scheduleId: selectedRequest.value.schedule.id,
             proposedRoomId: overrideRoomId.value,
             proposedTimeSlotId: overrideTimeSlotId.value,
         })
-        impact.value = response.data
+        impact.value = result
         if (impact.value?.moves?.length) {
             const match = impact.value.moves.find(move => move.scheduleId === selectedRequest.value?.schedule.id)
             if (match) {
@@ -300,6 +286,7 @@ onMounted(loadData)
                             <li v-for="warning in validation.softWarnings" :key="warning">{{ warning }}</li>
                         </ul>
                     </div>
+                    <div v-if="validationError" class="text-sm text-red-600">{{ validationError }}</div>
 
                     <div v-if="impact" class="bg-gray-50 border border-gray-200 text-gray-700 p-3 rounded">
                         <p class="text-sm font-medium">Impact Analysis</p>

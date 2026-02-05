@@ -147,6 +147,7 @@ const calendarKey = shallowRef(0)
 let eventsService: any = null
 const containerRef = ref<HTMLDivElement | null>(null)
 const arrow = ref<{ x1: number; y1: number; x2: number; y2: number; width: number; height: number } | null>(null)
+let arrowFrame: number | null = null
 
 function initCalendar() {
 	eventsService = createEventsServicePlugin()
@@ -170,7 +171,11 @@ function initCalendar() {
 		calendars: calendarsConfig.value,
 		callbacks: {
 			onEventClick: (event) => {
-				const parsedId = Number(event.id)
+				const eventId = String(event.id)
+				if (eventId.startsWith('ghost-')) {
+					return
+				}
+				const parsedId = Number(eventId)
 				if (!Number.isNaN(parsedId)) {
 					emit('event-click', parsedId)
 				}
@@ -259,17 +264,31 @@ function updateArrow() {
 	}
 }
 
+function scheduleArrowUpdate() {
+	if (arrowFrame !== null) {
+		return
+	}
+	arrowFrame = requestAnimationFrame(() => {
+		arrowFrame = null
+		updateArrow()
+	})
+}
+
 // Initialize on mount
 initCalendar()
 onMounted(() => {
-	requestAnimationFrame(() => updateArrow())
-	window.addEventListener('resize', updateArrow)
-	containerRef.value?.addEventListener('scroll', updateArrow)
+	scheduleArrowUpdate()
+	window.addEventListener('resize', scheduleArrowUpdate)
+	containerRef.value?.addEventListener('scroll', scheduleArrowUpdate)
 })
 
 onUnmounted(() => {
-	window.removeEventListener('resize', updateArrow)
-	containerRef.value?.removeEventListener('scroll', updateArrow)
+	window.removeEventListener('resize', scheduleArrowUpdate)
+	containerRef.value?.removeEventListener('scroll', scheduleArrowUpdate)
+	if (arrowFrame !== null) {
+		cancelAnimationFrame(arrowFrame)
+		arrowFrame = null
+	}
 })
 
 // Recreate calendar when building colors/config changes
@@ -284,11 +303,11 @@ watch(events, (newEvents) => {
 	if (eventsService) {
 		eventsService.set(newEvents)
 	}
-	requestAnimationFrame(() => updateArrow())
+	scheduleArrowUpdate()
 }, { deep: true })
 
 watch(() => props.arrowScheduleId, () => {
-	requestAnimationFrame(() => updateArrow())
+	scheduleArrowUpdate()
 })
 </script>
 
