@@ -57,7 +57,6 @@ const routes: RouteRecordRaw[] = [
 	{ path: '/requests', name: 'requests', component: () => import('@/views/requests/MyRequests.vue') },
 	{ path: '/requests/new', name: 'requests-new', component: () => import('@/views/requests/RequestChangeForm.vue') },
 	{ path: '/requests/admin', name: 'requests-admin', component: () => import('@/views/requests/ChangeRequestsAdmin.vue') },
-	{ path: '/my-schedule', name: 'my-schedule', component: () => import('@/views/requests/MySchedule.vue') },
 ]
 
 const router = createRouter({
@@ -78,12 +77,9 @@ router.beforeEach((to, _from, next) => {
 		return next('/requests/admin')
 	}
 	if ((to.path === '/requests' || to.path === '/requests/new') && role.value === 'student') {
-		return next('/my-schedule')
+		return next('/schedules')
 	}
-	if ((to.path === '/schedules' || to.path === '/schedules/new') && role.value !== 'admin') {
-		return next('/my-schedule')
-	}
-	if (to.path === '/my-schedule' && role.value === 'admin') {
+	if (to.path === '/schedules/new' && role.value !== 'admin') {
 		return next('/schedules')
 	}
 
