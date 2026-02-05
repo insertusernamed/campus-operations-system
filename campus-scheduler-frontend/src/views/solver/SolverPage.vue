@@ -106,6 +106,8 @@ async function generateData() {
 		})
 		statusMessage.value = `Generated: ${result.buildings} buildings, ${result.rooms} rooms, ${result.instructors} instructors, ${result.courses} courses`
 		await fetchStats()
+		// Notify other components that data has changed
+		window.dispatchEvent(new CustomEvent('data-regenerated'))
 	} catch (e: unknown) {
 		errorMessage.value = e instanceof Error ? e.message : 'Failed to generate data'
 		toast.error(errorMessage.value)
@@ -123,6 +125,8 @@ async function clearData() {
 		await generatorService.reset()
 		statusMessage.value = 'All data cleared'
 		await fetchStats()
+		// Notify other components that data has changed
+		window.dispatchEvent(new CustomEvent('data-regenerated'))
 	} catch (e: unknown) {
 		errorMessage.value = e instanceof Error ? e.message : 'Failed to clear data'
 		toast.error(errorMessage.value)
