@@ -67,7 +67,7 @@ async function handleDelete(id: number) {
 						</thead>
 						<tbody>
 							<tr v-for="s in groupedTimeslots[day.value]" :key="s.id" class="border-b border-gray-100">
-								<td class="px-4 py-2">{{ s.startTime }} - {{ s.endTime }}</td>
+								<td class="px-4 py-2">{{ timeslotsService.formatTime(s.startTime) }} - {{ timeslotsService.formatTime(s.endTime) }}</td>
 								<td class="px-4 py-2 text-gray-600">{{ s.label || '-' }}</td>
 								<td class="px-4 py-2">
 									<RouterLink :to="`/timeslots/${s.id}/edit`"
