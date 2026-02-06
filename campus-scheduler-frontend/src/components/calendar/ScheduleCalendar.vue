@@ -32,6 +32,20 @@ const DAY_INDEX: Record<DayOfWeek, number> = {
 	SUNDAY: 6,
 }
 
+interface SemesterWindowDefinition {
+	startMonth: number
+	startDay: number
+	endMonth: number
+	endDay: number
+}
+
+const SEMESTER_WINDOWS: Record<'FALL' | 'SPRING' | 'SUMMER' | 'WINTER', SemesterWindowDefinition> = {
+	FALL: { startMonth: 9, startDay: 1, endMonth: 12, endDay: 20 },
+	SPRING: { startMonth: 1, startDay: 6, endMonth: 4, endDay: 25 },
+	SUMMER: { startMonth: 5, startDay: 6, endMonth: 8, endDay: 20 },
+	WINTER: { startMonth: 1, startDay: 6, endMonth: 4, endDay: 25 },
+}
+
 // Color palette for events
 const EVENT_COLORS = [
 	'#3b82f6', // blue
@@ -44,14 +58,139 @@ const EVENT_COLORS = [
 	'#84cc16', // lime
 ]
 
-// Get a reference Monday (current week)
-function getReferenceMonday(): Temporal.PlainDate {
-	const today = Temporal.Now.plainDateISO()
-	const daysSinceMonday = (today.dayOfWeek - 1)
+function getReferenceMonday(inputDate?: Temporal.PlainDate): Temporal.PlainDate {
+	const today = inputDate ?? Temporal.Now.plainDateISO()
+	const daysSinceMonday = today.dayOfWeek - 1
 	return today.subtract({ days: daysSinceMonday })
 }
 
-const referenceMonday = getReferenceMonday()
+function normalizeSemesterToken(value: string): string {
+	return value.trim().toUpperCase()
+}
+
+function parseSemesterWindow(semester: string): { start: Temporal.PlainDate; end: Temporal.PlainDate } | null {
+	const normalized = normalizeSemesterToken(semester)
+	const yearMatch = normalized.match(/\b(20\d{2})\b/)
+	if (!yearMatch) {
+		return null
+	}
+
+	const year = Number(yearMatch[1])
+	if (Number.isNaN(year)) {
+		return null
+	}
+
+	let term: keyof typeof SEMESTER_WINDOWS | null = null
+	if (normalized.includes('FALL') || normalized.includes('AUTUMN')) {
+		term = 'FALL'
+	} else if (normalized.includes('SPRING')) {
+		term = 'SPRING'
+	} else if (normalized.includes('SUMMER')) {
+		term = 'SUMMER'
+	} else if (normalized.includes('WINTER')) {
+		term = 'WINTER'
+	}
+
+	if (!term) {
+		return null
+	}
+
+	const definition = SEMESTER_WINDOWS[term]
+	const start = Temporal.PlainDate.from({
+		year,
+		month: definition.startMonth,
+		day: definition.startDay,
+	})
+	const end = Temporal.PlainDate.from({
+		year,
+		month: definition.endMonth,
+		day: definition.endDay,
+	})
+
+	return { start, end }
+}
+
+function parseTimeParts(time: string): { hour: number; minute: number } {
+	const [rawHour = '0', rawMinute = '0'] = time.split(':')
+	const hour = Number(rawHour)
+	const minute = Number(rawMinute)
+
+	return {
+		hour: Number.isNaN(hour) ? 0 : hour,
+		minute: Number.isNaN(minute) ? 0 : minute,
+	}
+}
+
+function getFirstClassDateForDay(start: Temporal.PlainDate, dayOfWeek: DayOfWeek): Temporal.PlainDate {
+	const targetIsoDay = DAY_INDEX[dayOfWeek] + 1
+	const delta = (targetIsoDay - start.dayOfWeek + 7) % 7
+	return start.add({ days: delta })
+}
+
+function getClassDatesForSemester(schedule: Schedule): Temporal.PlainDate[] {
+	const parsedWindow = parseSemesterWindow(schedule.semester)
+	if (!parsedWindow) {
+		const fallbackMonday = getReferenceMonday()
+		return [fallbackMonday.add({ days: DAY_INDEX[schedule.timeSlot.dayOfWeek] })]
+	}
+
+	const dates: Temporal.PlainDate[] = []
+	let nextDate = getFirstClassDateForDay(parsedWindow.start, schedule.timeSlot.dayOfWeek)
+	while (Temporal.PlainDate.compare(nextDate, parsedWindow.end) <= 0) {
+		dates.push(nextDate)
+		nextDate = nextDate.add({ weeks: 1 })
+	}
+	return dates
+}
+
+const dominantSemesterStart = computed(() => {
+	const counts = new Map<string, number>()
+	for (const schedule of props.schedules) {
+		const semester = schedule.semester?.trim()
+		if (!semester) continue
+		counts.set(semester, (counts.get(semester) ?? 0) + 1)
+	}
+
+	let selectedSemester: string | null = null
+	let highestCount = 0
+	for (const [semester, count] of counts.entries()) {
+		if (count > highestCount) {
+			highestCount = count
+			selectedSemester = semester
+		}
+	}
+
+	if (!selectedSemester) {
+		return null
+	}
+	return parseSemesterWindow(selectedSemester)?.start ?? null
+})
+
+const initialSelectedDate = computed(() => {
+	const semesterStart = dominantSemesterStart.value
+	if (!semesterStart) {
+		return getReferenceMonday()
+	}
+	return getReferenceMonday(semesterStart)
+})
+
+function parseScheduleIdFromEventId(eventId: string): number | null {
+	const match = eventId.match(/^(\d+)(?:-|$)/)
+	if (!match) {
+		return null
+	}
+	const parsed = Number(match[1])
+	return Number.isNaN(parsed) ? null : parsed
+}
+
+function getMovedSelector(scheduleId: number): string {
+	return `[data-event-id^="${scheduleId}-"]`
+}
+
+function getGhostSelector(scheduleId: number): string {
+	return `[data-event-id^="ghost-${scheduleId}-"]`
+}
+
 const timezone = Temporal.Now.timeZoneId()
 
 // Sanitize key for Schedule X
@@ -93,50 +232,51 @@ const calendarsConfig = computed(() => {
 })
 
 // Convert schedule to ScheduleX event format with proper Temporal types
-function scheduleToEvent(
+function scheduleToEvents(
 	schedule: Schedule,
 	options?: { eventId?: string; additionalClasses?: string[] }
 ) {
-	const dayOffset = DAY_INDEX[schedule.timeSlot.dayOfWeek]
-	const eventDate = referenceMonday.add({ days: dayOffset })
-
-	// Create ZonedDateTime for start and end
-	const [startHour, startMin] = schedule.timeSlot.startTime.split(':').map(Number)
-	const [endHour, endMin] = schedule.timeSlot.endTime.split(':').map(Number)
-
-	const start = eventDate.toZonedDateTime({
-		timeZone: timezone,
-		plainTime: Temporal.PlainTime.from({ hour: startHour, minute: startMin })
-	})
-
-	const end = eventDate.toZonedDateTime({
-		timeZone: timezone,
-		plainTime: Temporal.PlainTime.from({ hour: endHour, minute: endMin })
-	})
+	const { hour: startHour, minute: startMin } = parseTimeParts(schedule.timeSlot.startTime)
+	const { hour: endHour, minute: endMin } = parseTimeParts(schedule.timeSlot.endTime)
 
 	const deptKey = sanitizeKey(schedule.course.department || 'General')
+	const occurrenceDates = getClassDatesForSemester(schedule)
 
-	return {
-		id: options?.eventId ?? schedule.id,
-		title: schedule.course.code,
-		start,
-		end,
-		description: `${schedule.course.name}\n${schedule.room.buildingCode} ${schedule.room.roomNumber}`,
-		location: `${schedule.room.buildingCode} ${schedule.room.roomNumber}`,
-		calendarId: deptKey,
-		_options: options?.additionalClasses ? { additionalClasses: options.additionalClasses } : undefined,
-	}
+	return occurrenceDates.map(date => {
+		const start = date.toZonedDateTime({
+			timeZone: timezone,
+			plainTime: Temporal.PlainTime.from({ hour: startHour, minute: startMin })
+		})
+
+		const end = date.toZonedDateTime({
+			timeZone: timezone,
+			plainTime: Temporal.PlainTime.from({ hour: endHour, minute: endMin })
+		})
+
+		return {
+			id: options?.eventId
+				? `${options.eventId}-${date.toString()}`
+				: `${schedule.id}-${date.toString()}`,
+			title: schedule.course.code,
+			start,
+			end,
+			description: `${schedule.course.name}\n${schedule.room.buildingCode} ${schedule.room.roomNumber}`,
+			location: `${schedule.room.buildingCode} ${schedule.room.roomNumber}`,
+			calendarId: deptKey,
+			_options: options?.additionalClasses ? { additionalClasses: options.additionalClasses } : undefined,
+		}
+	})
 }
 
 const movedIds = computed(() => new Set(props.movedScheduleIds ?? []))
 const baseEvents = computed(() =>
-	props.schedules.map(schedule =>
-		scheduleToEvent(schedule, movedIds.value.has(schedule.id) ? { additionalClasses: ['cs-moved'] } : undefined)
+	props.schedules.flatMap(schedule =>
+		scheduleToEvents(schedule, movedIds.value.has(schedule.id) ? { additionalClasses: ['cs-moved'] } : undefined)
 	)
 )
 const ghostEvents = computed(() =>
-	(props.ghostSchedules ?? []).map(schedule =>
-		scheduleToEvent(schedule, { eventId: `ghost-${schedule.id}`, additionalClasses: ['cs-ghost'] })
+	(props.ghostSchedules ?? []).flatMap(schedule =>
+		scheduleToEvents(schedule, { eventId: `ghost-${schedule.id}`, additionalClasses: ['cs-ghost'] })
 	)
 )
 const events = computed(() => [...baseEvents.value, ...ghostEvents.value])
@@ -153,7 +293,7 @@ function initCalendar() {
 	eventsService = createEventsServicePlugin()
 
 	calendarApp.value = createCalendar({
-		selectedDate: referenceMonday,
+		selectedDate: initialSelectedDate.value,
 		views: [createViewWeek()],
 		defaultView: 'week',
 		dayBoundaries: {
@@ -175,8 +315,8 @@ function initCalendar() {
 				if (eventId.startsWith('ghost-')) {
 					return
 				}
-				const parsedId = Number(eventId)
-				if (!Number.isNaN(parsedId)) {
+				const parsedId = parseScheduleIdFromEventId(eventId)
+				if (parsedId !== null) {
 					emit('event-click', parsedId)
 				}
 			},
@@ -194,8 +334,8 @@ function updateArrow() {
 	}
 
 	const container = containerRef.value
-	const ghostEl = container.querySelector<HTMLElement>(`[data-event-id="ghost-${scheduleId}"]`)
-	const movedEl = container.querySelector<HTMLElement>(`[data-event-id="${scheduleId}"]`)
+	const ghostEl = container.querySelector<HTMLElement>(getGhostSelector(scheduleId))
+	const movedEl = container.querySelector<HTMLElement>(getMovedSelector(scheduleId))
 
 	if (!ghostEl || !movedEl) {
 		arrow.value = null
@@ -295,6 +435,10 @@ onUnmounted(() => {
 watch([calendarsConfig, calendarHeight], () => {
 	initCalendar()
 }, { deep: true })
+
+watch(initialSelectedDate, () => {
+	initCalendar()
+})
 
 // Update events when schedules change (using current service instance)
 watch(events, (newEvents) => {
