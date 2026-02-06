@@ -8,6 +8,7 @@ import {
 	type BuildingUtilization,
 	type PeakHours,
 } from '@/services/analytics'
+import { timeslotsService } from '@/services/timeslots'
 import { buildingsService, type Building } from '@/services/buildings'
 import StatCard from '@/components/charts/StatCard.vue'
 import BarChart, { type BarChartData } from '@/components/charts/BarChart.vue'
@@ -101,14 +102,16 @@ const timeSlots = computed(() => {
 	if (!peakHours.value) return []
 	const slots = new Set<string>()
 	peakHours.value.forEach((ph) => slots.add(ph.startTime))
-	return Array.from(slots).sort()
+	return Array.from(slots)
+		.sort()
+		.map((slot) => timeslotsService.formatTime(slot))
 })
 
 const heatmapData = computed<HeatmapCell[]>(() => {
 	if (!peakHours.value) return []
 	return peakHours.value.map((ph) => ({
 		row: dayLabels[daysOfWeek.indexOf(ph.dayOfWeek)] || ph.dayOfWeek,
-		col: ph.startTime,
+		col: timeslotsService.formatTime(ph.startTime),
 		value: ph.bookingCount,
 		label: `${ph.label}: ${ph.bookingCount} bookings`,
 	}))

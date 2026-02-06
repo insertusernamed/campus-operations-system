@@ -34,6 +34,21 @@ export const DAY_OF_WEEK_OPTIONS: { value: DayOfWeek; label: string }[] = [
     { value: 'SUNDAY', label: 'Sunday' },
 ]
 
+function formatClockTime(time: string): string {
+    const [rawHour = '0', rawMinute = '0'] = time.split(':')
+    const hour = Number(rawHour)
+    const minute = Number(rawMinute)
+
+    if (Number.isNaN(hour) || Number.isNaN(minute)) {
+        return time
+    }
+
+    const meridiem = hour >= 12 ? 'PM' : 'AM'
+    const hour12 = hour % 12 || 12
+    const paddedMinute = String(minute).padStart(2, '0')
+    return `${hour12}:${paddedMinute} ${meridiem}`
+}
+
 export const timeslotsService = {
     async getAll(dayOfWeek?: DayOfWeek): Promise<TimeSlot[]> {
         const params = dayOfWeek ? `?dayOfWeek=${dayOfWeek}` : ''
@@ -60,8 +75,12 @@ export const timeslotsService = {
         await api.delete(`/timeslots/${id}`)
     },
 
+    formatTime(time: string): string {
+        return formatClockTime(time)
+    },
+
     formatTimeSlot(slot: TimeSlot): string {
         const day = DAY_OF_WEEK_OPTIONS.find(d => d.value === slot.dayOfWeek)?.label || slot.dayOfWeek
-        return `${day} ${slot.startTime} - ${slot.endTime}`
+        return `${day} ${formatClockTime(slot.startTime)} - ${formatClockTime(slot.endTime)}`
     },
 }
