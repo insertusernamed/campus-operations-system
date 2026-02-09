@@ -9,13 +9,15 @@ import {
 	type ArchetypeInfo,
 	type GenerationPreview,
 } from '@/services/generator'
+import { semestersService } from '@/services/semesters'
+import { getDynamicSemesterOptions } from '@/utils/semester'
 import { toast } from 'vue3-toastify'
 import ResearchModal from '@/components/generator/ResearchModal.vue'
 
 const router = useRouter()
 
-const semester = ref('Fall 2026')
-const semesters = ['Fall 2026', 'Spring 2026', 'Fall 2025']
+const semester = ref('')
+const semesters = ref<string[]>([])
 
 const { progress, connected, error: wsError } = useSolverWebSocket()
 
@@ -71,6 +73,15 @@ async function updatePreview() {
 	}
 }
 
+async function loadSemesters() {
+	const definitions = await semestersService.getDefinitions()
+	semesters.value = getDynamicSemesterOptions(definitions)
+
+	if (!semester.value || !semesters.value.includes(semester.value)) {
+		semester.value = semesters.value[0] ?? ''
+	}
+}
+
 // Update preview when archetype or population changes
 watch([selectedArchetype, studentPopulation], updatePreview, { immediate: false })
 
@@ -87,6 +98,7 @@ watch(selectedArchetype, () => {
 })
 
 onMounted(async () => {
+	await loadSemesters()
 	await fetchStats()
 	await fetchArchetypes()
 	// Only call updatePreview after archetypes are loaded
@@ -136,6 +148,12 @@ async function clearData() {
 }
 
 async function startSolver() {
+	if (!semester.value) {
+		errorMessage.value = 'No semester options available'
+		toast.error(errorMessage.value)
+		return
+	}
+
 	isLoading.value = true
 	errorMessage.value = ''
 	statusMessage.value = ''

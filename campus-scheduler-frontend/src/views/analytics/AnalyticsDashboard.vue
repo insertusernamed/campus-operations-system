@@ -8,16 +8,18 @@ import {
 	type BuildingUtilization,
 	type PeakHours,
 } from '@/services/analytics'
+import { semestersService } from '@/services/semesters'
 import { timeslotsService } from '@/services/timeslots'
 import { buildingsService, type Building } from '@/services/buildings'
+import { getDynamicSemesterOptions } from '@/utils/semester'
 import StatCard from '@/components/charts/StatCard.vue'
 import BarChart, { type BarChartData } from '@/components/charts/BarChart.vue'
 import HeatMap, { type HeatmapCell } from '@/components/charts/HeatMap.vue'
 import DashboardSkeleton from '@/components/common/DashboardSkeleton.vue'
 
-const selectedSemester = ref('Fall 2026')
+const selectedSemester = ref('')
 const selectedBuildingId = ref<number | null>(null)
-const semesters = ['Fall 2026', 'Spring 2026', 'Fall 2025', 'Summer 2025', 'Spring 2025']
+const semesters = ref<string[]>([])
 
 const MAX_DISPLAYED_ROOMS = 15
 
@@ -119,12 +121,29 @@ const heatmapData = computed<HeatmapCell[]>(() => {
 
 const formatPercent = (value: number) => `${value.toFixed(1)}%`
 
+async function loadSemesters() {
+	const definitions = await semestersService.getDefinitions()
+	semesters.value = getDynamicSemesterOptions(definitions)
+
+	if (!selectedSemester.value || !semesters.value.includes(selectedSemester.value)) {
+		selectedSemester.value = semesters.value[0] ?? ''
+	}
+}
+
 async function fetchAllData() {
+	if (!selectedSemester.value) {
+		return
+	}
 	await Promise.allSettled([fetchSummary(), fetchRooms(), fetchBuildings(), fetchPeakHours()])
 }
 
-watch(selectedSemester, fetchAllData)
-onMounted(fetchAllData)
+watch(selectedSemester, () => {
+	void fetchAllData()
+})
+
+onMounted(() => {
+	void loadSemesters()
+})
 </script>
 
 <template>

@@ -7,6 +7,12 @@ import '@schedule-x/theme-default/dist/index.css'
 import 'temporal-polyfill/global'
 import type { Schedule } from '@/services/schedules'
 import type { DayOfWeek } from '@/services/timeslots'
+import {
+	DEFAULT_SEMESTER_DEFINITIONS,
+	semestersService,
+	type SemesterDefinition,
+} from '@/services/semesters'
+import { parseSemesterLabel, resolveSemesterDateRange } from '@/utils/semester'
 
 const props = defineProps<{
 	schedules: Schedule[]
@@ -32,19 +38,7 @@ const DAY_INDEX: Record<DayOfWeek, number> = {
 	SUNDAY: 6,
 }
 
-interface SemesterWindowDefinition {
-	startMonth: number
-	startDay: number
-	endMonth: number
-	endDay: number
-}
-
-const SEMESTER_WINDOWS: Record<'FALL' | 'SPRING' | 'SUMMER' | 'WINTER', SemesterWindowDefinition> = {
-	FALL: { startMonth: 9, startDay: 1, endMonth: 12, endDay: 20 },
-	SPRING: { startMonth: 1, startDay: 6, endMonth: 4, endDay: 25 },
-	SUMMER: { startMonth: 5, startDay: 6, endMonth: 8, endDay: 20 },
-	WINTER: { startMonth: 1, startDay: 6, endMonth: 4, endDay: 25 },
-}
+const semesterDefinitions = ref<SemesterDefinition[]>(DEFAULT_SEMESTER_DEFINITIONS)
 
 // Color palette for events
 const EVENT_COLORS = [
@@ -64,48 +58,15 @@ function getReferenceMonday(inputDate?: Temporal.PlainDate): Temporal.PlainDate 
 	return today.subtract({ days: daysSinceMonday })
 }
 
-function normalizeSemesterToken(value: string): string {
-	return value.trim().toUpperCase()
-}
-
 function parseSemesterWindow(semester: string): { start: Temporal.PlainDate; end: Temporal.PlainDate } | null {
-	const normalized = normalizeSemesterToken(semester)
-	const yearMatch = normalized.match(/\b(20\d{2})\b/)
-	if (!yearMatch) {
+	const parsed = parseSemesterLabel(semester, semesterDefinitions.value)
+	if (!parsed) {
 		return null
 	}
 
-	const year = Number(yearMatch[1])
-	if (Number.isNaN(year)) {
-		return null
-	}
-
-	let term: keyof typeof SEMESTER_WINDOWS | null = null
-	if (normalized.includes('FALL') || normalized.includes('AUTUMN')) {
-		term = 'FALL'
-	} else if (normalized.includes('SPRING')) {
-		term = 'SPRING'
-	} else if (normalized.includes('SUMMER')) {
-		term = 'SUMMER'
-	} else if (normalized.includes('WINTER')) {
-		term = 'WINTER'
-	}
-
-	if (!term) {
-		return null
-	}
-
-	const definition = SEMESTER_WINDOWS[term]
-	const start = Temporal.PlainDate.from({
-		year,
-		month: definition.startMonth,
-		day: definition.startDay,
-	})
-	const end = Temporal.PlainDate.from({
-		year,
-		month: definition.endMonth,
-		day: definition.endDay,
-	})
+	const window = resolveSemesterDateRange(parsed.definition, parsed.year)
+	const start = Temporal.PlainDate.from(window.start)
+	const end = Temporal.PlainDate.from(window.end)
 
 	return { start, end }
 }
@@ -414,9 +375,14 @@ function scheduleArrowUpdate() {
 	})
 }
 
+async function loadSemesterDefinitions() {
+	semesterDefinitions.value = await semestersService.getDefinitions()
+}
+
 // Initialize on mount
 initCalendar()
 onMounted(() => {
+	void loadSemesterDefinitions()
 	scheduleArrowUpdate()
 	window.addEventListener('resize', scheduleArrowUpdate)
 	containerRef.value?.addEventListener('scroll', scheduleArrowUpdate)
