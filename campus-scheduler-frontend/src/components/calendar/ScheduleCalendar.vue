@@ -104,36 +104,7 @@ function getClassDatesForSemester(schedule: Schedule): Temporal.PlainDate[] {
 	return dates
 }
 
-const dominantSemesterStart = computed(() => {
-	const counts = new Map<string, number>()
-	for (const schedule of props.schedules) {
-		const semester = schedule.semester?.trim()
-		if (!semester) continue
-		counts.set(semester, (counts.get(semester) ?? 0) + 1)
-	}
-
-	let selectedSemester: string | null = null
-	let highestCount = 0
-	for (const [semester, count] of counts.entries()) {
-		if (count > highestCount) {
-			highestCount = count
-			selectedSemester = semester
-		}
-	}
-
-	if (!selectedSemester) {
-		return null
-	}
-	return parseSemesterWindow(selectedSemester)?.start ?? null
-})
-
-const initialSelectedDate = computed(() => {
-	const semesterStart = dominantSemesterStart.value
-	if (!semesterStart) {
-		return getReferenceMonday()
-	}
-	return getReferenceMonday(semesterStart)
-})
+const initialSelectedDate = computed(() => getReferenceMonday())
 
 function parseScheduleIdFromEventId(eventId: string): number | null {
 	const match = eventId.match(/^(\d+)(?:-|$)/)
