@@ -5,6 +5,7 @@ import ai.timefold.solver.core.config.constructionheuristic.ConstructionHeuristi
 import ai.timefold.solver.core.config.localsearch.LocalSearchPhaseConfig;
 import ai.timefold.solver.core.config.solver.SolverConfig;
 import ai.timefold.solver.core.config.solver.termination.TerminationConfig;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -17,6 +18,9 @@ import java.util.List;
  */
 @Component
 public class SolverManagerConfiguration {
+
+    @Value("${solver.unimproved-limit:10s}")
+    private Duration unimprovedLimit = Duration.ofSeconds(10);
 
     /**
      * Calculate timeout based on problem size.
@@ -37,10 +41,22 @@ public class SolverManagerConfiguration {
     }
 
     /**
+     * Stop solving if score has not improved for this duration.
+     *
+     * <p>
+     * This prevents running the full spent-limit when the search has plateaued.
+     * </p>
+     */
+    public Duration calculateUnimprovedTimeout() {
+        return unimprovedLimit;
+    }
+
+    /**
      * Build a SolverFactory with timeout appropriate for the given course count.
      */
     public SolverFactory<ScheduleSolution> createSolverFactory(int courseCount) {
         Duration timeout = calculateTimeout(courseCount);
+        Duration unimprovedTimeout = calculateUnimprovedTimeout();
 
         ConstructionHeuristicPhaseConfig chConfig = new ConstructionHeuristicPhaseConfig();
         LocalSearchPhaseConfig lsConfig = new LocalSearchPhaseConfig();
@@ -51,7 +67,8 @@ public class SolverManagerConfiguration {
                 .withConstraintProviderClass(ScheduleConstraintProvider.class)
                 .withTerminationConfig(
                         new TerminationConfig()
-                                .withSpentLimit(timeout));
+                                .withSpentLimit(timeout)
+                                .withUnimprovedSpentLimit(unimprovedTimeout));
 
         solverConfig.setPhaseConfigList(List.of(chConfig, lsConfig));
 

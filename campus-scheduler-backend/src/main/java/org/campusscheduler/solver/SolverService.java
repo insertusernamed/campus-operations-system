@@ -1,5 +1,6 @@
 package org.campusscheduler.solver;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -109,10 +110,12 @@ public class SolverService {
 
 		// Create solver with timeout based on problem size
 		int courseCount = problem.getAssignments().size();
+		Duration spentLimit = solverConfig.calculateTimeout(courseCount);
+		Duration unimprovedLimit = solverConfig.calculateUnimprovedTimeout();
 		SolverFactory<ScheduleSolution> factory = solverConfig.createSolverFactory(courseCount);
 		Solver<ScheduleSolution> solver = factory.buildSolver();
-		log.info("Solver timeout set to {} for {} courses",
-				solverConfig.calculateTimeout(courseCount), courseCount);
+		log.info("Solver limits set: spent={}, unimproved={} for {} courses",
+				spentLimit, unimprovedLimit, courseCount);
 		currentSolver.set(solver);
 
 		// Add listener for step-by-step progress updates
