@@ -369,6 +369,11 @@ public class SolverService {
 				course.getInstructor().getId();
 			}
 		});
+		rooms.forEach(room -> {
+			if (room.getBuilding() != null) {
+				room.getBuilding().getId();
+			}
+		});
 
 		log.info("Building problem: {} courses, {} rooms, {} time slots",
 				courses.size(), rooms.size(), timeSlots.size());
@@ -400,6 +405,9 @@ public class SolverService {
 		}
 		if (!solution.getSemester().equals(semester)) {
 			return false;
+		}
+		if (solverStatus.get() == SolverStatus.SOLVING_ACTIVE) {
+			return true;
 		}
 		long currentCourseCount = courseRepository.count();
 		return solution.getAssignments().size() == currentCourseCount;
