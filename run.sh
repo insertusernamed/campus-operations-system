@@ -14,6 +14,11 @@ CLEANUP_DONE=0
 BACKEND_PREFIX="$(printf "${BLUE}[BACKEND]${NC} ")"
 FRONTEND_PREFIX="$(printf "${GREEN}[FRONTEND]${NC} ")"
 
+prefix_logs() {
+    local prefix="$1"
+    awk -v prefix="$prefix" '{ print prefix $0; fflush(); }'
+}
+
 # Cleanup function to kill background processes
 cleanup() {
     if [ "$CLEANUP_DONE" -eq 1 ]; then
@@ -58,14 +63,14 @@ fi
 run_backend() {
     trap '' INT
     cd campus-scheduler-backend || exit 1
-    exec ./mvnw spring-boot:run > >(sed -u "s/^/${BACKEND_PREFIX}/") 2>&1
+    exec ./mvnw spring-boot:run > >(prefix_logs "${BACKEND_PREFIX}") 2>&1
 }
 
 # Function to run the frontend
 run_frontend() {
     trap '' INT
     cd campus-scheduler-frontend || exit 1
-    exec npm run dev > >(sed -u "s/^/${FRONTEND_PREFIX}/") 2>&1
+    exec npm run dev > >(prefix_logs "${FRONTEND_PREFIX}") 2>&1
 }
 
 # Kill any existing processes on ports 5173 and 8080
