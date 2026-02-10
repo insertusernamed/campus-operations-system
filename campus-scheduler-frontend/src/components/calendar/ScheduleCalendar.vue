@@ -163,6 +163,13 @@ const calendarsConfig = computed(() => {
 	return config
 })
 
+const calendarsSignature = computed(() =>
+	Object.entries(calendarsConfig.value)
+		.map(([deptKey, config]) => `${deptKey}:${config.lightColors.main}`)
+		.sort()
+		.join('|')
+)
+
 // Convert schedule to ScheduleX event format with proper Temporal types
 function scheduleToEvents(
 	schedule: Schedule,
@@ -369,11 +376,7 @@ onUnmounted(() => {
 })
 
 // Recreate calendar when building colors/config changes
-watch([calendarsConfig, calendarHeight], () => {
-	initCalendar()
-}, { deep: true })
-
-watch(initialSelectedDate, () => {
+watch([calendarsSignature, calendarHeight], () => {
 	initCalendar()
 })
 
