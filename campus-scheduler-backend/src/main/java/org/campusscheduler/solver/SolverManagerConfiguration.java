@@ -2,7 +2,10 @@ package org.campusscheduler.solver;
 
 import ai.timefold.solver.core.api.solver.SolverFactory;
 import ai.timefold.solver.core.config.constructionheuristic.ConstructionHeuristicPhaseConfig;
+import ai.timefold.solver.core.config.constructionheuristic.ConstructionHeuristicType;
+import ai.timefold.solver.core.config.heuristic.selector.entity.EntitySorterManner;
 import ai.timefold.solver.core.config.localsearch.LocalSearchPhaseConfig;
+import ai.timefold.solver.core.config.localsearch.LocalSearchType;
 import ai.timefold.solver.core.config.solver.SolverConfig;
 import ai.timefold.solver.core.config.solver.termination.TerminationConfig;
 import org.springframework.beans.factory.annotation.Value;
@@ -58,8 +61,12 @@ public class SolverManagerConfiguration {
         Duration timeout = calculateTimeout(courseCount);
         Duration unimprovedTimeout = calculateUnimprovedTimeout();
 
-        ConstructionHeuristicPhaseConfig chConfig = new ConstructionHeuristicPhaseConfig();
-        LocalSearchPhaseConfig lsConfig = new LocalSearchPhaseConfig();
+        ConstructionHeuristicPhaseConfig chConfig = new ConstructionHeuristicPhaseConfig()
+                .withConstructionHeuristicType(ConstructionHeuristicType.FIRST_FIT_DECREASING)
+                .withEntitySorterManner(EntitySorterManner.DECREASING_DIFFICULTY_IF_AVAILABLE);
+
+        LocalSearchPhaseConfig lsConfig = new LocalSearchPhaseConfig()
+                .withLocalSearchType(LocalSearchType.LATE_ACCEPTANCE);
 
         SolverConfig solverConfig = new SolverConfig()
                 .withSolutionClass(ScheduleSolution.class)
@@ -83,8 +90,11 @@ public class SolverManagerConfiguration {
     public SolverFactory<ScheduleSolution> createImpactSolverFactory() {
         Duration timeout = Duration.ofSeconds(5);
 
-        ConstructionHeuristicPhaseConfig chConfig = new ConstructionHeuristicPhaseConfig();
-        LocalSearchPhaseConfig lsConfig = new LocalSearchPhaseConfig();
+        ConstructionHeuristicPhaseConfig chConfig = new ConstructionHeuristicPhaseConfig()
+                .withConstructionHeuristicType(ConstructionHeuristicType.FIRST_FIT);
+
+        LocalSearchPhaseConfig lsConfig = new LocalSearchPhaseConfig()
+                .withLocalSearchType(LocalSearchType.HILL_CLIMBING);
 
         SolverConfig solverConfig = new SolverConfig()
                 .withSolutionClass(ScheduleSolution.class)

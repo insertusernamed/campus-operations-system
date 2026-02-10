@@ -320,6 +320,9 @@ public class SolverService {
 					assignment.setId(course.getId());
 					assignment.setCourse(course);
 					assignment.setSemester(semester);
+					SolverRoomDomainHelper.RoomDomain roomDomain = SolverRoomDomainHelper.buildRoomDomain(course, rooms);
+					assignment.setAvailableRooms(roomDomain.allowedRooms());
+					assignment.setPreferredBuildingCodes(roomDomain.preferredBuildingCodes());
 					return assignment;
 				})
 				.collect(Collectors.toList());
