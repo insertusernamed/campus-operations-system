@@ -1,6 +1,13 @@
 package org.campusscheduler.solver;
 
+import java.time.Duration;
+import java.time.DayOfWeek;
+import java.time.LocalTime;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
@@ -91,6 +98,50 @@ public class SolverService {
 			long softScore) {
 	}
 
+	public record SolverRoomUtilization(
+			Long roomId,
+			String roomNumber,
+			String buildingName,
+			String buildingCode,
+			Integer capacity,
+			long scheduledSlots,
+			long totalSlots,
+			double utilizationPercentage) {
+	}
+
+	public record SolverBuildingUtilization(
+			Long buildingId,
+			String buildingName,
+			String buildingCode,
+			int roomCount,
+			long scheduledSlots,
+			long totalSlots,
+			double utilizationPercentage) {
+	}
+
+	public record SolverPeakHours(
+			Long timeSlotId,
+			DayOfWeek dayOfWeek,
+			LocalTime startTime,
+			LocalTime endTime,
+			String label,
+			long bookingCount) {
+	}
+
+	public record SolverAnalyticsResponse(
+			String semester,
+			int totalRooms,
+			int totalBuildings,
+			long totalScheduledSlots,
+			long totalAvailableSlots,
+			double overallUtilizationPercentage,
+			List<SolverRoomUtilization> topUtilizedRooms,
+			List<SolverRoomUtilization> leastUtilizedRooms,
+			List<SolverRoomUtilization> rooms,
+			List<SolverBuildingUtilization> buildings,
+			List<SolverPeakHours> peakHours) {
+	}
+
 	/**
 	 * Start solving for the given semester.
 	 * Terminates any previously running solver before starting.
@@ -109,10 +160,12 @@ public class SolverService {
 
 		// Create solver with timeout based on problem size
 		int courseCount = problem.getAssignments().size();
+		Duration spentLimit = solverConfig.calculateTimeout(courseCount);
+		Duration unimprovedLimit = solverConfig.calculateUnimprovedTimeout();
 		SolverFactory<ScheduleSolution> factory = solverConfig.createSolverFactory(courseCount);
 		Solver<ScheduleSolution> solver = factory.buildSolver();
-		log.info("Solver timeout set to {} for {} courses",
-				solverConfig.calculateTimeout(courseCount), courseCount);
+		log.info("Solver limits set: spent={}, unimproved={} for {} courses",
+				spentLimit, unimprovedLimit, courseCount);
 		currentSolver.set(solver);
 
 		// Add listener for step-by-step progress updates
@@ -242,6 +295,15 @@ public class SolverService {
 				softScore);
 	}
 
+	@Transactional(readOnly = true)
+	public SolverAnalyticsResponse getAnalytics(String semester) {
+		ScheduleSolution solution = bestSolution.get();
+		if (shouldUseSolutionAnalytics(solution, semester)) {
+			return buildAnalyticsFromSolution(solution);
+		}
+		return buildAnalyticsFromSavedSchedules(semester);
+	}
+
 	/**
 	 * Stop the current solving process.
 	 */
@@ -307,6 +369,11 @@ public class SolverService {
 				course.getInstructor().getId();
 			}
 		});
+		rooms.forEach(room -> {
+			if (room.getBuilding() != null) {
+				room.getBuilding().getId();
+			}
+		});
 
 		log.info("Building problem: {} courses, {} rooms, {} time slots",
 				courses.size(), rooms.size(), timeSlots.size());
@@ -317,6 +384,9 @@ public class SolverService {
 					assignment.setId(course.getId());
 					assignment.setCourse(course);
 					assignment.setSemester(semester);
+					SolverRoomDomainHelper.RoomDomain roomDomain = SolverRoomDomainHelper.buildRoomDomain(course, rooms);
+					assignment.setAvailableRooms(roomDomain.allowedRooms());
+					assignment.setPreferredBuildingCodes(roomDomain.preferredBuildingCodes());
 					return assignment;
 				})
 				.collect(Collectors.toList());
@@ -327,5 +397,155 @@ public class SolverService {
 				.assignments(assignments)
 				.semester(semester)
 				.build();
+	}
+
+	private boolean shouldUseSolutionAnalytics(ScheduleSolution solution, String semester) {
+		if (solution == null || solution.getAssignments() == null || solution.getSemester() == null) {
+			return false;
+		}
+		if (!solution.getSemester().equals(semester)) {
+			return false;
+		}
+		if (solverStatus.get() == SolverStatus.SOLVING_ACTIVE) {
+			return true;
+		}
+		long currentCourseCount = courseRepository.count();
+		return solution.getAssignments().size() == currentCourseCount;
+	}
+
+	private SolverAnalyticsResponse buildAnalyticsFromSolution(ScheduleSolution solution) {
+		List<Room> rooms = solution.getRooms() != null ? solution.getRooms() : roomRepository.findAll();
+		List<TimeSlot> timeSlots = solution.getTimeSlots() != null ? solution.getTimeSlots() : timeSlotRepository.findAll();
+		Map<Long, Long> scheduledByRoomId = new HashMap<>();
+		Map<Long, Long> scheduledByTimeSlotId = new HashMap<>();
+
+		for (ScheduleAssignment assignment : solution.getAssignments()) {
+			if (!assignment.isInitialized()) {
+				continue;
+			}
+			if (assignment.getRoom() != null && assignment.getRoom().getId() != null) {
+				scheduledByRoomId.merge(assignment.getRoom().getId(), 1L, Long::sum);
+			}
+			if (assignment.getTimeSlot() != null && assignment.getTimeSlot().getId() != null) {
+				scheduledByTimeSlotId.merge(assignment.getTimeSlot().getId(), 1L, Long::sum);
+			}
+		}
+
+		return buildAnalyticsResponse(solution.getSemester(), rooms, timeSlots, scheduledByRoomId, scheduledByTimeSlotId);
+	}
+
+	private SolverAnalyticsResponse buildAnalyticsFromSavedSchedules(String semester) {
+		List<Room> rooms = roomRepository.findAll();
+		List<TimeSlot> timeSlots = timeSlotRepository.findAll();
+		Map<Long, Long> scheduledByRoomId = new HashMap<>();
+		Map<Long, Long> scheduledByTimeSlotId = new HashMap<>();
+
+		for (Schedule schedule : scheduleRepository.findBySemester(semester)) {
+			if (schedule.getRoom() != null && schedule.getRoom().getId() != null) {
+				scheduledByRoomId.merge(schedule.getRoom().getId(), 1L, Long::sum);
+			}
+			if (schedule.getTimeSlot() != null && schedule.getTimeSlot().getId() != null) {
+				scheduledByTimeSlotId.merge(schedule.getTimeSlot().getId(), 1L, Long::sum);
+			}
+		}
+
+		return buildAnalyticsResponse(semester, rooms, timeSlots, scheduledByRoomId, scheduledByTimeSlotId);
+	}
+
+	private SolverAnalyticsResponse buildAnalyticsResponse(
+			String semester,
+			List<Room> rooms,
+			List<TimeSlot> timeSlots,
+			Map<Long, Long> scheduledByRoomId,
+			Map<Long, Long> scheduledByTimeSlotId) {
+
+		int roomCount = rooms != null ? rooms.size() : 0;
+		int timeSlotCount = timeSlots != null ? timeSlots.size() : 0;
+		long totalAvailableSlots = (long) roomCount * timeSlotCount;
+		long totalScheduledSlots = scheduledByRoomId.values().stream().mapToLong(Long::longValue).sum();
+		double overallUtilization = totalAvailableSlots > 0
+				? (double) totalScheduledSlots / totalAvailableSlots * 100.0
+				: 0.0;
+
+		List<SolverRoomUtilization> roomUtilization = (rooms != null ? rooms : List.<Room>of()).stream()
+				.map(room -> {
+					long scheduledSlots = scheduledByRoomId.getOrDefault(room.getId(), 0L);
+					long totalSlots = timeSlotCount;
+					double utilization = totalSlots > 0 ? (double) scheduledSlots / totalSlots * 100.0 : 0.0;
+					return new SolverRoomUtilization(
+							room.getId(),
+							room.getRoomNumber(),
+							room.getBuildingName(),
+							room.getBuildingCode(),
+							room.getCapacity(),
+							scheduledSlots,
+							totalSlots,
+							utilization);
+				})
+				.toList();
+
+		List<SolverRoomUtilization> sortedRooms = roomUtilization.stream()
+				.sorted(Comparator.comparing(SolverRoomUtilization::utilizationPercentage).reversed())
+				.toList();
+
+		Map<Long, List<Room>> roomsByBuilding = (rooms != null ? rooms : List.<Room>of()).stream()
+				.filter(room -> room.getBuildingId() != null)
+				.collect(Collectors.groupingBy(Room::getBuildingId, LinkedHashMap::new, Collectors.toList()));
+
+		List<SolverBuildingUtilization> buildingUtilization = roomsByBuilding.entrySet().stream()
+				.map(entry -> {
+					Long buildingId = entry.getKey();
+					List<Room> buildingRooms = entry.getValue();
+					int buildingRoomCount = buildingRooms.size();
+					long buildingScheduledSlots = buildingRooms.stream()
+							.map(Room::getId)
+							.mapToLong(roomId -> scheduledByRoomId.getOrDefault(roomId, 0L))
+							.sum();
+					long buildingTotalSlots = (long) buildingRoomCount * timeSlotCount;
+					double utilization = buildingTotalSlots > 0
+							? (double) buildingScheduledSlots / buildingTotalSlots * 100.0
+							: 0.0;
+					Room sample = buildingRooms.getFirst();
+					return new SolverBuildingUtilization(
+							buildingId,
+							sample.getBuildingName(),
+							sample.getBuildingCode(),
+							buildingRoomCount,
+							buildingScheduledSlots,
+							buildingTotalSlots,
+							utilization);
+				})
+				.sorted(Comparator.comparing(SolverBuildingUtilization::utilizationPercentage).reversed())
+				.toList();
+
+		List<SolverPeakHours> peakHours = (timeSlots != null ? timeSlots : List.<TimeSlot>of()).stream()
+				.map(slot -> new SolverPeakHours(
+						slot.getId(),
+						slot.getDayOfWeek(),
+						slot.getStartTime(),
+						slot.getEndTime(),
+						slot.getLabel(),
+						scheduledByTimeSlotId.getOrDefault(slot.getId(), 0L)))
+				.sorted(Comparator.comparing(SolverPeakHours::bookingCount).reversed())
+				.toList();
+
+		List<SolverRoomUtilization> topUtilized = sortedRooms.stream().limit(5).toList();
+		List<SolverRoomUtilization> leastUtilized = roomUtilization.stream()
+				.sorted(Comparator.comparing(SolverRoomUtilization::utilizationPercentage))
+				.limit(5)
+				.toList();
+
+		return new SolverAnalyticsResponse(
+				semester,
+				roomCount,
+				buildingUtilization.size(),
+				totalScheduledSlots,
+				totalAvailableSlots,
+				overallUtilization,
+				topUtilized,
+				leastUtilized,
+				roomUtilization,
+				buildingUtilization,
+				peakHours);
 	}
 }

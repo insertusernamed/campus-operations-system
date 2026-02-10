@@ -1,6 +1,7 @@
 package org.campusscheduler.solver;
 
 import org.campusscheduler.solver.SolverService.SolverStatusResponse;
+import org.campusscheduler.solver.SolverService.SolverAnalyticsResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -61,6 +62,16 @@ public class SolverController {
     @Operation(summary = "Get solver status", description = "Returns current optimization status and score")
     public ResponseEntity<SolverStatusResponse> getStatus() {
         return ResponseEntity.ok(solverService.getStatus());
+    }
+
+    /**
+     * Get live analytics derived from the current best solution for the semester.
+     */
+    @GetMapping("/analytics")
+    @Operation(summary = "Get live solver analytics", description = "Returns analytics from the in-memory best solution while solving, or saved schedules when idle")
+    public ResponseEntity<SolverAnalyticsResponse> getAnalytics(
+            @RequestParam(defaultValue = "Fall 2026") String semester) {
+        return ResponseEntity.ok(solverService.getAnalytics(semester));
     }
 
     /**

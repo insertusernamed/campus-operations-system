@@ -71,6 +71,8 @@ public class ImpactAnalysisService {
 
         String semester = schedule.getSemester();
         List<Schedule> schedules = scheduleRepository.findBySemester(semester);
+        List<Room> allRooms = roomRepository.findAll();
+        List<TimeSlot> allTimeSlots = timeSlotRepository.findAll();
         Map<Long, ScheduleSnapshot> baseline = new HashMap<>();
         List<ScheduleAssignment> assignments = new ArrayList<>();
 
@@ -82,6 +84,9 @@ public class ImpactAnalysisService {
             assignment.setRoom(item.getRoom());
             assignment.setTimeSlot(item.getTimeSlot());
             assignment.setPinned(true);
+            SolverRoomDomainHelper.RoomDomain roomDomain = SolverRoomDomainHelper.buildRoomDomain(item.getCourse(), allRooms);
+            assignment.setAvailableRooms(roomDomain.allowedRooms());
+            assignment.setPreferredBuildingCodes(roomDomain.preferredBuildingCodes());
             assignments.add(assignment);
             baseline.put(item.getId(), ScheduleSnapshot.from(item));
         }
@@ -107,8 +112,8 @@ public class ImpactAnalysisService {
         }
 
         ScheduleSolution problem = ScheduleSolution.builder()
-                .rooms(roomRepository.findAll())
-                .timeSlots(timeSlotRepository.findAll())
+                .rooms(allRooms)
+                .timeSlots(allTimeSlots)
                 .assignments(assignments)
                 .semester(semester)
                 .build();
