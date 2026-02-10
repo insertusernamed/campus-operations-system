@@ -19,6 +19,50 @@ export interface SaveResponse {
 	message: string
 }
 
+export interface SolverRoomUtilization {
+	roomId: number
+	roomNumber: string
+	buildingName: string
+	buildingCode: string
+	capacity: number
+	scheduledSlots: number
+	totalSlots: number
+	utilizationPercentage: number
+}
+
+export interface SolverBuildingUtilization {
+	buildingId: number
+	buildingName: string
+	buildingCode: string
+	roomCount: number
+	scheduledSlots: number
+	totalSlots: number
+	utilizationPercentage: number
+}
+
+export interface SolverPeakHours {
+	timeSlotId: number
+	dayOfWeek: string
+	startTime: string
+	endTime: string
+	label: string
+	bookingCount: number
+}
+
+export interface SolverAnalytics {
+	semester: string
+	totalRooms: number
+	totalBuildings: number
+	totalScheduledSlots: number
+	totalAvailableSlots: number
+	overallUtilizationPercentage: number
+	topUtilizedRooms: SolverRoomUtilization[]
+	leastUtilizedRooms: SolverRoomUtilization[]
+	rooms: SolverRoomUtilization[]
+	buildings: SolverBuildingUtilization[]
+	peakHours: SolverPeakHours[]
+}
+
 export interface ImpactAnalysisMove {
 	scheduleId: number
 	courseCode: string
@@ -72,6 +116,13 @@ export const solverService = {
 
 	async save(): Promise<SaveResponse> {
 		const response = await api.post<SaveResponse>('/solver/save')
+		return response.data
+	},
+
+	async getAnalytics(semester: string): Promise<SolverAnalytics> {
+		const response = await api.get<SolverAnalytics>('/solver/analytics', {
+			params: { semester },
+		})
 		return response.data
 	},
 

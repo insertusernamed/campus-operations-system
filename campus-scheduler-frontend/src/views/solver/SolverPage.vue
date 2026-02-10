@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSolverWebSocket } from '@/composables/useSolverWebSocket'
-import { solverService } from '@/services/solver'
+import { solverService, type SolverAnalytics } from '@/services/solver'
 import {
 	generatorService,
 	type UniversityStats,
@@ -10,9 +10,13 @@ import {
 	type GenerationPreview,
 } from '@/services/generator'
 import { semestersService } from '@/services/semesters'
+import { timeslotsService } from '@/services/timeslots'
 import { getDynamicSemesterOptions } from '@/utils/semester'
 import { toast } from 'vue3-toastify'
 import ResearchModal from '@/components/generator/ResearchModal.vue'
+import StatCard from '@/components/charts/StatCard.vue'
+import BarChart, { type BarChartData } from '@/components/charts/BarChart.vue'
+import HeatMap, { type HeatmapCell } from '@/components/charts/HeatMap.vue'
 
 const router = useRouter()
 
@@ -45,6 +49,138 @@ const selectedArchetypeInfo = computed(() => {
 })
 
 const isSolving = computed(() => progress.value?.status === 'SOLVING_ACTIVE')
+
+const analyticsSectionRef = ref<HTMLElement | null>(null)
+const analytics = ref<SolverAnalytics | null>(null)
+const analyticsLoading = ref(false)
+const analyticsError = ref('')
+const showRoomDetails = ref(false)
+
+const ANALYTICS_REFRESH_MIN_INTERVAL_MS = 350
+const ANALYTICS_FALLBACK_POLL_MS = 750
+const MAX_DISPLAYED_BUILDINGS = 10
+const MAX_ROOM_ROWS = 10
+
+const analyticsLastFetchAt = ref(0)
+const analyticsFetchInFlight = ref(false)
+const analyticsRefreshQueued = ref(false)
+let analyticsRefreshTimeout: number | null = null
+let analyticsFallbackInterval: number | null = null
+
+const daysOfWeek = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY']
+const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+
+const buildingChartData = computed<BarChartData[]>(() => {
+	if (!analytics.value) return []
+	return analytics.value.buildings
+		.map((b) => ({
+			label: b.buildingCode || b.buildingName,
+			value: b.utilizationPercentage,
+		}))
+		.sort((a, b) => b.value - a.value)
+		.slice(0, MAX_DISPLAYED_BUILDINGS)
+})
+
+const topRoomRows = computed(() => {
+	if (!analytics.value) return []
+	return analytics.value.topUtilizedRooms.slice(0, MAX_ROOM_ROWS)
+})
+
+const timeSlots = computed(() => {
+	if (!analytics.value) return []
+	const slots = new Set<string>()
+	analytics.value.peakHours.forEach((ph) => slots.add(ph.startTime))
+	return Array.from(slots)
+		.sort()
+		.map((slot) => timeslotsService.formatTime(slot))
+})
+
+const heatmapData = computed<HeatmapCell[]>(() => {
+	if (!analytics.value) return []
+	return analytics.value.peakHours.map((ph) => ({
+		row: dayLabels[daysOfWeek.indexOf(ph.dayOfWeek)] || ph.dayOfWeek,
+		col: timeslotsService.formatTime(ph.startTime),
+		value: ph.bookingCount,
+		label: `${ph.label}: ${ph.bookingCount} bookings`,
+	}))
+})
+
+const formatPercent = (value: number) => `${value.toFixed(1)}%`
+
+async function fetchSolverAnalytics() {
+	if (!semester.value) return
+	if (analyticsFetchInFlight.value) {
+		analyticsRefreshQueued.value = true
+		return
+	}
+	const isInitialLoad = analytics.value === null
+	if (isInitialLoad) {
+		analyticsLoading.value = true
+	}
+	analyticsFetchInFlight.value = true
+
+	try {
+		analytics.value = await solverService.getAnalytics(semester.value)
+		analyticsError.value = ''
+	} catch (e: unknown) {
+		analyticsError.value = e instanceof Error ? e.message : 'Failed to fetch solver analytics'
+	} finally {
+		analyticsFetchInFlight.value = false
+		if (isInitialLoad) {
+			analyticsLoading.value = false
+		}
+		if (analyticsRefreshQueued.value) {
+			analyticsRefreshQueued.value = false
+			analyticsLastFetchAt.value = Date.now()
+			void fetchSolverAnalytics()
+		}
+	}
+}
+
+function requestAnalyticsRefresh(force = false) {
+	if (!semester.value) return
+	if (analyticsFetchInFlight.value) {
+		analyticsRefreshQueued.value = true
+		return
+	}
+
+	const now = Date.now()
+	const elapsed = now - analyticsLastFetchAt.value
+	if (force || elapsed >= ANALYTICS_REFRESH_MIN_INTERVAL_MS) {
+		analyticsLastFetchAt.value = now
+		void fetchSolverAnalytics()
+		return
+	}
+
+	if (analyticsRefreshTimeout !== null) return
+	const wait = ANALYTICS_REFRESH_MIN_INTERVAL_MS - elapsed
+	analyticsRefreshTimeout = window.setTimeout(() => {
+		analyticsRefreshTimeout = null
+		analyticsLastFetchAt.value = Date.now()
+		void fetchSolverAnalytics()
+	}, wait)
+}
+
+function startAnalyticsFallbackPolling() {
+	if (analyticsFallbackInterval !== null) return
+	analyticsFallbackInterval = window.setInterval(() => {
+		requestAnalyticsRefresh()
+	}, ANALYTICS_FALLBACK_POLL_MS)
+}
+
+function stopAnalyticsFallbackPolling() {
+	if (analyticsFallbackInterval !== null) {
+		window.clearInterval(analyticsFallbackInterval)
+		analyticsFallbackInterval = null
+	}
+}
+
+function clearAnalyticsRefreshTimeout() {
+	if (analyticsRefreshTimeout !== null) {
+		window.clearTimeout(analyticsRefreshTimeout)
+		analyticsRefreshTimeout = null
+	}
+}
 
 async function fetchStats() {
 	try {
@@ -101,9 +237,36 @@ onMounted(async () => {
 	await loadSemesters()
 	await fetchStats()
 	await fetchArchetypes()
+	requestAnalyticsRefresh(true)
 	// Only call updatePreview after archetypes are loaded
 	if (archetypes.value.length > 0) {
 		await updatePreview()
+	}
+})
+
+onUnmounted(() => {
+	stopAnalyticsFallbackPolling()
+	clearAnalyticsRefreshTimeout()
+})
+
+watch(semester, () => {
+	analytics.value = null
+	requestAnalyticsRefresh(true)
+})
+
+watch(progress, () => {
+	if (isSolving.value) {
+		requestAnalyticsRefresh()
+	}
+})
+
+watch(isSolving, (solving) => {
+	if (solving) {
+		startAnalyticsFallbackPolling()
+		requestAnalyticsRefresh(true)
+	} else {
+		stopAnalyticsFallbackPolling()
+		requestAnalyticsRefresh(true)
 	}
 })
 
@@ -111,16 +274,17 @@ async function generateData() {
 	isGenerating.value = true
 	errorMessage.value = ''
 	statusMessage.value = ''
-	try {
-		const result = await generatorService.generateWithArchetype({
-			archetype: selectedArchetype.value,
-			studentPopulation: studentPopulation.value,
-		})
-		statusMessage.value = `Generated: ${result.buildings} buildings, ${result.rooms} rooms, ${result.instructors} instructors, ${result.courses} courses`
-		await fetchStats()
-		// Notify other components that data has changed
-		window.dispatchEvent(new CustomEvent('data-regenerated'))
-	} catch (e: unknown) {
+		try {
+			const result = await generatorService.generateWithArchetype({
+				archetype: selectedArchetype.value,
+				studentPopulation: studentPopulation.value,
+			})
+			statusMessage.value = `Generated: ${result.buildings} buildings, ${result.rooms} rooms, ${result.instructors} instructors, ${result.courses} courses`
+			await fetchStats()
+			requestAnalyticsRefresh(true)
+			// Notify other components that data has changed
+			window.dispatchEvent(new CustomEvent('data-regenerated'))
+		} catch (e: unknown) {
 		errorMessage.value = e instanceof Error ? e.message : 'Failed to generate data'
 		toast.error(errorMessage.value)
 	} finally {
@@ -137,6 +301,8 @@ async function clearData() {
 		await generatorService.reset()
 		statusMessage.value = 'All data cleared'
 		await fetchStats()
+		analytics.value = null
+		requestAnalyticsRefresh(true)
 		// Notify other components that data has changed
 		window.dispatchEvent(new CustomEvent('data-regenerated'))
 	} catch (e: unknown) {
@@ -160,6 +326,9 @@ async function startSolver() {
 	try {
 		const result = await solverService.start(semester.value)
 		statusMessage.value = result.message
+		requestAnalyticsRefresh(true)
+		await nextTick()
+		analyticsSectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 	} catch (e: unknown) {
 		errorMessage.value = e instanceof Error ? e.message : 'Failed to start solver'
 		toast.error(errorMessage.value)
@@ -173,6 +342,7 @@ async function stopSolver() {
 	try {
 		await solverService.stop()
 		statusMessage.value = 'Solver stopped'
+		requestAnalyticsRefresh(true)
 	} catch (e: unknown) {
 		errorMessage.value = e instanceof Error ? e.message : 'Failed to stop solver'
 		toast.error(errorMessage.value)
@@ -186,6 +356,7 @@ async function saveSolution() {
 	try {
 		const result = await solverService.save()
 		statusMessage.value = result.message
+		requestAnalyticsRefresh(true)
 		toast.success('Solution saved successfully!', {
 			onClick: () => router.push('/schedules'),
 			style: { cursor: 'pointer' },
@@ -445,6 +616,98 @@ const solutionQuality = computed(() => {
 		<!-- Empty State -->
 		<div v-else class="border p-8 text-center text-gray-500">
 			No solver data. Generate data and start the solver to see progress.
+		</div>
+
+		<!-- Live Analytics -->
+		<div ref="analyticsSectionRef" class="border p-4 mb-6">
+				<div class="flex items-center justify-between mb-3">
+					<h2 class="font-semibold">Live Solver Analytics</h2>
+					<span class="text-xs text-gray-500">
+						{{ isSolving ? 'Auto-updating (~0.75s)' : 'Synced with latest best solution' }}
+					</span>
+				</div>
+
+				<div v-if="analyticsLoading && !analytics" class="py-6 text-center text-gray-500">
+					Loading analytics...
+				</div>
+
+				<div v-else-if="analyticsError" class="border border-red-300 p-3 text-red-700">
+					<div>{{ analyticsError }}</div>
+					<button class="underline mt-2" @click="requestAnalyticsRefresh(true)">Retry</button>
+				</div>
+
+				<template v-else-if="analytics">
+					<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+						<StatCard label="Overall Utilization" :value="formatPercent(analytics.overallUtilizationPercentage)" />
+						<StatCard label="Total Rooms" :value="analytics.totalRooms" />
+						<StatCard label="Buildings" :value="analytics.totalBuildings" />
+						<StatCard label="Scheduled Slots" :value="`${analytics.totalScheduledSlots}/${analytics.totalAvailableSlots}`" />
+					</div>
+
+					<div class="grid grid-cols-1 xl:grid-cols-5 gap-4 mb-4">
+						<div class="border p-4 xl:col-span-3">
+							<BarChart
+								title="Building Utilization"
+								:data="buildingChartData"
+								:height="220"
+								:max-value="100"
+								:value-formatter="formatPercent" />
+						</div>
+						<div class="border p-4 xl:col-span-2">
+							<HeatMap
+								title="Schedule Heatmap"
+								:data="heatmapData"
+								:rows="dayLabels"
+								:cols="timeSlots"
+								:cell-width="58"
+								:cell-height="34" />
+						</div>
+					</div>
+
+					<div class="border p-4">
+						<div class="flex items-center justify-between gap-3">
+							<div>
+								<h3 class="font-semibold">Room Utilization Details</h3>
+								<p class="text-xs text-gray-500">Optional list of top utilized rooms</p>
+							</div>
+							<button
+								type="button"
+								class="text-sm px-3 py-1 border border-gray-300 hover:bg-gray-50"
+								:aria-expanded="showRoomDetails"
+								@click="showRoomDetails = !showRoomDetails">
+								{{ showRoomDetails ? 'Hide Rooms' : 'Show Rooms' }}
+							</button>
+						</div>
+
+						<div v-if="showRoomDetails" class="mt-3 overflow-x-auto">
+							<table class="w-full text-sm">
+								<thead>
+									<tr class="text-left text-gray-600 border-b">
+										<th class="py-2 pr-3">Room</th>
+										<th class="py-2 pr-3">Building</th>
+										<th class="py-2 pr-3 text-right">Scheduled</th>
+										<th class="py-2 text-right">Utilization</th>
+									</tr>
+								</thead>
+								<tbody>
+									<tr v-for="room in topRoomRows" :key="room.roomId" class="border-b last:border-0">
+										<td class="py-2 pr-3">{{ room.buildingCode }}-{{ room.roomNumber }}</td>
+										<td class="py-2 pr-3 text-gray-600">{{ room.buildingName }}</td>
+										<td class="py-2 pr-3 text-right text-gray-600">{{ room.scheduledSlots }}/{{ room.totalSlots }}</td>
+										<td class="py-2 text-right font-medium">{{ formatPercent(room.utilizationPercentage) }}</td>
+									</tr>
+								</tbody>
+							</table>
+							<div v-if="topRoomRows.length === 0" class="py-3 text-sm text-gray-500">
+								No room utilization data available.
+							</div>
+						</div>
+					</div>
+				</template>
+
+				<div v-else class="py-6 text-center text-gray-500">
+					No analytics available for the selected semester.
+				</div>
 		</div>
 	</div>
 </template>
