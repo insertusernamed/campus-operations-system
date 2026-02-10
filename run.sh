@@ -9,23 +9,39 @@ NC='\033[0m'
 # Store PIDs for cleanup
 BACKEND_PID=""
 FRONTEND_PID=""
+CLEANUP_DONE=0
+
+BACKEND_PREFIX="$(printf "${BLUE}[BACKEND]${NC} ")"
+FRONTEND_PREFIX="$(printf "${GREEN}[FRONTEND]${NC} ")"
 
 # Cleanup function to kill background processes
 cleanup() {
+    if [ "$CLEANUP_DONE" -eq 1 ]; then
+        return
+    fi
+    CLEANUP_DONE=1
+
     echo -e "\n${RED}Shutting down services...${NC}"
-    if [ ! -z "$BACKEND_PID" ]; then
+    if [ -n "$BACKEND_PID" ] && kill -0 "$BACKEND_PID" 2>/dev/null; then
         echo "Stopping backend..."
-        kill $BACKEND_PID 2>/dev/null
+        kill "$BACKEND_PID" 2>/dev/null || true
+        wait "$BACKEND_PID" 2>/dev/null || true
     fi
-    if [ ! -z "$FRONTEND_PID" ]; then
+    if [ -n "$FRONTEND_PID" ] && kill -0 "$FRONTEND_PID" 2>/dev/null; then
         echo "Stopping frontend..."
-        kill $FRONTEND_PID 2>/dev/null
+        kill "$FRONTEND_PID" 2>/dev/null || true
+        wait "$FRONTEND_PID" 2>/dev/null || true
     fi
+}
+
+handle_shutdown() {
+    cleanup
     exit 0
 }
 
-# Trap SIGINT (Ctrl+C) and EXIT to run cleanup
-trap cleanup SIGINT SIGTERM EXIT
+# Trap SIGINT/SIGTERM for shutdown and EXIT for one-time cleanup
+trap handle_shutdown SIGINT SIGTERM
+trap cleanup EXIT
 
 # Check if required commands exist
 if ! command -v mvn &> /dev/null && ! command -v ./mvnw &> /dev/null; then
@@ -40,14 +56,16 @@ fi
 
 # Function to run the backend
 run_backend() {
+    trap '' INT
     cd campus-scheduler-backend || exit 1
-    ./mvnw spring-boot:run 2>&1 | sed "s/^/$(printf "${BLUE}[BACKEND]${NC} ")/"
+    exec ./mvnw spring-boot:run > >(sed -u "s/^/${BACKEND_PREFIX}/") 2>&1
 }
 
 # Function to run the frontend
 run_frontend() {
+    trap '' INT
     cd campus-scheduler-frontend || exit 1
-    npm run dev 2>&1 | sed "s/^/$(printf "${GREEN}[FRONTEND]${NC} ")/"
+    exec npm run dev > >(sed -u "s/^/${FRONTEND_PREFIX}/") 2>&1
 }
 
 # Kill any existing processes on ports 5173 and 8080
