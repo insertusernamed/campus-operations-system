@@ -28,7 +28,8 @@ public class ScheduleConstraintProvider implements ConstraintProvider {
                 roomCapacity(factory),
                 instructorConflict(factory),
                 // Soft constraints
-                roomTypeMismatch(factory)
+                roomTypeMismatch(factory),
+                departmentBuildingAffinity(factory)
         };
     }
 
@@ -91,6 +92,18 @@ public class ScheduleConstraintProvider implements ConstraintProvider {
                         isRoomTypeMismatch(assignment))
                 .penalize(HardSoftScore.ONE_SOFT)
                 .asConstraint("Room type mismatch");
+    }
+
+    /**
+     * Favor placing courses in department-aligned buildings when available.
+     */
+    Constraint departmentBuildingAffinity(ConstraintFactory factory) {
+        return factory.forEach(ScheduleAssignment.class)
+                .filter(assignment -> assignment.getRoom() != null &&
+                        assignment.hasPreferredBuildingCodes() &&
+                        !assignment.isInPreferredBuilding())
+                .penalize(HardSoftScore.ofSoft(2))
+                .asConstraint("Department building affinity");
     }
 
     /**

@@ -13,6 +13,7 @@ import ai.timefold.solver.test.api.score.stream.ConstraintVerifier;
 
 import java.time.DayOfWeek;
 import java.time.LocalTime;
+import java.util.Set;
 
 /**
  * Unit tests for schedule constraints using Timefold ConstraintVerifier.
@@ -223,6 +224,58 @@ class ScheduleConstraintProviderTest {
             constraintVerifier.verifyThat(ScheduleConstraintProvider::roomTypeMismatch)
                     .given(assignment)
                     .penalizesBy(0); // 100 students in LECTURE_HALL = match
+        }
+    }
+
+    @Nested
+    @DisplayName("Department Building Affinity Constraint")
+    class DepartmentBuildingAffinity {
+
+        @Test
+        @DisplayName("should penalize course scheduled outside preferred building codes")
+        void shouldPenalizeOutsidePreferredBuilding() {
+            Room artRoom = Room.builder().id(4L).roomNumber("301").capacity(45).type(Room.RoomType.CLASSROOM).build();
+            artRoom.setBuilding(org.campusscheduler.domain.building.Building.builder()
+                    .id(4L)
+                    .code("ART")
+                    .name("Arts Center")
+                    .build());
+
+            ScheduleAssignment assignment = ScheduleAssignment.builder()
+                    .id(1L)
+                    .course(course1)
+                    .room(artRoom)
+                    .timeSlot(slot1)
+                    .semester("Fall 2026")
+                    .preferredBuildingCodes(Set.of("CSC", "ENG"))
+                    .build();
+
+            constraintVerifier.verifyThat(ScheduleConstraintProvider::departmentBuildingAffinity)
+                    .given(assignment)
+                    .penalizesBy(1);
+        }
+
+        @Test
+        @DisplayName("should not penalize course in preferred building")
+        void shouldNotPenalizeInsidePreferredBuilding() {
+            room1.setBuilding(org.campusscheduler.domain.building.Building.builder()
+                    .id(1L)
+                    .code("ENG")
+                    .name("Engineering Hall")
+                    .build());
+
+            ScheduleAssignment assignment = ScheduleAssignment.builder()
+                    .id(1L)
+                    .course(course1)
+                    .room(room1)
+                    .timeSlot(slot1)
+                    .semester("Fall 2026")
+                    .preferredBuildingCodes(Set.of("CSC", "ENG"))
+                    .build();
+
+            constraintVerifier.verifyThat(ScheduleConstraintProvider::departmentBuildingAffinity)
+                    .given(assignment)
+                    .penalizesBy(0);
         }
     }
 }

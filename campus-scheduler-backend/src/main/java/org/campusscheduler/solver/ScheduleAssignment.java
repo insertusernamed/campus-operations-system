@@ -8,11 +8,17 @@ import ai.timefold.solver.core.api.domain.entity.PlanningEntity;
 import ai.timefold.solver.core.api.domain.entity.PlanningPin;
 import ai.timefold.solver.core.api.domain.lookup.PlanningId;
 import ai.timefold.solver.core.api.domain.variable.PlanningVariable;
+import ai.timefold.solver.core.api.domain.valuerange.ValueRangeProvider;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 /**
  * Represents a course that needs to be scheduled to a room and time slot.
@@ -43,7 +49,21 @@ public class ScheduleAssignment {
      * The room assigned to this course (planning variable - Timefold optimizes
      * this).
      */
-    @PlanningVariable(valueRangeProviderRefs = "roomRange")
+    @Builder.Default
+    @ValueRangeProvider(id = "availableRoomRange")
+    private List<Room> availableRooms = Collections.emptyList();
+
+    /**
+     * Preferred building codes for this course's department.
+     */
+    @Builder.Default
+    private Set<String> preferredBuildingCodes = Collections.emptySet();
+
+    /**
+     * The room assigned to this course (planning variable - Timefold optimizes
+     * this).
+     */
+    @PlanningVariable(valueRangeProviderRefs = "availableRoomRange")
     private Room room;
 
     /**
@@ -64,6 +84,17 @@ public class ScheduleAssignment {
      */
     public boolean isInitialized() {
         return room != null && timeSlot != null;
+    }
+
+    public boolean hasPreferredBuildingCodes() {
+        return preferredBuildingCodes != null && !preferredBuildingCodes.isEmpty();
+    }
+
+    public boolean isInPreferredBuilding() {
+        if (!hasPreferredBuildingCodes() || room == null || room.getBuildingCode() == null) {
+            return false;
+        }
+        return preferredBuildingCodes.contains(room.getBuildingCode().trim().toUpperCase(Locale.ROOT));
     }
 
     @Override
