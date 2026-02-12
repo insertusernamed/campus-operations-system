@@ -198,11 +198,15 @@ onMounted(() => {
 			<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
 				<div class="border p-4">
 					<BarChart title="Building Utilization" :data="buildingChartData" :height="280" :max-value="100"
-						:value-formatter="formatPercent" />
+						:value-formatter="formatPercent" :min-chart-width="900" :min-bar-width="26" :bar-gap="12"
+						:value-label-density-threshold="40" :x-label-max-length="10" />
+					<p class="text-xs text-gray-500 mt-2">Scroll horizontally to inspect all buildings.</p>
 				</div>
 				<div class="border p-4">
 					<BarChart :title="`Room Utilization (Top ${MAX_DISPLAYED_ROOMS})`" :data="roomChartData"
-						:height="280" :max-value="100" :value-formatter="formatPercent" />
+						:height="280" :max-value="100" :value-formatter="formatPercent" :show-values="false"
+						:min-chart-width="1300" :min-bar-width="24" :bar-gap="10" :x-label-max-length="14" />
+					<p class="text-xs text-gray-500 mt-2">Scroll horizontally to compare room labels and spacing.</p>
 				</div>
 			</div>
 

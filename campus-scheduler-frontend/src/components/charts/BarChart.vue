@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue'
 
 export interface BarChartData {
 	label: string
@@ -14,17 +14,36 @@ const props = withDefaults(
 		maxValue?: number
 		showValues?: boolean
 		valueFormatter?: (value: number) => string
+		minBarWidth?: number
+		barGap?: number
+		minChartWidth?: number
+		valueLabelDensityThreshold?: number
+		xLabelMaxLength?: number
 	}>(),
 	{
 		height: 300,
 		showValues: true,
+		minBarWidth: 24,
+		barGap: 10,
+		minChartWidth: 640,
+		valueLabelDensityThreshold: 16,
+		xLabelMaxLength: 12,
 	}
 )
 
 const canvas = ref<HTMLCanvasElement | null>(null)
 
+const padding = { top: 20, right: 20, bottom: 70, left: 50 }
+
 const defaultFormatter = (value: number) => `${value.toFixed(1)}%`
 const formatter = computed(() => props.valueFormatter || defaultFormatter)
+
+const estimatedCanvasWidth = computed(() => {
+	const barCount = Math.max(props.data.length, 1)
+	const minChartAreaWidth = barCount * (props.minBarWidth + props.barGap) + props.barGap
+	const requiredWidth = padding.left + padding.right + minChartAreaWidth
+	return Math.max(props.minChartWidth, requiredWidth)
+})
 
 function draw() {
 	if (!canvas.value || props.data.length === 0) return
@@ -40,7 +59,6 @@ function draw() {
 
 	const width = rect.width
 	const height = rect.height
-	const padding = { top: 20, right: 20, bottom: 60, left: 50 }
 	const chartWidth = width - padding.left - padding.right
 	const chartHeight = height - padding.top - padding.bottom
 
@@ -66,8 +84,14 @@ function draw() {
 	}
 
 	// Bars
-	const barWidth = Math.min(50, (chartWidth / props.data.length) * 0.7)
-	const gap = (chartWidth - barWidth * props.data.length) / (props.data.length + 1)
+	const barCount = props.data.length
+	const rawBarWidth = (chartWidth / barCount) * 0.62
+	const barWidth = Math.min(50, Math.max(props.minBarWidth, rawBarWidth))
+	const gap = Math.max(props.barGap, (chartWidth - barWidth * barCount) / (barCount + 1))
+	const valueLabelStep =
+		barCount <= props.valueLabelDensityThreshold
+			? 1
+			: Math.ceil(barCount / props.valueLabelDensityThreshold)
 
 	props.data.forEach((item, index) => {
 		const x = padding.left + gap + index * (barWidth + gap)
@@ -77,20 +101,35 @@ function draw() {
 		ctx.fillStyle = '#4a90d9'
 		ctx.fillRect(x, y, barWidth, barHeight)
 
-		if (props.showValues && item.value > 0) {
-			ctx.fillStyle = '#333'
+		if (props.showValues && item.value > 0 && index % valueLabelStep === 0) {
 			ctx.font = '11px sans-serif'
 			ctx.textAlign = 'center'
-			ctx.fillText(formatter.value(item.value), x + barWidth / 2, y - 5)
+			const valueText = formatter.value(item.value)
+			const textHalfWidth = ctx.measureText(valueText).width / 2
+			const labelPaddingX = 4
+			const labelPaddingY = 2
+			const labelHeight = 12 + labelPaddingY * 2
+			const labelHalfWidth = textHalfWidth + labelPaddingX
+			const valueX = x + barWidth / 2
+			const clampedValueX = Math.min(
+				width - padding.right - labelHalfWidth - 2,
+				Math.max(padding.left + labelHalfWidth + 2, valueX)
+			)
+			const textBaselineY = y - 5
+			const labelY = textBaselineY - labelHeight + 10
+			ctx.fillStyle = '#fff'
+			ctx.fillRect(clampedValueX - labelHalfWidth, labelY, labelHalfWidth * 2, labelHeight)
+			ctx.fillStyle = '#333'
+			ctx.fillText(valueText, clampedValueX, textBaselineY)
 		}
 
 		ctx.fillStyle = '#666'
 		ctx.font = '11px sans-serif'
 		ctx.textAlign = 'center'
 		ctx.save()
-		ctx.translate(x + barWidth / 2, height - padding.bottom + 15)
-		ctx.rotate(-Math.PI / 6)
-		ctx.fillText(truncateLabel(item.label, 12), 0, 0)
+		ctx.translate(x + barWidth / 2, height - padding.bottom + 20)
+		ctx.rotate(-Math.PI / 4)
+		ctx.fillText(truncateLabel(item.label, props.xLabelMaxLength), 0, 0)
 		ctx.restore()
 	})
 }
@@ -99,15 +138,43 @@ function truncateLabel(label: string, maxLength: number): string {
 	return label.length > maxLength ? label.slice(0, maxLength - 1) + '…' : label
 }
 
-onMounted(draw)
-watch(() => props.data, draw, { deep: true })
+function handleResize() {
+	draw()
+}
+
+onMounted(() => {
+	draw()
+	window.addEventListener('resize', handleResize)
+})
+
+onBeforeUnmount(() => {
+	window.removeEventListener('resize', handleResize)
+})
+
+watch(
+	() => [
+		props.data,
+		props.height,
+		props.maxValue,
+		props.showValues,
+		props.minBarWidth,
+		props.barGap,
+		props.minChartWidth,
+		props.valueLabelDensityThreshold,
+		props.xLabelMaxLength,
+	],
+	draw,
+	{ deep: true }
+)
 </script>
 
 <template>
 	<div>
 		<h3 v-if="title" class="font-semibold mb-2">{{ title }}</h3>
 		<div v-if="data.length === 0" class="text-gray-500 py-8 text-center">No data</div>
-		<canvas v-else ref="canvas" role="img" :aria-label="title ? `${title} bar chart` : 'Bar chart'"
-			:style="{ width: '100%', height: `${height}px` }"></canvas>
+		<div v-else class="overflow-x-auto pb-1">
+			<canvas ref="canvas" role="img" :aria-label="title ? `${title} bar chart` : 'Bar chart'"
+				:style="{ width: `${estimatedCanvasWidth}px`, minWidth: '100%', height: `${height}px` }"></canvas>
+		</div>
 	</div>
 </template>
