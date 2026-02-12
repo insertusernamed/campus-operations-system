@@ -756,7 +756,8 @@ const solutionQuality = computed(() => {
 				<div class="grid grid-cols-1 xl:grid-cols-5 gap-4 mb-4">
 					<div class="border p-4 xl:col-span-3">
 						<BarChart title="Building Utilization" :data="buildingChartData" :height="220" :max-value="100"
-							:value-formatter="formatPercent" />
+							:value-formatter="formatPercent" :min-chart-width="760" :min-bar-width="26" :bar-gap="12"
+							:x-label-max-length="10" />
 					</div>
 					<div class="border p-4 xl:col-span-2">
 						<HeatMap title="Schedule Heatmap" :data="heatmapData" :rows="dayLabels" :cols="timeSlots"
