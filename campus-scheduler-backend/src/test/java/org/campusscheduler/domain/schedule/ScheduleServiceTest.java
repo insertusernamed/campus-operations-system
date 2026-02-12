@@ -307,5 +307,27 @@ class ScheduleServiceTest {
 
             assertThat(result).isFalse();
         }
+
+        @Test
+        @DisplayName("should return true when room is booked in same semester")
+        void shouldReturnTrueWhenRoomIsBookedInSameSemester() {
+            when(scheduleRepository.findByRoomIdAndTimeSlotIdAndSemester(1L, 1L, "Spring 2026"))
+                    .thenReturn(List.of(testSchedule));
+
+            boolean result = scheduleService.hasRoomConflict(1L, 1L, "Spring 2026");
+
+            assertThat(result).isTrue();
+        }
+
+        @Test
+        @DisplayName("should return false when room is free in requested semester")
+        void shouldReturnFalseWhenRoomIsFreeInRequestedSemester() {
+            when(scheduleRepository.findByRoomIdAndTimeSlotIdAndSemester(1L, 1L, "Fall 2026"))
+                    .thenReturn(List.of());
+
+            boolean result = scheduleService.hasRoomConflict(1L, 1L, "Fall 2026");
+
+            assertThat(result).isFalse();
+        }
     }
 }

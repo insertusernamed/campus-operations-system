@@ -351,4 +351,51 @@ test.describe('Solver Page', () => {
 		await expect(page.getByText('Saved 50 schedules')).toBeVisible();
 		await expect(page.getByRole('link', { name: 'View Schedule' })).toBeVisible();
 	});
+
+	test('should navigate to schedules from save confirmation link', async ({ page }) => {
+		const main = page.locator('main');
+		await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 5000 });
+		await main.getByRole('button', { name: 'Start Solver' }).click();
+		await expect(page.getByText('Solver started successfully')).toBeVisible();
+
+		await sendProgress(
+			page,
+			{
+				status: 'NOT_SOLVING',
+				score: '0hard/-100soft',
+				assignedCourses: 50,
+				totalCourses: 50,
+				hardViolations: 0,
+				softScore: -100,
+				message: 'Finished',
+			},
+			300
+		);
+
+		const saveBtn = main.getByRole('button', { name: 'Save Final Schedule' }).first();
+		await expect(saveBtn).toBeVisible({ timeout: 10000 });
+		await expect(saveBtn).toBeEnabled();
+		await saveBtn.click();
+
+		const viewScheduleLink = page.getByRole('link', { name: 'View Schedule' });
+		await expect(viewScheduleLink).toBeVisible();
+		await viewScheduleLink.click();
+		await expect(page).toHaveURL('/schedules');
+	});
+
+	test('should show error message when starting solver fails', async ({ page }) => {
+		const main = page.locator('main');
+		await page.route(/.*\/api\/solver\/start.*/, async route => {
+			await route.fulfill({
+				status: 500,
+				contentType: 'application/json',
+				json: { error: 'internal server error' },
+			});
+		});
+
+		await main.getByRole('button', { name: 'Start Solver' }).click();
+
+		await expect(main.getByText('Request failed with status code 500')).toBeVisible();
+		await expect(main.getByRole('button', { name: 'Start Solver' })).toBeVisible();
+	});
 });
