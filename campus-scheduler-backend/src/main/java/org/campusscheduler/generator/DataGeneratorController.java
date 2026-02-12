@@ -127,22 +127,23 @@ public class DataGeneratorController {
 				? request.toConfig()
 				: GenerationConfig.defaultConfig();
 
-		return ResponseEntity.ok(new GenerationPreview(
-				config.archetype().name(),
-				config.archetype().getDisplayName(),
-				config.studentPopulation(),
-				config.buildings(),
-				config.academicBuildings(),
-				config.roomsPerBuilding(),
-				config.instructors(),
-				config.courses(),
-				config.buildings() * config.roomsPerBuilding(),
-				String.format("Using %s archetype: %d students/building, %d courses/building",
-						config.archetype().getDisplayName(),
-						config.archetype().getStudentsPerBuilding(),
-						config.archetype().getCoursesPerBuilding())
-		));
-	}
+			return ResponseEntity.ok(new GenerationPreview(
+					config.archetype().name(),
+					config.archetype().getDisplayName(),
+					config.studentPopulation(),
+					config.buildings(),
+					config.academicBuildings(),
+					config.roomsPerBuilding(),
+					config.instructors(),
+					config.courses(),
+					config.academicBuildings() * config.roomsPerBuilding(),
+					String.format("Using %s archetype: %d students/building, %d courses/building, %d instructional buildings",
+							config.archetype().getDisplayName(),
+							config.archetype().getStudentsPerBuilding(),
+							config.archetype().getCoursesPerBuilding(),
+							config.academicBuildings())
+			));
+		}
 
 	/**
 	 * Preview DTO showing what would be generated.

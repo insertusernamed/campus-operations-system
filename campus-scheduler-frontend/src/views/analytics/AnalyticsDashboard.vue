@@ -21,7 +21,7 @@ const selectedSemester = ref('')
 const selectedBuildingId = ref<number | null>(null)
 const semesters = ref<string[]>([])
 
-const MAX_DISPLAYED_ROOMS = 15
+const MAX_DISPLAYED_ROOMS = 30
 
 const { data: buildings } = useAsyncData<Building[]>(() => buildingsService.getAll())
 
@@ -201,8 +201,8 @@ onMounted(() => {
 						:value-formatter="formatPercent" />
 				</div>
 				<div class="border p-4">
-					<BarChart title="Room Utilization" :data="roomChartData" :height="280" :max-value="100"
-						:value-formatter="formatPercent" />
+					<BarChart :title="`Room Utilization (Top ${MAX_DISPLAYED_ROOMS})`" :data="roomChartData"
+						:height="280" :max-value="100" :value-formatter="formatPercent" />
 				</div>
 			</div>
 

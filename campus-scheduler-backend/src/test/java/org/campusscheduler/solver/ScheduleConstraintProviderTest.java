@@ -278,4 +278,149 @@ class ScheduleConstraintProviderTest {
                     .penalizesBy(0);
         }
     }
+
+    @Nested
+    @DisplayName("Room Overutilization Constraint")
+    class RoomOverutilization {
+
+        @Test
+        @DisplayName("should penalize usage beyond soft cap for classroom")
+        void shouldPenalizeOverusedClassroom() {
+            ScheduleAssignment[] assignments = new ScheduleAssignment[22];
+            for (int i = 0; i < assignments.length; i++) {
+                assignments[i] = ScheduleAssignment.builder()
+                        .id((long) (i + 1))
+                        .course(course1)
+                        .room(room1)
+                        .timeSlot(slot1)
+                        .semester("Fall 2026")
+                        .build();
+            }
+
+            constraintVerifier.verifyThat(ScheduleConstraintProvider::roomOverutilization)
+                    .given(assignments)
+                    .penalizesBy(1);
+        }
+
+        @Test
+        @DisplayName("should not penalize usage at soft cap")
+        void shouldNotPenalizeAtCap() {
+            ScheduleAssignment[] assignments = new ScheduleAssignment[21];
+            for (int i = 0; i < assignments.length; i++) {
+                assignments[i] = ScheduleAssignment.builder()
+                        .id((long) (i + 1))
+                        .course(course1)
+                        .room(room1)
+                        .timeSlot(slot1)
+                        .semester("Fall 2026")
+                        .build();
+            }
+
+            constraintVerifier.verifyThat(ScheduleConstraintProvider::roomOverutilization)
+                    .given(assignments)
+                    .penalizesBy(0);
+        }
+    }
+
+    @Nested
+    @DisplayName("Time Slot Preference Constraint")
+    class TimeSlotPreference {
+
+        @Test
+        @DisplayName("should penalize early monday slot")
+        void shouldPenalizeEarlyMonday() {
+            TimeSlot earlyMonday = TimeSlot.builder()
+                    .id(10L)
+                    .dayOfWeek(DayOfWeek.MONDAY)
+                    .startTime(LocalTime.of(8, 0))
+                    .endTime(LocalTime.of(9, 0))
+                    .label("Mon 8-9")
+                    .build();
+
+            ScheduleAssignment assignment = ScheduleAssignment.builder()
+                    .id(1L).course(course1).room(room1).timeSlot(earlyMonday).semester("Fall 2026").build();
+
+            constraintVerifier.verifyThat(ScheduleConstraintProvider::timeSlotPreference)
+                    .given(assignment)
+                    .penalizesBy(2); // 2 (early slot) + 0 (Monday)
+        }
+
+        @Test
+        @DisplayName("should not penalize preferred midday tuesday slot")
+        void shouldNotPenalizePreferredMidday() {
+            TimeSlot preferred = TimeSlot.builder()
+                    .id(11L)
+                    .dayOfWeek(DayOfWeek.TUESDAY)
+                    .startTime(LocalTime.of(13, 0))
+                    .endTime(LocalTime.of(14, 0))
+                    .label("Tue 1-2")
+                    .build();
+
+            ScheduleAssignment assignment = ScheduleAssignment.builder()
+                    .id(1L).course(course1).room(room1).timeSlot(preferred).semester("Fall 2026").build();
+
+            constraintVerifier.verifyThat(ScheduleConstraintProvider::timeSlotPreference)
+                    .given(assignment)
+                    .penalizesBy(0);
+        }
+    }
+
+    @Nested
+    @DisplayName("Time Slot Overutilization Constraint")
+    class TimeSlotOverutilization {
+
+        @Test
+        @DisplayName("should penalize when a slot exceeds its soft cap")
+        void shouldPenalizeOverusedSlot() {
+            TimeSlot lateSlot = TimeSlot.builder()
+                    .id(20L)
+                    .dayOfWeek(DayOfWeek.WEDNESDAY)
+                    .startTime(LocalTime.of(16, 0))
+                    .endTime(LocalTime.of(17, 15))
+                    .label("Wed 4-5:15")
+                    .build();
+
+            ScheduleAssignment[] assignments = new ScheduleAssignment[47];
+            for (int i = 0; i < assignments.length; i++) {
+                assignments[i] = ScheduleAssignment.builder()
+                        .id((long) (i + 1))
+                        .course(course1)
+                        .room(room1)
+                        .timeSlot(lateSlot)
+                        .semester("Fall 2026")
+                        .build();
+            }
+
+            constraintVerifier.verifyThat(ScheduleConstraintProvider::timeSlotOverutilization)
+                    .given(assignments)
+                    .penalizesBy(1);
+        }
+
+        @Test
+        @DisplayName("should not penalize when a slot is at soft cap")
+        void shouldNotPenalizeAtSoftCap() {
+            TimeSlot lateSlot = TimeSlot.builder()
+                    .id(21L)
+                    .dayOfWeek(DayOfWeek.WEDNESDAY)
+                    .startTime(LocalTime.of(16, 0))
+                    .endTime(LocalTime.of(17, 15))
+                    .label("Wed 4-5:15")
+                    .build();
+
+            ScheduleAssignment[] assignments = new ScheduleAssignment[46];
+            for (int i = 0; i < assignments.length; i++) {
+                assignments[i] = ScheduleAssignment.builder()
+                        .id((long) (i + 1))
+                        .course(course1)
+                        .room(room1)
+                        .timeSlot(lateSlot)
+                        .semester("Fall 2026")
+                        .build();
+            }
+
+            constraintVerifier.verifyThat(ScheduleConstraintProvider::timeSlotOverutilization)
+                    .given(assignments)
+                    .penalizesBy(0);
+        }
+    }
 }

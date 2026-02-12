@@ -538,8 +538,8 @@ const solutionQuality = computed(() => {
 			<div v-if="preview" class="bg-gray-50 p-3 mb-4 text-sm">
 				<div class="grid grid-cols-2 md:grid-cols-5 gap-2 text-center">
 					<div>
-						<div class="font-semibold">{{ preview.totalBuildings }}</div>
-						<div class="text-xs text-gray-500">Buildings</div>
+						<div class="font-semibold">{{ preview.academicBuildings }}</div>
+						<div class="text-xs text-gray-500">Schedulable Buildings</div>
 					</div>
 					<div>
 						<div class="font-semibold">{{ preview.totalRooms }}</div>
@@ -557,6 +557,10 @@ const solutionQuality = computed(() => {
 						<div class="font-semibold">{{ preview.studentPopulation.toLocaleString() }}</div>
 						<div class="text-xs text-gray-500">Students</div>
 					</div>
+				</div>
+				<div class="mt-2 text-xs text-gray-500">
+					Campus estimate: {{ preview.totalBuildings }} total buildings,
+					{{ preview.academicBuildings }} used for scheduling.
 				</div>
 			</div>
 
@@ -789,7 +793,7 @@ const solutionQuality = computed(() => {
 									<td class="py-2 pr-3 text-right text-gray-600">{{ room.scheduledSlots }}/{{
 										room.totalSlots }}</td>
 									<td class="py-2 text-right font-medium">{{ formatPercent(room.utilizationPercentage)
-										}}</td>
+									}}</td>
 								</tr>
 							</tbody>
 						</table>

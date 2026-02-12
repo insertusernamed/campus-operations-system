@@ -83,8 +83,11 @@ function draw() {
 	ctx.clearRect(0, 0, width, height)
 
 	const values = props.data.map((d) => d.value)
-	const min = props.minValue ?? Math.min(...values, 0)
-	const max = props.maxValue ?? Math.max(...values, 1)
+	const autoMin = values.length > 0 ? Math.min(...values) : 0
+	const autoMax = values.length > 0 ? Math.max(...values) : 1
+	const min = props.minValue ?? autoMin
+	const max = props.maxValue ?? autoMax
+	const effectiveMax = max > min ? max : min + 1
 
 	// Column headers
 	ctx.fillStyle = '#333'
@@ -110,14 +113,15 @@ function draw() {
 			const y = padding.top + rowIndex * props.cellHeight
 
 			if (cell) {
-				ctx.fillStyle = getColor(cell.value, min, max)
+				ctx.fillStyle = getColor(cell.value, min, effectiveMax)
 			} else {
 				ctx.fillStyle = '#f5f5f5'
 			}
 			ctx.fillRect(x + 1, y + 1, props.cellWidth - 2, props.cellHeight - 2)
 
 			if (props.showValues && cell && cell.value > 0) {
-				ctx.fillStyle = cell.value / max > 0.6 ? '#fff' : '#333'
+				const normalized = (cell.value - min) / (effectiveMax - min)
+				ctx.fillStyle = normalized > 0.6 ? '#fff' : '#333'
 				ctx.font = '11px sans-serif'
 				ctx.textAlign = 'center'
 				ctx.fillText(

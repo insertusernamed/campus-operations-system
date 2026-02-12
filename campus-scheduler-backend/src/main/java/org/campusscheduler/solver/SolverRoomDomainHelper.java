@@ -18,7 +18,8 @@ import org.campusscheduler.domain.room.Room;
  */
 public final class SolverRoomDomainHelper {
 
-    private static final int MAX_ALLOWED_ROOMS = 40;
+    private static final int MIN_ALLOWED_ROOMS = 40;
+    private static final int MAX_ALLOWED_ROOMS = 120;
 
     private static final Map<String, Set<String>> DEPARTMENT_BUILDING_CODES = createDepartmentBuildingCodeMap();
 
@@ -69,7 +70,8 @@ public final class SolverRoomDomainHelper {
                 .sorted(comparator)
                 .toList();
 
-        int candidateLimit = Math.min(MAX_ALLOWED_ROOMS, rankedRooms.size());
+        int dynamicCap = Math.max(MIN_ALLOWED_ROOMS, Math.min(MAX_ALLOWED_ROOMS, allRooms.size() / 2));
+        int candidateLimit = Math.min(dynamicCap, rankedRooms.size());
         List<Room> allowedRooms = candidateLimit > 0
                 ? rankedRooms.subList(0, candidateLimit)
                 : rankedRooms;
