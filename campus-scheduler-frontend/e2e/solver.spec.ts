@@ -1,22 +1,99 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 test.describe('Solver Page', () => {
+	const mockAnalytics = {
+		semester: 'Fall 2026',
+		totalRooms: 20,
+		totalBuildings: 5,
+		totalScheduledSlots: 0,
+		totalAvailableSlots: 100,
+		overallUtilizationPercentage: 0,
+		topUtilizedRooms: [],
+		leastUtilizedRooms: [],
+		rooms: [],
+		buildings: [],
+		peakHours: [],
+	};
 
 	test.beforeEach(async ({ page }) => {
+		await page.route(/.*\/api\/semesters.*/, async route => {
+			await route.fulfill({
+				json: [
+					{
+						term: 'FALL',
+						displayName: 'Fall',
+						startMonth: 9,
+						startDay: 1,
+						endMonth: 12,
+						endDay: 31,
+						startYearOffset: 0,
+						endYearOffset: 0,
+					},
+				],
+			});
+		});
 
-		await page.route(/.*\/api\/generator\/university\/small.*/, async route => {
+		await page.route(/.*\/api\/generator\/stats.*/, async route => {
 			await route.fulfill({
 				json: {
 					buildings: 5,
 					rooms: 20,
 					instructors: 10,
-					courses: 50
-				}
+					courses: 50,
+					schedules: 0,
+				},
+			});
+		});
+
+		await page.route(/.*\/api\/generator\/archetypes.*/, async route => {
+			await route.fulfill({
+				json: [
+					{
+						id: 'COMMUNITY',
+						displayName: 'Community Hub',
+						description: 'Balanced campus profile',
+						studentsPerBuilding: 200,
+						coursesPerBuilding: 55,
+						studentsPerCourse: 3.6,
+						minStudents: 1000,
+						maxStudents: 20000,
+						academicBuildingRatio: 0.6,
+						exampleUniversities: ['Example U'],
+					},
+				],
+			});
+		});
+
+		await page.route(/.*\/api\/generator\/preview.*/, async route => {
+			await route.fulfill({
+				json: {
+					archetype: 'COMMUNITY',
+					archetypeDisplayName: 'Community Hub',
+					studentPopulation: 8000,
+					totalBuildings: 5,
+					academicBuildings: 3,
+					roomsPerBuilding: 4,
+					instructors: 10,
+					courses: 50,
+					totalRooms: 20,
+					ratioInfo: 'Mock preview',
+				},
+			});
+		});
+
+		await page.route(/.*\/api\/generator\/university.*/, async route => {
+			await route.fulfill({
+				json: {
+					buildings: 5,
+					rooms: 20,
+					instructors: 10,
+					courses: 50,
+				},
 			});
 		});
 
 		await page.route(/.*\/api\/solver\/start.*/, async route => {
-			await route.fulfill({ json: { message: 'Solver started successfully' } });
+			await route.fulfill({ json: { problemId: 1, message: 'Solver started successfully' } });
 		});
 
 		await page.route(/.*\/api\/solver\/stop.*/, async route => {
@@ -24,7 +101,11 @@ test.describe('Solver Page', () => {
 		});
 
 		await page.route(/.*\/api\/solver\/save.*/, async route => {
-			await route.fulfill({ json: { message: 'Solution Saved successfully' } });
+			await route.fulfill({ json: { savedCount: 50, message: 'Saved 50 schedules' } });
+		});
+
+		await page.route(/.*\/api\/solver\/analytics.*/, async route => {
+			await route.fulfill({ json: mockAnalytics });
 		});
 
 		// Mock SockJS info request to allow WebSocket connection
@@ -34,8 +115,8 @@ test.describe('Solver Page', () => {
 					websocket: true,
 					origins: ["*:*"],
 					cookie_needed: false,
-					entropy: 1234567890
-				}
+					entropy: 1234567890,
+				},
 			});
 		});
 
@@ -124,12 +205,36 @@ test.describe('Solver Page', () => {
 		await page.goto('/solver');
 	});
 
+	async function sendProgress(
+		page: Page,
+		progress: {
+			status: 'SOLVING_ACTIVE' | 'NOT_SOLVING'
+			score: string
+			assignedCourses: number
+			totalCourses: number
+			hardViolations: number
+			softScore: number
+			message: string
+		},
+		messageId: number
+	) {
+		await page.evaluate(
+			({ incomingProgress, incomingMessageId }) => {
+				const payload = JSON.stringify(incomingProgress);
+				const stompFrame = `MESSAGE\ndestination:/topic/solver/progress\nsubscription:sub-0\nmessage-id:${incomingMessageId}\ncontent-length:${payload.length}\n\n${payload}\0`;
+				const sockjsFrame = 'a' + JSON.stringify([stompFrame]);
+				(window as any).mockWebSocket.receive(sockjsFrame);
+			},
+			{ incomingProgress: progress, incomingMessageId: messageId }
+		);
+	}
+
 	test('should load and show connected status', async ({ page }) => {
 		await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 5000 });
 	});
 
 	test('should generate demo data', async ({ page }) => {
-		const generateBtn = page.getByRole('button', { name: 'Generate Demo Data' });
+		const generateBtn = page.locator('main').getByRole('button', { name: 'Generate Data' });
 		await generateBtn.click();
 
 		await expect(page.getByText('Generated: 5 buildings, 20 rooms, 10 instructors, 50 courses')).toBeVisible();
@@ -138,6 +243,7 @@ test.describe('Solver Page', () => {
 	test('should start and stop solver, updating UI state', async ({ page }) => {
 		const startBtn = page.getByRole('button', { name: 'Start Solver' });
 		const stopBtn = page.getByRole('button', { name: 'Stop Solver' });
+		await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 5000 });
 
 		await expect(startBtn).toBeVisible();
 		await expect(stopBtn).not.toBeVisible();
@@ -146,25 +252,36 @@ test.describe('Solver Page', () => {
 		await expect(page.getByText('Solver started successfully')).toBeVisible();
 
 		// Simulate WebSocket update: SOLVING_ACTIVE
-		await page.evaluate(() => {
-			const progress = {
+		await sendProgress(
+			page,
+			{
 				status: 'SOLVING_ACTIVE',
 				score: '0hard/-100soft',
 				assignedCourses: 10,
 				totalCourses: 50,
 				hardViolations: 0,
 				softScore: -100,
-				message: 'Solving...'
-			};
-			const payload = JSON.stringify(progress);
-			// Construct STOMP MESSAGE frame
-			const stompFrame = `MESSAGE\ndestination:/topic/solver/progress\nsubscription:sub-0\nmessage-id:100\ncontent-length:${payload.length}\n\n${payload}\0`;
-			// Wrap in SockJS frame
-			const sockjsFrame = 'a' + JSON.stringify([stompFrame]);
-			(window as any).mockWebSocket.receive(sockjsFrame);
-		});
+				message: 'Solving...',
+			},
+			100
+		);
+		// Under full parallel load, dispatch once more to avoid a subscription race.
+		await page.waitForTimeout(50);
+		await sendProgress(
+			page,
+			{
+				status: 'SOLVING_ACTIVE',
+				score: '0hard/-100soft',
+				assignedCourses: 10,
+				totalCourses: 50,
+				hardViolations: 0,
+				softScore: -100,
+				message: 'Solving...',
+			},
+			101
+		);
 
-		await expect(stopBtn).toBeVisible();
+		await expect(stopBtn).toBeVisible({ timeout: 10000 });
 		await expect(startBtn).not.toBeVisible();
 		await expect(page.getByText('Running')).toBeVisible();
 		await expect(page.getByText('10/50')).toBeVisible();
@@ -174,31 +291,64 @@ test.describe('Solver Page', () => {
 		await expect(page.getByText('Solver stopped')).toBeVisible();
 
 		// Simulate WebSocket update: NOT_SOLVING
-		await page.evaluate(() => {
-			const progress = {
+		await sendProgress(
+			page,
+			{
 				status: 'NOT_SOLVING',
 				score: '0hard/-100soft',
 				assignedCourses: 50,
 				totalCourses: 50,
 				hardViolations: 0,
 				softScore: -100,
-				message: 'Finished'
-			};
-			const payload = JSON.stringify(progress);
-			const stompFrame = `MESSAGE\ndestination:/topic/solver/progress\nsubscription:sub-0\nmessage-id:101\ncontent-length:${payload.length}\n\n${payload}\0`;
-			const sockjsFrame = 'a' + JSON.stringify([stompFrame]);
-			(window as any).mockWebSocket.receive(sockjsFrame);
-		});
+				message: 'Finished',
+			},
+			102
+		);
+		await page.waitForTimeout(50);
+		await sendProgress(
+			page,
+			{
+				status: 'NOT_SOLVING',
+				score: '0hard/-100soft',
+				assignedCourses: 50,
+				totalCourses: 50,
+				hardViolations: 0,
+				softScore: -100,
+				message: 'Finished',
+			},
+			103
+		);
 
-		await expect(startBtn).toBeVisible();
+		await expect(startBtn).toBeVisible({ timeout: 10000 });
 		await expect(stopBtn).not.toBeVisible();
 	});
 
 	test('should save solution and show view schedule link', async ({ page }) => {
-		const saveBtn = page.getByRole('button', { name: 'Save Solution' });
+		const main = page.locator('main');
+		await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 5000 });
+		await main.getByRole('button', { name: 'Start Solver' }).click();
+		await expect(page.getByText('Solver started successfully')).toBeVisible();
+
+		await sendProgress(
+			page,
+			{
+				status: 'NOT_SOLVING',
+				score: '0hard/-100soft',
+				assignedCourses: 50,
+				totalCourses: 50,
+				hardViolations: 0,
+				softScore: -100,
+				message: 'Finished',
+			},
+			200
+		);
+
+		const saveBtn = main.getByRole('button', { name: 'Save Final Schedule' }).first();
+		await expect(saveBtn).toBeVisible({ timeout: 10000 });
+		await expect(saveBtn).toBeEnabled();
 		await saveBtn.click();
 
-		await expect(page.getByText('Solution Saved successfully')).toBeVisible();
+		await expect(page.getByText('Saved 50 schedules')).toBeVisible();
 		await expect(page.getByRole('link', { name: 'View Schedule' })).toBeVisible();
 	});
 });
