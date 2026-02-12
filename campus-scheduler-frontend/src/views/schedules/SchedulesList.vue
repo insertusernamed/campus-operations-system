@@ -8,20 +8,24 @@ import { buildingsService, type Building } from '@/services/buildings'
 import { timeslotsService } from '@/services/timeslots'
 import { useRole } from '@/composables/useRole'
 import ScheduleCalendar from '@/components/calendar/ScheduleCalendar.vue'
+import AdminDailyScheduleGrid from '@/components/calendar/AdminDailyScheduleGrid.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import TableSkeleton from '@/components/common/TableSkeleton.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
 import { changeRequestIssueOptions, type ChangeRequestIssue } from '@/constants/changeRequestIssues'
 
 type ViewMode = 'table' | 'calendar'
+type CalendarRangeMode = 'day' | 'week'
 const viewMode = ref<ViewMode>('calendar')
 const selectedBuildingId = ref<number | null>(null)
 const selectedRoomId = ref<number | null>(null)
+const selectedSemester = ref<string | null>(null)
 const rooms = ref<Room[]>([])
 const buildings = ref<Building[]>([])
 
 const { role, instructorId } = useRole()
 const router = useRouter()
+const calendarRangeMode = ref<CalendarRangeMode>(role.value === 'admin' ? 'day' : 'week')
 
 const requestModalOpen = ref(false)
 const selectedScheduleId = ref<number | null>(null)
@@ -29,7 +33,8 @@ const selectedIssue = ref<ChangeRequestIssue | ''>('')
 
 const { items, loading, error, fetchAll, handleDelete } = useCrud<Schedule, never>({
 	getAll: () => schedulesService.getAll({
-		instructorId: role.value === 'admin' ? undefined : (instructorId.value ?? undefined)
+		instructorId: role.value === 'admin' ? undefined : (instructorId.value ?? undefined),
+		semester: selectedSemester.value ?? undefined,
 	}),
 	deleteItem: schedulesService.delete,
 	listRoute: '/schedules',
@@ -74,9 +79,46 @@ const filteredRooms = computed(() => {
 	return rooms.value.filter(r => r.buildingId === selectedBuildingId.value)
 })
 
+function parseSemesterForSort(semester: string): { year: number; termRank: number } {
+	const match = semester.match(/([A-Za-z]+)\s+(\d{4})/)
+	if (!match) {
+		return { year: 0, termRank: 0 }
+	}
+	const term = match[1]?.toUpperCase() ?? ''
+	const year = Number(match[2] ?? 0)
+	const termOrder: Record<string, number> = {
+		WINTER: 1,
+		SPRING: 2,
+		SUMMER: 3,
+		FALL: 4,
+	}
+	return {
+		year: Number.isNaN(year) ? 0 : year,
+		termRank: termOrder[term] ?? 0,
+	}
+}
+
+const semesterOptions = computed(() => {
+	return Array.from(new Set(items.value.map(schedule => schedule.semester)))
+		.sort((a, b) => {
+			const parsedA = parseSemesterForSort(a)
+			const parsedB = parseSemesterForSort(b)
+			if (parsedA.year !== parsedB.year) {
+				return parsedB.year - parsedA.year
+			}
+			if (parsedA.termRank !== parsedB.termRank) {
+				return parsedB.termRank - parsedA.termRank
+			}
+			return a.localeCompare(b)
+		})
+})
+
 // Filter schedules by selected building and room
 const filteredItems = computed(() => {
 	let result = hydratedItems.value
+	if (selectedSemester.value) {
+		result = result.filter(s => s.semester === selectedSemester.value)
+	}
 	if (selectedBuildingId.value) {
 		result = result.filter(s => s.room.buildingId === selectedBuildingId.value)
 	}
@@ -98,6 +140,11 @@ watch(selectedBuildingId, () => {
 
 // Refetch when role or instructor changes
 watch([role, instructorId], () => {
+	calendarRangeMode.value = role.value === 'admin' ? 'day' : 'week'
+	fetchAll()
+})
+
+watch(selectedSemester, () => {
 	fetchAll()
 })
 
@@ -117,11 +164,13 @@ onMounted(async () => {
 })
 
 function handleEventClick(scheduleId: number) {
-	if (role.value !== 'instructor') {
+	if (role.value === 'student') {
 		return
 	}
 	selectedScheduleId.value = scheduleId
-	selectedIssue.value = ''
+	if (role.value === 'instructor') {
+		selectedIssue.value = ''
+	}
 	requestModalOpen.value = true
 }
 
@@ -135,6 +184,57 @@ function handleStartRequest() {
 			issue: selectedIssue.value,
 		},
 	})
+}
+
+function handleModalVisibilityChange(isOpen: boolean) {
+	requestModalOpen.value = isOpen
+	if (!isOpen) {
+		selectedScheduleId.value = null
+		selectedIssue.value = ''
+	}
+}
+
+function getInstructorName(schedule: Schedule): string {
+	const instructor = schedule.course.instructor
+	if (!instructor) {
+		return 'Unassigned'
+	}
+	return `${instructor.firstName} ${instructor.lastName}`
+}
+
+function getSeatUtilization(schedule: Schedule): string {
+	const seatsFilled = schedule.course.enrollmentCapacity
+	const roomCapacity = schedule.room.capacity
+	if (!roomCapacity) {
+		return `${seatsFilled} students`
+	}
+	const percent = Math.round((seatsFilled / roomCapacity) * 100)
+	return `${seatsFilled}/${roomCapacity} seats (${percent}%)`
+}
+
+function handleOpenCourseFromModal() {
+	if (!selectedSchedule.value) return
+	requestModalOpen.value = false
+	router.push(`/courses/${selectedSchedule.value.course.id}`)
+}
+
+function handleOpenRoomFromModal() {
+	if (!selectedSchedule.value) return
+	requestModalOpen.value = false
+	router.push(`/rooms/${selectedSchedule.value.room.id}`)
+}
+
+async function handleDeleteFromModal() {
+	if (role.value !== 'admin' || !selectedScheduleId.value) return
+	const scheduleId = selectedScheduleId.value
+	requestModalOpen.value = false
+	selectedScheduleId.value = null
+	await handleDelete(scheduleId)
+}
+
+function handleBuildingDrilldown(buildingId: number) {
+	selectedBuildingId.value = buildingId
+	selectedRoomId.value = null
 }
 </script>
 
@@ -160,6 +260,14 @@ function handleStartRequest() {
 						{{ scheduleCountByRoom.get(room.id) ? `- ${scheduleCountByRoom.get(room.id)} classes` : '' }}
 					</option>
 				</select>
+				<!-- Semester Filter -->
+				<select v-model="selectedSemester"
+					class="px-3 py-1.5 text-sm border border-gray-300 rounded bg-white text-gray-700">
+					<option :value="null">All Semesters</option>
+					<option v-for="semester in semesterOptions" :key="semester" :value="semester">
+						{{ semester }}
+					</option>
+				</select>
 				<!-- View Toggle -->
 				<div class="flex border border-gray-300 rounded overflow-hidden">
 					<button @click="viewMode = 'calendar'"
@@ -169,6 +277,16 @@ function handleStartRequest() {
 					<button @click="viewMode = 'table'"
 						:class="['px-3 py-1.5 text-sm', viewMode === 'table' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50']">
 						Table
+					</button>
+				</div>
+				<div v-if="viewMode === 'calendar' && role === 'admin'" class="flex border border-gray-300 rounded overflow-hidden">
+					<button @click="calendarRangeMode = 'day'"
+						:class="['px-3 py-1.5 text-sm', calendarRangeMode === 'day' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50']">
+						Day
+					</button>
+					<button @click="calendarRangeMode = 'week'"
+						:class="['px-3 py-1.5 text-sm', calendarRangeMode === 'week' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50']">
+						Week
 					</button>
 				</div>
 				<RouterLink v-if="role === 'admin'" to="/schedules/new"
@@ -188,7 +306,20 @@ function handleStartRequest() {
 			hint="The solver can generate an optimized schedule for all your courses at once." />
 
 		<!-- Calendar View -->
-		<ScheduleCalendar v-else-if="viewMode === 'calendar'" :schedules="filteredItems" @event-click="handleEventClick" />
+		<AdminDailyScheduleGrid
+			v-else-if="viewMode === 'calendar' && role === 'admin' && calendarRangeMode === 'day'"
+			:schedules="filteredItems"
+			:buildings="buildings"
+			:rooms="rooms"
+			:selected-building-id="selectedBuildingId"
+			:selected-room-id="selectedRoomId"
+			@event-click="handleEventClick"
+			@building-drilldown="handleBuildingDrilldown"
+		/>
+		<ScheduleCalendar v-else-if="viewMode === 'calendar'" :schedules="filteredItems" :view-mode="calendarRangeMode"
+			:week-days="5" :height="role === 'admin' ? 920 : undefined" :day-start="role === 'admin' ? '08:00' : undefined"
+			:day-end="role === 'admin' ? '21:00' : undefined" :grid-step="role === 'admin' ? 30 : undefined"
+			:event-width="role === 'admin' && calendarRangeMode === 'day' ? 100 : 95" @event-click="handleEventClick" />
 
 		<!-- Table View -->
 		<table v-else class="w-full bg-white border border-gray-200">
@@ -222,38 +353,81 @@ function handleStartRequest() {
 			</tbody>
 		</table>
 
-		<BaseModal :model-value="requestModalOpen" title="Request a Change"
-			@update:model-value="requestModalOpen = $event">
+		<BaseModal :model-value="requestModalOpen" :title="role === 'admin' ? 'Schedule Details' : 'Request a Change'"
+			@update:model-value="handleModalVisibilityChange">
 			<div v-if="selectedSchedule" class="space-y-3 text-sm text-gray-700">
 				<div class="text-base font-medium text-gray-900">
 					{{ selectedSchedule.course.code }} - {{ selectedSchedule.course.name }}
 				</div>
-				<div>
-					<span class="font-medium text-gray-900">Current time:</span>
-					{{ timeslotsService.formatTimeSlot(selectedSchedule.timeSlot) }}
-				</div>
-				<div>
-					<span class="font-medium text-gray-900">Current room:</span>
-					{{ selectedSchedule.room.buildingCode }} {{ selectedSchedule.room.roomNumber }}
-				</div>
-				<p class="text-gray-600">
-					Start a change request for this class. You can refine the details on the next step.
-				</p>
-				<div>
-					<label for="request-change-issue" class="block text-sm font-medium text-gray-700 mb-1">Why is this a problem?</label>
-					<select id="request-change-issue" v-model="selectedIssue" class="w-full px-3 py-2 border border-gray-300 rounded">
-						<option value="" disabled>Select a reason</option>
-						<option v-for="option in changeRequestIssueOptions" :key="option.value" :value="option.value">
-							{{ option.label }}
-						</option>
-					</select>
-				</div>
+				<template v-if="role === 'admin'">
+					<div>
+						<span class="font-medium text-gray-900">Time:</span>
+						{{ timeslotsService.formatTimeSlot(selectedSchedule.timeSlot) }}
+					</div>
+					<div>
+						<span class="font-medium text-gray-900">Room:</span>
+						{{ selectedSchedule.room.buildingCode }} {{ selectedSchedule.room.roomNumber }}
+					</div>
+					<div>
+						<span class="font-medium text-gray-900">Instructor:</span>
+						{{ getInstructorName(selectedSchedule) }}
+					</div>
+					<div>
+						<span class="font-medium text-gray-900">Semester:</span>
+						{{ selectedSchedule.semester }}
+					</div>
+					<div>
+						<span class="font-medium text-gray-900">Seat utilization:</span>
+						{{ getSeatUtilization(selectedSchedule) }}
+					</div>
+				</template>
+				<template v-else>
+					<div>
+						<span class="font-medium text-gray-900">Current time:</span>
+						{{ timeslotsService.formatTimeSlot(selectedSchedule.timeSlot) }}
+					</div>
+					<div>
+						<span class="font-medium text-gray-900">Current room:</span>
+						{{ selectedSchedule.room.buildingCode }} {{ selectedSchedule.room.roomNumber }}
+					</div>
+					<p class="text-gray-600">
+						Start a change request for this class. You can refine the details on the next step.
+					</p>
+					<div>
+						<label for="request-change-issue" class="block text-sm font-medium text-gray-700 mb-1">Why is this a problem?</label>
+						<select id="request-change-issue" v-model="selectedIssue" class="w-full px-3 py-2 border border-gray-300 rounded">
+							<option value="" disabled>Select a reason</option>
+							<option v-for="option in changeRequestIssueOptions" :key="option.value" :value="option.value">
+								{{ option.label }}
+							</option>
+						</select>
+					</div>
+				</template>
 			</div>
-			<div v-else class="text-sm text-gray-600">Select a class to request a change.</div>
+			<div v-else class="text-sm text-gray-600">{{ role === 'admin'
+				? 'Select a class to view schedule details.'
+				: 'Select a class to request a change.' }}</div>
 
 			<template #footer>
-				<div class="flex justify-end gap-2">
-					<button class="px-4 py-2 border border-gray-300 rounded" @click="requestModalOpen = false">
+				<div v-if="role === 'admin'" class="flex justify-end gap-2">
+					<button class="px-4 py-2 border border-gray-300 rounded" @click="handleModalVisibilityChange(false)">
+						Close
+					</button>
+					<button :disabled="!selectedSchedule" class="px-4 py-2 border border-gray-300 rounded disabled:opacity-50"
+						@click="handleOpenCourseFromModal">
+						View Course
+					</button>
+					<button :disabled="!selectedSchedule" class="px-4 py-2 border border-gray-300 rounded disabled:opacity-50"
+						@click="handleOpenRoomFromModal">
+						View Room
+					</button>
+					<button :disabled="!selectedSchedule" class="px-4 py-2 bg-red-600 text-white rounded disabled:opacity-50"
+						@click="handleDeleteFromModal">
+						Delete
+					</button>
+				</div>
+				<div v-else class="flex justify-end gap-2">
+					<button class="px-4 py-2 border border-gray-300 rounded" @click="handleModalVisibilityChange(false)">
 						Cancel
 					</button>
 					<button :disabled="!selectedSchedule || !selectedIssue"

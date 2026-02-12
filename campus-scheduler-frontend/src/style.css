@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+html,
+body,
+#app {
+	height: 100%;
+	overflow: hidden;
+}
+
 .v-popper--theme-tooltip .v-popper__inner {
 	max-width: 280px;
 }
