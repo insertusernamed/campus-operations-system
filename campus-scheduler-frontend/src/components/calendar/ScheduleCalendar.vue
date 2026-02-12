@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, watch, shallowRef, ref, onMounted, onUnmounted } from 'vue'
 import { ScheduleXCalendar } from '@schedule-x/vue'
-import { createCalendar, createViewWeek } from '@schedule-x/calendar'
+import { createCalendar, createViewDay, createViewWeek } from '@schedule-x/calendar'
 import { createEventsServicePlugin } from '@schedule-x/events-service'
 import '@schedule-x/theme-default/dist/index.css'
 import 'temporal-polyfill/global'
@@ -17,12 +17,30 @@ import { parseSemesterLabel, resolveSemesterDateRange } from '@/utils/semester'
 const props = defineProps<{
 	schedules: Schedule[]
 	height?: number
+	viewMode?: 'week' | 'day'
+	weekDays?: number
+	dayStart?: string
+	dayEnd?: string
+	gridStep?: 180 | 120 | 60 | 30 | 15
+	eventWidth?: number
 	ghostSchedules?: Schedule[]
 	movedScheduleIds?: number[]
 	arrowScheduleId?: number | null
 }>()
 
 const calendarHeight = computed(() => props.height ?? 800)
+const calendarViewMode = computed(() => props.viewMode ?? 'week')
+const weekDaysToShow = computed(() => {
+	const raw = props.weekDays ?? 5
+	return Math.max(1, Math.min(7, raw))
+})
+const dayStart = computed(() => props.dayStart ?? '07:00')
+const dayEnd = computed(() => props.dayEnd ?? '23:00')
+const gridStep = computed(() => props.gridStep ?? 60)
+const eventWidth = computed(() => {
+	const raw = props.eventWidth ?? 95
+	return Math.max(1, Math.min(100, raw))
+})
 
 const emit = defineEmits<{
 	(e: 'event-click', scheduleId: number): void
@@ -104,7 +122,12 @@ function getClassDatesForSemester(schedule: Schedule): Temporal.PlainDate[] {
 	return dates
 }
 
-const initialSelectedDate = computed(() => getReferenceMonday())
+const selectedDate = ref<Temporal.PlainDate>(getReferenceMonday())
+watch(calendarViewMode, (mode, previousMode) => {
+	if (!previousMode) {
+		selectedDate.value = mode === 'day' ? Temporal.Now.plainDateISO() : getReferenceMonday()
+	}
+}, { immediate: true })
 
 function parseScheduleIdFromEventId(eventId: string): number | null {
 	const match = eventId.match(/^(\d+)(?:-|$)/)
@@ -232,23 +255,27 @@ function initCalendar() {
 	eventsService = createEventsServicePlugin()
 
 	calendarApp.value = createCalendar({
-		selectedDate: initialSelectedDate.value,
-		views: [createViewWeek()],
-		defaultView: 'week',
+		selectedDate: selectedDate.value,
+		views: [createViewDay(), createViewWeek()],
+		defaultView: calendarViewMode.value,
 		dayBoundaries: {
-			start: '07:00',
-			end: '23:00',
+			start: dayStart.value,
+			end: dayEnd.value,
 		},
 		weekOptions: {
-			nDays: 5,
+			nDays: calendarViewMode.value === 'day' ? 1 : weekDaysToShow.value,
 			gridHeight: calendarHeight.value,
-			eventWidth: 95,
+			eventWidth: eventWidth.value,
+			gridStep: gridStep.value,
 		},
 		firstDayOfWeek: 1,
 		isResponsive: true,
 		events: events.value,
 		calendars: calendarsConfig.value,
 		callbacks: {
+			onSelectedDateUpdate: (date) => {
+				selectedDate.value = date
+			},
 			onEventClick: (event) => {
 				const eventId = String(event.id)
 				if (eventId.startsWith('ghost-')) {
@@ -376,7 +403,16 @@ onUnmounted(() => {
 })
 
 // Recreate calendar when building colors/config changes
-watch([calendarsSignature, calendarHeight], () => {
+watch([
+	calendarsSignature,
+	calendarHeight,
+	calendarViewMode,
+	weekDaysToShow,
+	dayStart,
+	dayEnd,
+	gridStep,
+	eventWidth,
+], () => {
 	initCalendar()
 })
 

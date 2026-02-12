@@ -4,11 +4,11 @@ import Sidebar from './Sidebar.vue'
 </script>
 
 <template>
-	<div class="min-h-screen flex flex-col">
+	<div class="h-screen flex flex-col overflow-hidden">
 		<Navbar />
-		<div class="flex flex-1">
+		<div class="flex flex-1 min-h-0 overflow-hidden">
 			<Sidebar />
-			<main class="flex-1 p-6 bg-gray-50">
+			<main class="flex-1 min-h-0 overflow-y-auto p-6 bg-gray-50">
 				<slot />
 			</main>
 		</div>
