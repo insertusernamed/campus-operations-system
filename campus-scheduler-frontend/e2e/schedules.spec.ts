@@ -35,10 +35,10 @@ test.describe('Schedules CRUD & Conflicts', () => {
 		await expect(main.getByRole('button', { name: 'Create' })).toBeDisabled();
 	});
 
-	test('should allow creation when no conflict', async ({ page }) => {
-		await page.route(/.*\/api\/schedules\/conflicts.*/, async route => {
-			await route.fulfill({ json: { hasConflict: false } });
-		});
+    test('should allow creation when no conflict', async ({ page }) => {
+        await page.route(/.*\/api\/schedules\/conflicts.*/, async route => {
+            await route.fulfill({ json: { hasConflict: false } });
+        });
 
 		await page.goto('/schedules/new');
 		const main = page.locator('main');
@@ -51,7 +51,39 @@ test.describe('Schedules CRUD & Conflicts', () => {
 		await expect(main.getByText('This room is already booked')).not.toBeVisible();
 		await expect(main.getByRole('button', { name: 'Create' })).toBeEnabled();
 
-		await main.getByRole('button', { name: 'Create' }).click();
-		await expect(page).toHaveURL('/schedules');
-	});
+        await main.getByRole('button', { name: 'Create' }).click();
+        await expect(page).toHaveURL('/schedules');
+    });
+
+    test('should show api conflict error when create fails', async ({ page }) => {
+        await page.route(/.*\/api\/schedules\/conflicts.*/, async route => {
+            await route.fulfill({ json: { hasConflict: false } });
+        });
+
+        // Override POST /api/schedules to emulate backend validation conflict.
+        await page.route(/.*\/api\/schedules$/, async route => {
+            if (route.request().method() === 'POST') {
+                await route.fulfill({
+                    status: 409,
+                    contentType: 'application/json',
+                    json: { error: 'Room ENG 101 is already booked for this time slot in Fall 2026' },
+                });
+                return;
+            }
+            await route.fulfill({ json: mockSchedules });
+        });
+
+        await page.goto('/schedules/new');
+        const main = page.locator('main');
+
+        await main.locator('select').nth(0).selectOption({ index: 1 });
+        await main.locator('select').nth(1).selectOption({ index: 1 });
+        await main.locator('select').nth(2).selectOption({ index: 1 });
+        await main.locator('input[placeholder="e.g., Fall 2026"]').fill('Fall 2026');
+
+        await main.getByRole('button', { name: 'Create' }).click();
+
+        await expect(page).toHaveURL('/schedules/new');
+        await expect(main.getByText('Room ENG 101 is already booked for this time slot in Fall 2026')).toBeVisible();
+    });
 });
