@@ -246,5 +246,18 @@ class ScheduleControllerTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.hasConflict", is(false)));
         }
+
+        @Test
+        @DisplayName("should check conflicts within a specific semester")
+        void shouldCheckConflictsWithinSpecificSemester() throws Exception {
+            when(scheduleService.hasRoomConflict(1L, 1L, "Fall 2026")).thenReturn(true);
+
+            mockMvc.perform(get("/api/schedules/conflicts")
+                    .param("roomId", "1")
+                    .param("timeSlotId", "1")
+                    .param("semester", "Fall 2026"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.hasConflict", is(true)));
+        }
     }
 }

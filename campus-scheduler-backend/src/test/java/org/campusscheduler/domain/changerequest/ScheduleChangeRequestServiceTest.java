@@ -17,12 +17,15 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.DayOfWeek;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 /**
@@ -112,6 +115,101 @@ class ScheduleChangeRequestServiceTest {
 
         assertThat(response).isPresent();
         assertThat(response.get().getHardConflicts()).isNotEmpty();
+    }
+
+    @Test
+    void approveAppliesScheduleUpdateAndMarksRequestApproved() {
+        Schedule schedule = buildSchedule();
+
+        Room proposedRoom = Room.builder()
+                .id(6L)
+                .roomNumber("202")
+                .capacity(40)
+                .type(Room.RoomType.CLASSROOM)
+                .build();
+
+        TimeSlot proposedTimeSlot = TimeSlot.builder()
+                .id(2L)
+                .dayOfWeek(DayOfWeek.MONDAY)
+                .startTime(LocalTime.of(11, 0))
+                .endTime(LocalTime.of(12, 0))
+                .label("Late Morning")
+                .build();
+
+        ScheduleChangeRequest existing = ScheduleChangeRequest.builder()
+                .id(100L)
+                .schedule(schedule)
+                .requestedByInstructor(schedule.getCourse().getInstructor())
+                .requestedByRole(ChangeRequestRole.INSTRUCTOR)
+                .status(ChangeRequestStatus.PENDING)
+                .reasonCategory(ChangeRequestReason.MEDICAL)
+                .originalRoomId(schedule.getRoom().getId())
+                .originalTimeSlotId(schedule.getTimeSlot().getId())
+                .originalSemester(schedule.getSemester())
+                .proposedRoom(proposedRoom)
+                .proposedTimeSlot(proposedTimeSlot)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(changeRequestRepository.findById(100L)).thenReturn(Optional.of(existing));
+        when(scheduleRepository.findByRoomIdAndSemester(proposedRoom.getId(), schedule.getSemester()))
+                .thenReturn(List.of(schedule));
+        when(scheduleRepository.findByCourseInstructorIdAndSemesterAndTimeSlotDayOfWeek(
+                schedule.getCourse().getInstructor().getId(),
+                schedule.getSemester(),
+                proposedTimeSlot.getDayOfWeek()))
+                .thenReturn(List.of(schedule));
+        when(scheduleService.updateScheduleRoomTime(
+                eq(schedule.getId()),
+                eq(proposedRoom.getId()),
+                eq(proposedTimeSlot.getId()),
+                any()))
+                .thenReturn(Optional.of(schedule));
+        when(changeRequestRepository.save(any(ScheduleChangeRequest.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ChangeRequestDecisionRequest decisionRequest = new ChangeRequestDecisionRequest();
+        decisionRequest.setDecisionNote("Approved for accessibility needs");
+
+        Optional<ScheduleChangeRequest> response = changeRequestService.approve(100L, decisionRequest);
+
+        assertThat(response).isPresent();
+        assertThat(response.get().getStatus()).isEqualTo(ChangeRequestStatus.APPROVED);
+        assertThat(response.get().getDecisionNote()).isEqualTo("Approved for accessibility needs");
+        assertThat(response.get().getReviewedAt()).isNotNull();
+        assertThat(response.get().getAppliedAt()).isNotNull();
+    }
+
+    @Test
+    void rejectMarksRequestRejectedWithDecisionNote() {
+        Schedule schedule = buildSchedule();
+        ScheduleChangeRequest existing = ScheduleChangeRequest.builder()
+                .id(101L)
+                .schedule(schedule)
+                .requestedByInstructor(schedule.getCourse().getInstructor())
+                .requestedByRole(ChangeRequestRole.INSTRUCTOR)
+                .status(ChangeRequestStatus.PENDING)
+                .reasonCategory(ChangeRequestReason.OTHER)
+                .originalRoomId(schedule.getRoom().getId())
+                .originalTimeSlotId(schedule.getTimeSlot().getId())
+                .originalSemester(schedule.getSemester())
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(changeRequestRepository.findById(101L)).thenReturn(Optional.of(existing));
+        when(changeRequestRepository.save(any(ScheduleChangeRequest.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ChangeRequestDecisionRequest decisionRequest = new ChangeRequestDecisionRequest();
+        decisionRequest.setDecisionNote("Rejected due to room limitations");
+
+        Optional<ScheduleChangeRequest> response = changeRequestService.reject(101L, decisionRequest);
+
+        assertThat(response).isPresent();
+        assertThat(response.get().getStatus()).isEqualTo(ChangeRequestStatus.REJECTED);
+        assertThat(response.get().getDecisionNote()).isEqualTo("Rejected due to room limitations");
+        assertThat(response.get().getReviewedAt()).isNotNull();
+        assertThat(response.get().getAppliedAt()).isNull();
     }
 
     private Schedule buildSchedule() {
