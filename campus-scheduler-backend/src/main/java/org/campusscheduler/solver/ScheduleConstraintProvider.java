@@ -1,7 +1,11 @@
 package org.campusscheduler.solver;
 
+import java.time.DayOfWeek;
+import java.time.LocalTime;
+
 import ai.timefold.solver.core.api.score.buildin.hardsoft.HardSoftScore;
 import ai.timefold.solver.core.api.score.stream.Constraint;
+import ai.timefold.solver.core.api.score.stream.ConstraintCollectors;
 import ai.timefold.solver.core.api.score.stream.ConstraintFactory;
 import ai.timefold.solver.core.api.score.stream.ConstraintProvider;
 import ai.timefold.solver.core.api.score.stream.Joiners;
@@ -15,8 +19,10 @@ import ai.timefold.solver.core.api.score.stream.Joiners;
  * - Instructor conflict: An instructor can only teach one course at a time
  *
  * Soft constraints (should be optimized):
- * - Room type mismatch: Penalize science courses not in labs, large courses not
- * in lecture halls
+ * - Room type mismatch: Penalize science courses not in labs, large courses not in lecture halls
+ * - Department affinity: Prefer department-aligned buildings
+ * - Room overutilization: Avoid saturating a handful of rooms
+ * - Time slot preference: Favor realistic mid-day patterns over extreme early/late clustering
  */
 public class ScheduleConstraintProvider implements ConstraintProvider {
 
@@ -29,7 +35,10 @@ public class ScheduleConstraintProvider implements ConstraintProvider {
                 instructorConflict(factory),
                 // Soft constraints
                 roomTypeMismatch(factory),
-                departmentBuildingAffinity(factory)
+                departmentBuildingAffinity(factory),
+                roomOverutilization(factory),
+                timeSlotOverutilization(factory),
+                timeSlotPreference(factory)
         };
     }
 
@@ -104,6 +113,104 @@ public class ScheduleConstraintProvider implements ConstraintProvider {
                         !assignment.isInPreferredBuilding())
                 .penalize(HardSoftScore.ofSoft(2))
                 .asConstraint("Department building affinity");
+    }
+
+    /**
+     * Discourage saturating specific rooms beyond realistic weekly usage.
+     */
+    Constraint roomOverutilization(ConstraintFactory factory) {
+        return factory.forEach(ScheduleAssignment.class)
+                .filter(assignment -> assignment.getRoom() != null)
+                .groupBy(ScheduleAssignment::getRoom, ConstraintCollectors.count())
+                .filter((room, count) -> room != null && count > roomUsageSoftCap(room))
+                .penalize(HardSoftScore.ONE_SOFT,
+                        (room, count) -> count - roomUsageSoftCap(room))
+                .asConstraint("Room overutilization");
+    }
+
+    /**
+     * Apply realistic desirability by day/time instead of forcing perfect flatness.
+     */
+    Constraint timeSlotPreference(ConstraintFactory factory) {
+        return factory.forEach(ScheduleAssignment.class)
+                .filter(assignment -> assignment.getTimeSlot() != null &&
+                        assignment.getTimeSlot().getStartTime() != null &&
+                        assignment.getTimeSlot().getDayOfWeek() != null)
+                .penalize(HardSoftScore.ONE_SOFT,
+                        assignment -> timeSlotPenalty(assignment.getTimeSlot().getDayOfWeek(),
+                                assignment.getTimeSlot().getStartTime()))
+                .asConstraint("Time slot preference");
+    }
+
+    /**
+     * Prevent oversubscribing a small subset of preferred time slots.
+     */
+    Constraint timeSlotOverutilization(ConstraintFactory factory) {
+        return factory.forEach(ScheduleAssignment.class)
+                .filter(assignment -> assignment.getTimeSlot() != null &&
+                        assignment.getTimeSlot().getStartTime() != null)
+                .groupBy(ScheduleAssignment::getTimeSlot, ConstraintCollectors.count())
+                .filter((timeSlot, count) -> timeSlot != null && count > timeSlotSoftCap(timeSlot.getStartTime()))
+                .penalize(HardSoftScore.ONE_SOFT,
+                        (timeSlot, count) -> count - timeSlotSoftCap(timeSlot.getStartTime()))
+                .asConstraint("Time slot overutilization");
+    }
+
+    private int roomUsageSoftCap(org.campusscheduler.domain.room.Room room) {
+        if (room == null || room.getType() == null) {
+            return 20;
+        }
+        return switch (room.getType()) {
+            case LECTURE_HALL -> 24;
+            case CLASSROOM, LAB -> 21;
+            case SEMINAR, CONFERENCE -> 18;
+        };
+    }
+
+    private int timeSlotPenalty(DayOfWeek dayOfWeek, LocalTime startTime) {
+        int timePenalty;
+        if (startTime.isBefore(LocalTime.of(9, 0))) {
+            timePenalty = 2;
+        } else if (startTime.isBefore(LocalTime.of(10, 30))) {
+            timePenalty = 1;
+        } else if (startTime.isBefore(LocalTime.of(12, 0))) {
+            timePenalty = 0;
+        } else if (startTime.isBefore(LocalTime.of(14, 30))) {
+            timePenalty = 0;
+        } else if (startTime.isBefore(LocalTime.of(16, 0))) {
+            timePenalty = 0;
+        } else {
+            timePenalty = 2;
+        }
+
+        int dayPenalty = switch (dayOfWeek) {
+            case FRIDAY -> 1;
+            default -> 0;
+        };
+
+        return timePenalty + dayPenalty;
+    }
+
+    private int timeSlotSoftCap(LocalTime startTime) {
+        if (startTime == null) {
+            return 60;
+        }
+        if (startTime.isBefore(LocalTime.of(9, 0))) {
+            return 42;
+        }
+        if (startTime.isBefore(LocalTime.of(10, 30))) {
+            return 56;
+        }
+        if (startTime.isBefore(LocalTime.of(12, 0))) {
+            return 64;
+        }
+        if (startTime.isBefore(LocalTime.of(14, 30))) {
+            return 64;
+        }
+        if (startTime.isBefore(LocalTime.of(16, 0))) {
+            return 58;
+        }
+        return 46;
     }
 
     /**

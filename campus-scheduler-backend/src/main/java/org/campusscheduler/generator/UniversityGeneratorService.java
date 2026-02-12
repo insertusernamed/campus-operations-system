@@ -72,12 +72,8 @@ public class UniversityGeneratorService {
             "Engineering", "Business", "Art", "Music", "History", "English", "Psychology"
     };
 
-    private static final String[] ROOM_TYPES = {
-            "CLASSROOM", "LECTURE_HALL", "LAB", "SEMINAR", "CONFERENCE"
-    };
-
-    private static final String[][] COURSE_PREFIXES = {
-            { "CS", "Computer Science" }, { "MATH", "Mathematics" }, { "PHYS", "Physics" },
+	    private static final String[][] COURSE_PREFIXES = {
+	            { "CS", "Computer Science" }, { "MATH", "Mathematics" }, { "PHYS", "Physics" },
             { "CHEM", "Chemistry" }, { "BIO", "Biology" }, { "ENG", "Engineering" },
             { "BUS", "Business" }, { "ART", "Art" }, { "MUS", "Music" }, { "HIST", "History" },
             { "ENGL", "English" }, { "PSYC", "Psychology" }
@@ -89,14 +85,17 @@ public class UniversityGeneratorService {
      * Can be created directly with explicit values, or derived from a student population
      * using research-backed ratios via the archetype-based factory methods.
      */
-    public record GenerationConfig(
-            UniversityArchetype archetype,
-            int studentPopulation,
-            int buildings,
-            int academicBuildings,
-            int roomsPerBuilding,
-            int instructors,
-            int courses) {
+	    public record GenerationConfig(
+	            UniversityArchetype archetype,
+	            int studentPopulation,
+	            int buildings,
+	            int academicBuildings,
+	            int roomsPerBuilding,
+	            int instructors,
+	            int courses) {
+
+	        private static final double AVERAGE_COURSE_LOAD = 5.0;
+	        private static final int ASSUMED_WEEKLY_TIMESLOTS = 30;
 
         /**
          * Creates a configuration from student population using research-based ratios.
@@ -106,16 +105,16 @@ public class UniversityGeneratorService {
          * @param studentPopulation the target student population
          * @return a configuration with derived values
          */
-        public static GenerationConfig fromStudentPopulation(UniversityArchetype archetype, int studentPopulation) {
-            int totalBuildings = archetype.calculateBuildings(studentPopulation);
-            int academicBuildings = archetype.calculateAcademicBuildings(totalBuildings);
-            int courses = archetype.calculateCourses(academicBuildings);
-            int instructors = archetype.calculateInstructors(courses);
-            int roomsPerBuilding = calculateRoomsPerBuilding(archetype, studentPopulation, academicBuildings);
+	        public static GenerationConfig fromStudentPopulation(UniversityArchetype archetype, int studentPopulation) {
+	            int totalBuildings = archetype.calculateBuildings(studentPopulation);
+	            int academicBuildings = archetype.calculateAcademicBuildings(totalBuildings);
+	            int courses = calculateActiveCourses(archetype, studentPopulation, totalBuildings);
+	            int instructors = archetype.calculateInstructors(courses);
+	            int roomsPerBuilding = calculateRoomsPerBuilding(archetype, courses, academicBuildings);
 
-            return new GenerationConfig(
-                    archetype,
-                    studentPopulation,
+	            return new GenerationConfig(
+	                    archetype,
+	                    studentPopulation,
                     totalBuildings,
                     academicBuildings,
                     roomsPerBuilding,
@@ -124,23 +123,53 @@ public class UniversityGeneratorService {
             );
         }
 
-        /**
-         * Calculates rooms per building based on student density and building count.
-         * Ensures enough room capacity exists for the student population.
-         */
-        private static int calculateRoomsPerBuilding(UniversityArchetype archetype, int students, int academicBuildings) {
-            // Average class size assumption: 35 students
-            // Students take ~5 courses per semester (standard full-time load)
-            // Note: This is distinct from coursesPerStudent which represents catalog breadth (S/C ratio)
-            // Each room can host ~8 class sessions per day (4 timeslots * 2 days overlap)
-            int avgClassSize = 35;
-            int avgSessionsPerRoom = 8;
-            double avgCourseLoadPerStudent = 5.0; // Standard semester course load
-            int totalSeatsNeeded = (int) (students * avgCourseLoadPerStudent);
-            int totalRoomsNeeded = totalSeatsNeeded / (avgClassSize * avgSessionsPerRoom);
-            int roomsPerBuilding = Math.max(10, totalRoomsNeeded / Math.max(1, academicBuildings));
-            return Math.min(roomsPerBuilding, 30); // Cap at 30 rooms per building
-        }
+	        /**
+	         * Calculates actively scheduled course sections by blending:
+	         * 1) Demand from student load and expected class sizes
+	         * 2) A percentage of the archetype's catalog breadth estimate
+	         */
+	        private static int calculateActiveCourses(
+	                UniversityArchetype archetype,
+	                int studentPopulation,
+	                int totalBuildings) {
+	            int catalogEstimate = Math.max(1, archetype.getCoursesPerBuilding() * totalBuildings);
+	            int demandDriven = (int) Math.ceil((studentPopulation * AVERAGE_COURSE_LOAD) / expectedClassSize(archetype));
+	            int activeCatalogPortion = (int) Math.ceil(catalogEstimate * activeCatalogFraction(archetype));
+	            return Math.max(1, Math.max(demandDriven, activeCatalogPortion));
+	        }
+
+	        /**
+	         * Calculates rooms per academic building from target utilization.
+	         */
+	        private static int calculateRoomsPerBuilding(UniversityArchetype archetype, int courses, int academicBuildings) {
+	            int roomsNeeded = (int) Math.ceil(courses / (ASSUMED_WEEKLY_TIMESLOTS * targetUtilization(archetype)));
+	            int roomsPerBuilding = (int) Math.ceil((double) roomsNeeded / Math.max(1, academicBuildings));
+	            return Math.max(3, Math.min(roomsPerBuilding, 20));
+	        }
+
+	        private static double expectedClassSize(UniversityArchetype archetype) {
+	            return switch (archetype) {
+	                case METROPOLIS -> 60.0;
+	                case CAMPUS_SPRAWL -> 42.0;
+	                case COMMUNITY -> 30.0;
+	            };
+	        }
+
+	        private static double activeCatalogFraction(UniversityArchetype archetype) {
+	            return switch (archetype) {
+	                case METROPOLIS -> 0.55;
+	                case CAMPUS_SPRAWL -> 0.45;
+	                case COMMUNITY -> 0.50;
+	            };
+	        }
+
+	        private static double targetUtilization(UniversityArchetype archetype) {
+	            return switch (archetype) {
+	                case METROPOLIS -> 0.78;
+	                case CAMPUS_SPRAWL -> 0.58;
+	                case COMMUNITY -> 0.68;
+	            };
+	        }
 
         /**
          * Default configuration using COMMUNITY archetype with 8,000 students.
@@ -235,7 +264,7 @@ public class UniversityGeneratorService {
         clearAll();
 
         List<Building> buildings = generateBuildings(config.academicBuildings());
-        List<Room> rooms = generateRooms(buildings, config.roomsPerBuilding());
+	        List<Room> rooms = generateRooms(buildings, config.roomsPerBuilding(), config.archetype());
         List<Instructor> instructors = generateInstructors(config.instructors());
         List<Course> courses = generateCourses(instructors, config.courses());
 
@@ -325,28 +354,30 @@ public class UniversityGeneratorService {
     /**
      * Generates rooms for each building.
      */
-    private List<Room> generateRooms(List<Building> buildings, int roomsPerBuilding) {
-        List<Room> rooms = new ArrayList<>();
+	    private List<Room> generateRooms(List<Building> buildings, int roomsPerBuilding, UniversityArchetype archetype) {
+	        List<Room> rooms = new ArrayList<>();
 
-        for (Building building : buildings) {
-            int baseRoomsPerFloor = roomsPerBuilding / 3;
-            int remainderRooms = roomsPerBuilding % 3;
+	        for (Building building : buildings) {
+	            int baseRoomsPerFloor = roomsPerBuilding / 3;
+	            int remainderRooms = roomsPerBuilding % 3;
+	            int roomIndexInBuilding = 0;
 
-            for (int floor = 1; floor <= 3; floor++) {
-                int roomsOnFloor = baseRoomsPerFloor + (floor <= remainderRooms ? 1 : 0);
-                for (int r = 0; r < roomsOnFloor; r++) {
-                    String type = ROOM_TYPES[random.nextInt(ROOM_TYPES.length)];
-                    Room room = Room.builder()
-                            .roomNumber(dataGeneratorService.generateRoomNumber(floor))
-                            .capacity(dataGeneratorService.generateCapacity(type))
-                            .type(Room.RoomType.valueOf(type))
-                            .features(generateFeatures(type))
-                            .building(building)
-                            .build();
-                    rooms.add(roomRepository.save(room));
-                }
-            }
-        }
+	            for (int floor = 1; floor <= 3; floor++) {
+	                int roomsOnFloor = baseRoomsPerFloor + (floor <= remainderRooms ? 1 : 0);
+	                for (int r = 0; r < roomsOnFloor; r++) {
+	                    String type = pickRoomType(archetype, roomIndexInBuilding);
+	                    Room room = Room.builder()
+	                            .roomNumber(dataGeneratorService.generateRoomNumber(floor))
+	                            .capacity(dataGeneratorService.generateCapacity(type))
+	                            .type(Room.RoomType.valueOf(type))
+	                            .features(generateFeatures(type))
+	                            .building(building)
+	                            .build();
+	                    rooms.add(roomRepository.save(room));
+	                    roomIndexInBuilding++;
+	                }
+	            }
+	        }
 
         log.info("Generated {} rooms", rooms.size());
         return rooms;
@@ -380,10 +411,10 @@ public class UniversityGeneratorService {
     /**
      * Generates courses with realistic codes and names.
      */
-    private List<Course> generateCourses(List<Instructor> instructors, int count) {
-        List<Course> courses = new ArrayList<>();
+	    private List<Course> generateCourses(List<Instructor> instructors, int count) {
+	        List<Course> courses = new ArrayList<>();
 
-        for (int i = 0; i < count; i++) {
+	        for (int i = 0; i < count; i++) {
             String[] prefix = COURSE_PREFIXES[i % COURSE_PREFIXES.length];
             int level = (i / COURSE_PREFIXES.length) % 4 + 1; // 1-4
             // Use unique sequence number to avoid duplicate codes
@@ -391,26 +422,99 @@ public class UniversityGeneratorService {
 
             Instructor instructor = instructors.get(i % instructors.size());
 
-            Course course = Course.builder()
-                    .code(prefix[0] + courseNum)
-                    .name(generateCourseName(prefix[1], level))
-                    .description("Course in " + prefix[1] + " at level " + level)
-                    .credits(random.nextInt(3) + 2) // 2-4 credits
-                    .enrollmentCapacity(random.nextInt(80) + 20) // 20-100 students
-                    .department(prefix[1])
-                    .instructor(instructor)
-                    .build();
-            courses.add(courseRepository.save(course));
+	            Course course = Course.builder()
+	                    .code(prefix[0] + courseNum)
+	                    .name(generateCourseName(prefix[1], level))
+	                    .description("Course in " + prefix[1] + " at level " + level)
+	                    .credits(random.nextInt(3) + 2) // 2-4 credits
+	                    .enrollmentCapacity(generateEnrollmentCapacity(level))
+	                    .department(prefix[1])
+	                    .instructor(instructor)
+	                    .build();
+	            courses.add(courseRepository.save(course));
         }
 
         log.info("Generated {} courses", courses.size());
         return courses;
     }
 
-    private String generateCourseName(String department, int level) {
-        String[] levelNames = { "Introduction to", "Intermediate", "Advanced", "Special Topics in" };
-        return levelNames[level - 1] + " " + department;
-    }
+	    private String generateCourseName(String department, int level) {
+	        String[] levelNames = { "Introduction to", "Intermediate", "Advanced", "Special Topics in" };
+	        return levelNames[level - 1] + " " + department;
+	    }
+
+	    private int generateEnrollmentCapacity(int level) {
+	        return switch (level) {
+	            case 1 -> random.nextInt(60, 181);
+	            case 2 -> random.nextInt(35, 91);
+	            case 3 -> random.nextInt(20, 56);
+	            default -> random.nextInt(10, 36);
+	        };
+	    }
+
+	    private String pickRoomType(UniversityArchetype archetype, int roomIndexInBuilding) {
+	        // Keep a baseline instructional mix in every building.
+	        if (roomIndexInBuilding == 0) {
+	            return "CLASSROOM";
+	        }
+	        if (roomIndexInBuilding == 1) {
+	            return "LAB";
+	        }
+	        if (roomIndexInBuilding == 2) {
+	            return "LECTURE_HALL";
+	        }
+
+	        double roll = random.nextDouble();
+	        return switch (archetype) {
+	            case METROPOLIS -> weightedRoomType(
+	                    roll,
+	                    0.50, // classroom
+	                    0.22, // lecture hall
+	                    0.16, // lab
+	                    0.09 // seminar
+	            );
+	            case CAMPUS_SPRAWL -> weightedRoomType(
+	                    roll,
+	                    0.38,
+	                    0.14,
+	                    0.28,
+	                    0.15
+	            );
+	            case COMMUNITY -> weightedRoomType(
+	                    roll,
+	                    0.45,
+	                    0.15,
+	                    0.18,
+	                    0.17
+	            );
+	        };
+	    }
+
+	    private String weightedRoomType(
+	            double roll,
+	            double classroomShare,
+	            double lectureHallShare,
+	            double labShare,
+	            double seminarShare) {
+	        double thresholdClassroom = classroomShare;
+	        double thresholdLecture = thresholdClassroom + lectureHallShare;
+	        double thresholdLab = thresholdLecture + labShare;
+	        double thresholdSeminar = thresholdLab + seminarShare;
+
+	        if (roll < thresholdClassroom) {
+	            return "CLASSROOM";
+	        }
+	        if (roll < thresholdLecture) {
+	            return "LECTURE_HALL";
+	        }
+	        if (roll < thresholdLab) {
+	            return "LAB";
+	        }
+	        if (roll < thresholdSeminar) {
+	            return "SEMINAR";
+	        }
+	        return "CONFERENCE";
+	    }
 
     private String generateFeatures(String type) {
         return switch (type) {

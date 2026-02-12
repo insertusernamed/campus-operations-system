@@ -87,28 +87,28 @@ class DataGeneratorServiceTest {
     @DisplayName("generateCapacity")
     class GenerateCapacity {
 
-        @Test
-        @DisplayName("should generate appropriate capacity for LAB")
-        void shouldGenerateLabCapacity() {
-            int capacity = service.generateCapacity("LAB");
+	        @Test
+	        @DisplayName("should generate appropriate capacity for LAB")
+	        void shouldGenerateLabCapacity() {
+	            int capacity = service.generateCapacity("LAB");
 
-            assertThat(capacity).isBetween(20, 34);
-        }
+	            assertThat(capacity).isBetween(24, 45);
+	        }
 
-        @Test
-        @DisplayName("should generate appropriate capacity for LECTURE_HALL")
-        void shouldGenerateLectureHallCapacity() {
-            int capacity = service.generateCapacity("LECTURE_HALL");
+	        @Test
+	        @DisplayName("should generate appropriate capacity for LECTURE_HALL")
+	        void shouldGenerateLectureHallCapacity() {
+	            int capacity = service.generateCapacity("LECTURE_HALL");
 
-            assertThat(capacity).isBetween(100, 249);
-        }
+	            assertThat(capacity).isBetween(120, 280);
+	        }
 
-        @Test
-        @DisplayName("should generate classroom capacity for unknown type")
-        void shouldGenerateDefaultCapacity() {
-            int capacity = service.generateCapacity("CLASSROOM");
+	        @Test
+	        @DisplayName("should generate classroom capacity for unknown type")
+	        void shouldGenerateDefaultCapacity() {
+	            int capacity = service.generateCapacity("CLASSROOM");
 
-            assertThat(capacity).isBetween(25, 59);
-        }
-    }
+	            assertThat(capacity).isBetween(30, 90);
+	        }
+	    }
 }

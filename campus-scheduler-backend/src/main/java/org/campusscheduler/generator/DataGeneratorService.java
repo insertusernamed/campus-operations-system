@@ -113,13 +113,13 @@ public class DataGeneratorService {
      * @param type the room type
      * @return capacity between appropriate range
      */
-    public int generateCapacity(String type) {
-        return switch (type) {
-            case "LAB" -> random.nextInt(20, 35);
-            case "SEMINAR" -> random.nextInt(10, 25);
-            case "LECTURE_HALL" -> random.nextInt(100, 250);
-            case "CONFERENCE" -> random.nextInt(8, 20);
-            default -> random.nextInt(25, 60); // CLASSROOM
-        };
-    }
+	    public int generateCapacity(String type) {
+	        return switch (type) {
+	            case "LAB" -> random.nextInt(24, 46);
+	            case "SEMINAR" -> random.nextInt(12, 36);
+	            case "LECTURE_HALL" -> random.nextInt(120, 281);
+	            case "CONFERENCE" -> random.nextInt(12, 41);
+	            default -> random.nextInt(30, 91); // CLASSROOM
+	        };
+	    }
 }

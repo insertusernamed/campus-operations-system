@@ -93,19 +93,20 @@ class UniversityGeneratorServiceTest {
 	@DisplayName("GenerationConfig")
 	class GenerationConfigTests {
 
-		@Test
-		@DisplayName("default config should use research-based ratios for COMMUNITY 8000 students")
-		void defaultConfigShouldHaveReasonableValues() {
-			GenerationConfig config = GenerationConfig.defaultConfig();
+			@Test
+			@DisplayName("default config should use research-based ratios for COMMUNITY 8000 students")
+			void defaultConfigShouldHaveReasonableValues() {
+				GenerationConfig config = GenerationConfig.defaultConfig();
 
 			// COMMUNITY archetype: 200 students/building, so 8000/200 = 40 buildings
-			assertThat(config.archetype()).isEqualTo(UniversityArchetype.COMMUNITY);
-			assertThat(config.studentPopulation()).isEqualTo(8000);
-			assertThat(config.buildings()).isEqualTo(40);
-			assertThat(config.academicBuildings()).isEqualTo(24); // 60% of 40
-			// Courses = academicBuildings * 55 = 24 * 55 = 1320
-			assertThat(config.courses()).isEqualTo(1320);
-		}
+				assertThat(config.archetype()).isEqualTo(UniversityArchetype.COMMUNITY);
+				assertThat(config.studentPopulation()).isEqualTo(8000);
+				assertThat(config.buildings()).isEqualTo(40);
+				assertThat(config.academicBuildings()).isEqualTo(24); // 60% of 40
+				// Demand and catalog blend for COMMUNITY at 8,000 students
+				assertThat(config.courses()).isEqualTo(1334);
+				assertThat(config.roomsPerBuilding()).isEqualTo(3);
+			}
 
 		@Test
 		@DisplayName("small config should be smaller than default")

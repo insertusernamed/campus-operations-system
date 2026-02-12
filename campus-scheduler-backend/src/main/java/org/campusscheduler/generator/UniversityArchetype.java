@@ -187,7 +187,7 @@ public enum UniversityArchetype {
      * @return the calculated number of buildings
      */
     public int calculateBuildings(int studentPopulation) {
-        return Math.max(1, studentPopulation / studentsPerBuilding);
+        return Math.max(1, (int) Math.ceil((double) studentPopulation / studentsPerBuilding));
     }
 
     /**
@@ -197,7 +197,7 @@ public enum UniversityArchetype {
      * @return the number of academic buildings
      */
     public int calculateAcademicBuildings(int totalBuildings) {
-        return Math.max(1, (int) (totalBuildings * academicBuildingRatio));
+        return Math.max(1, (int) Math.round(totalBuildings * academicBuildingRatio));
     }
 
     /**
