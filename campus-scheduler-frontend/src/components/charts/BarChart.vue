@@ -102,25 +102,31 @@ function draw() {
 		ctx.fillRect(x, y, barWidth, barHeight)
 
 		if (props.showValues && item.value > 0 && index % valueLabelStep === 0) {
+			ctx.save()
 			ctx.font = '11px sans-serif'
 			ctx.textAlign = 'center'
+			ctx.textBaseline = 'bottom'
 			const valueText = formatter.value(item.value)
 			const textHalfWidth = ctx.measureText(valueText).width / 2
-			const labelPaddingX = 4
-			const labelPaddingY = 2
-			const labelHeight = 12 + labelPaddingY * 2
-			const labelHalfWidth = textHalfWidth + labelPaddingX
+			const textOutlineWidth = 4
+			const outlineHalf = Math.ceil(textOutlineWidth / 2)
 			const valueX = x + barWidth / 2
 			const clampedValueX = Math.min(
-				width - padding.right - labelHalfWidth - 2,
-				Math.max(padding.left + labelHalfWidth + 2, valueX)
+				width - padding.right - textHalfWidth - outlineHalf - 2,
+				Math.max(padding.left + textHalfWidth + outlineHalf + 2, valueX)
 			)
-			const textBaselineY = y - 5
-			const labelY = textBaselineY - labelHeight + 10
-			ctx.fillStyle = '#fff'
-			ctx.fillRect(clampedValueX - labelHalfWidth, labelY, labelHalfWidth * 2, labelHeight)
+			const valueY = y - 6
+
+			// Outlined text: avoids a filled background "box" that can cover bar pixels,
+			// while preserving contrast over the bar or grid.
+			ctx.lineJoin = 'round'
+			ctx.miterLimit = 2
+			ctx.strokeStyle = '#fff'
+			ctx.lineWidth = textOutlineWidth
+			ctx.strokeText(valueText, clampedValueX, valueY)
 			ctx.fillStyle = '#333'
-			ctx.fillText(valueText, clampedValueX, textBaselineY)
+			ctx.fillText(valueText, clampedValueX, valueY)
+			ctx.restore()
 		}
 
 		ctx.fillStyle = '#666'
