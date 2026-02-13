@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.campusscheduler.api.error.ApiExceptionHandler;
 import org.campusscheduler.config.SecurityConfig;
 
 import java.util.List;
@@ -17,6 +18,7 @@ import java.util.Optional;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -31,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Controller tests for BuildingController using MockMvc.
  */
 @WebMvcTest(BuildingController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, ApiExceptionHandler.class})
 class BuildingControllerTest {
 
     @Autowired
@@ -132,6 +134,35 @@ class BuildingControllerTest {
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.id", is(2)))
                     .andExpect(jsonPath("$.code", is("NEW")));
+        }
+
+        @Test
+        @DisplayName("should return structured validation errors")
+        void shouldReturnStructuredValidationErrors() throws Exception {
+            mockMvc.perform(post("/api/buildings")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"name\":\"\",\"code\":\"\"}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code", is("VALIDATION_ERROR")))
+                    .andExpect(jsonPath("$.message", not("")))
+                    .andExpect(jsonPath("$.fieldErrors", hasSize(2)))
+                    .andExpect(jsonPath("$.fieldErrors[0].field", not("")))
+                    .andExpect(jsonPath("$.fieldErrors[0].message", not("")));
+        }
+
+        @Test
+        @DisplayName("should return 400 with error message when duplicate code")
+        void shouldReturn400WithErrorMessageWhenDuplicateCode() throws Exception {
+            when(buildingService.create(any(Building.class)))
+                    .thenThrow(new IllegalArgumentException("Building code already exists: SCI"));
+
+            mockMvc.perform(post("/api/buildings")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"name\":\"Science Building\",\"code\":\"SCI\"}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code", is("BAD_REQUEST")))
+                    .andExpect(jsonPath("$.message", is("Building code already exists: SCI")))
+                    .andExpect(jsonPath("$.error", is("Building code already exists: SCI")));
         }
 
         @Test
