@@ -32,7 +32,7 @@ const navigation: NavGroup[] = [
 			{ name: 'Solver', path: '/solver', icon: 'bolt', roles: ['admin'] },
 			{ name: 'Schedules', path: '/schedules', icon: 'calendar', roles: ['admin', 'instructor', 'student'] },
 			{ name: 'Requests', path: '/requests', icon: 'calendar', roles: ['instructor'] },
-			{ name: 'Change Requests', path: '/requests/admin', icon: 'calendar', roles: ['admin'] },
+			{ name: 'Change Requests', path: '/requests/admin', icon: 'arrows', roles: ['admin'] },
 			{ name: 'Time Slots', path: '/timeslots', icon: 'clock', roles: ['admin'] },
 		],
 	},
@@ -101,6 +101,11 @@ function isActive(path: string): boolean {
 								stroke-width="1.5" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round"
 									d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+							</svg>
+							<svg v-else-if="item.icon === 'arrows'" class="w-4 h-4" fill="none" stroke="currentColor"
+								stroke-width="1.5" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round"
+									d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
 							</svg>
 							<svg v-else-if="item.icon === 'clock'" class="w-4 h-4" fill="none" stroke="currentColor"
 								stroke-width="1.5" viewBox="0 0 24 24">
