@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.campusscheduler.api.error.ApiExceptionHandler;
 import org.campusscheduler.config.SecurityConfig;
 
 import java.util.List;
@@ -32,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Controller tests for BuildingController using MockMvc.
  */
 @WebMvcTest(BuildingController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, ApiExceptionHandler.class})
 class BuildingControllerTest {
 
     @Autowired

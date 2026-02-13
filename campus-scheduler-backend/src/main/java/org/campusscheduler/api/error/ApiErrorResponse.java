@@ -1,5 +1,7 @@
 package org.campusscheduler.api.error;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+
 import java.time.Instant;
 import java.util.List;
 
@@ -10,8 +12,13 @@ import java.util.List;
  * The API historically returned {@code {"error": "..."} } for some endpoints.
  * For compatibility, both {@code error} and {@code message} are included.
  * </p>
+ *
+ * <p>
+ * {@code timestamp} is generated server-side in UTC.
+ * </p>
  */
 public record ApiErrorResponse(
+        @JsonFormat(shape = JsonFormat.Shape.STRING)
         Instant timestamp,
         int status,
         String code,
@@ -37,4 +44,3 @@ public record ApiErrorResponse(
                 fieldErrors == null ? List.of() : fieldErrors);
     }
 }
-
