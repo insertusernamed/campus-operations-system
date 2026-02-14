@@ -164,9 +164,6 @@ onMounted(async () => {
 })
 
 function handleEventClick(scheduleId: number) {
-	if (role.value === 'student') {
-		return
-	}
 	selectedScheduleId.value = scheduleId
 	if (role.value === 'instructor') {
 		selectedIssue.value = ''
@@ -279,7 +276,8 @@ function handleBuildingDrilldown(buildingId: number) {
 						Table
 					</button>
 				</div>
-				<div v-if="viewMode === 'calendar' && role === 'admin'" class="flex border border-gray-300 rounded overflow-hidden">
+				<div v-if="viewMode === 'calendar' && role === 'admin'"
+					class="flex border border-gray-300 rounded overflow-hidden">
 					<button @click="calendarRangeMode = 'day'"
 						:class="['px-3 py-1.5 text-sm', calendarRangeMode === 'day' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50']">
 						Day
@@ -306,19 +304,14 @@ function handleBuildingDrilldown(buildingId: number) {
 			hint="The solver can generate an optimized schedule for all your courses at once." />
 
 		<!-- Calendar View -->
-		<AdminDailyScheduleGrid
-			v-else-if="viewMode === 'calendar' && role === 'admin' && calendarRangeMode === 'day'"
-			:schedules="filteredItems"
-			:buildings="buildings"
-			:rooms="rooms"
-			:selected-building-id="selectedBuildingId"
-			:selected-room-id="selectedRoomId"
-			@event-click="handleEventClick"
-			@building-drilldown="handleBuildingDrilldown"
-		/>
+		<AdminDailyScheduleGrid v-else-if="viewMode === 'calendar' && role === 'admin' && calendarRangeMode === 'day'"
+			:schedules="filteredItems" :buildings="buildings" :rooms="rooms" :selected-building-id="selectedBuildingId"
+			:selected-room-id="selectedRoomId" @event-click="handleEventClick"
+			@building-drilldown="handleBuildingDrilldown" />
 		<ScheduleCalendar v-else-if="viewMode === 'calendar'" :schedules="filteredItems" :view-mode="calendarRangeMode"
-			:week-days="5" :height="role === 'admin' ? 920 : undefined" :day-start="role === 'admin' ? '08:00' : undefined"
-			:day-end="role === 'admin' ? '21:00' : undefined" :grid-step="role === 'admin' ? 30 : undefined"
+			:week-days="5" :height="role === 'admin' ? 920 : undefined"
+			:day-start="role === 'admin' ? '08:00' : undefined" :day-end="role === 'admin' ? '21:00' : undefined"
+			:grid-step="role === 'admin' ? 30 : undefined"
 			:event-width="role === 'admin' && calendarRangeMode === 'day' ? 100 : 95" @event-click="handleEventClick" />
 
 		<!-- Table View -->
@@ -394,10 +387,13 @@ function handleBuildingDrilldown(buildingId: number) {
 						Start a change request for this class. You can refine the details on the next step.
 					</p>
 					<div>
-						<label for="request-change-issue" class="block text-sm font-medium text-gray-700 mb-1">Why is this a problem?</label>
-						<select id="request-change-issue" v-model="selectedIssue" class="w-full px-3 py-2 border border-gray-300 rounded">
+						<label for="request-change-issue" class="block text-sm font-medium text-gray-700 mb-1">Why is
+							this a problem?</label>
+						<select id="request-change-issue" v-model="selectedIssue"
+							class="w-full px-3 py-2 border border-gray-300 rounded">
 							<option value="" disabled>Select a reason</option>
-							<option v-for="option in changeRequestIssueOptions" :key="option.value" :value="option.value">
+							<option v-for="option in changeRequestIssueOptions" :key="option.value"
+								:value="option.value">
 								{{ option.label }}
 							</option>
 						</select>
@@ -410,24 +406,29 @@ function handleBuildingDrilldown(buildingId: number) {
 
 			<template #footer>
 				<div v-if="role === 'admin'" class="flex justify-end gap-2">
-					<button class="px-4 py-2 border border-gray-300 rounded" @click="handleModalVisibilityChange(false)">
+					<button class="px-4 py-2 border border-gray-300 rounded"
+						@click="handleModalVisibilityChange(false)">
 						Close
 					</button>
-					<button :disabled="!selectedSchedule" class="px-4 py-2 border border-gray-300 rounded disabled:opacity-50"
+					<button :disabled="!selectedSchedule"
+						class="px-4 py-2 border border-gray-300 rounded disabled:opacity-50"
 						@click="handleOpenCourseFromModal">
 						View Course
 					</button>
-					<button :disabled="!selectedSchedule" class="px-4 py-2 border border-gray-300 rounded disabled:opacity-50"
+					<button :disabled="!selectedSchedule"
+						class="px-4 py-2 border border-gray-300 rounded disabled:opacity-50"
 						@click="handleOpenRoomFromModal">
 						View Room
 					</button>
-					<button :disabled="!selectedSchedule" class="px-4 py-2 bg-red-600 text-white rounded disabled:opacity-50"
+					<button :disabled="!selectedSchedule"
+						class="px-4 py-2 bg-red-600 text-white rounded disabled:opacity-50"
 						@click="handleDeleteFromModal">
 						Delete
 					</button>
 				</div>
 				<div v-else class="flex justify-end gap-2">
-					<button class="px-4 py-2 border border-gray-300 rounded" @click="handleModalVisibilityChange(false)">
+					<button class="px-4 py-2 border border-gray-300 rounded"
+						@click="handleModalVisibilityChange(false)">
 						Cancel
 					</button>
 					<button :disabled="!selectedSchedule || !selectedIssue"

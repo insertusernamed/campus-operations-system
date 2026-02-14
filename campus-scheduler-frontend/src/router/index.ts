@@ -76,9 +76,6 @@ router.beforeEach((to, _from, next) => {
 	if (to.path === '/requests' && role.value === 'admin') {
 		return next('/requests/admin')
 	}
-	if ((to.path === '/requests' || to.path === '/requests/new') && role.value === 'student') {
-		return next('/schedules')
-	}
 	if (to.path === '/schedules/new' && role.value !== 'admin') {
 		return next('/schedules')
 	}

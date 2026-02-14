@@ -20,7 +20,7 @@ const instructorModel = computed({
 })
 
 watch([role, instructors], () => {
-	if ((role.value === 'instructor' || role.value === 'student') && !instructorId.value) {
+	if (role.value === 'instructor' && !instructorId.value) {
 		if (instructors.value.length > 0 && instructors.value[0]) {
 			setInstructorId(instructors.value[0].id)
 		}
@@ -43,7 +43,8 @@ onMounted(() => {
 				<select v-model="roleModel" class="px-2 py-1 border border-gray-300 rounded bg-white text-gray-700">
 					<option value="admin">Admin</option>
 					<option value="instructor">Instructor</option>
-					<option value="student">Student</option>
+					<!-- TODO(student-role): add Student back once it's implemented end-to-end -->
+					<!-- <option value="student">Student</option> -->
 				</select>
 			</div>
 			<div v-if="role !== 'admin'" class="flex items-center gap-2">

@@ -22,7 +22,7 @@ const navigation: NavGroup[] = [
 	{
 		title: 'Overview',
 		items: [
-			{ name: 'Dashboard', path: '/', icon: 'home', roles: ['admin', 'instructor', 'student'] },
+			{ name: 'Dashboard', path: '/', icon: 'home', roles: ['admin', 'instructor'] },
 			{ name: 'Analytics', path: '/analytics', icon: 'chart', roles: ['admin'] },
 		],
 	},
@@ -30,7 +30,7 @@ const navigation: NavGroup[] = [
 		title: 'Scheduling',
 		items: [
 			{ name: 'Solver', path: '/solver', icon: 'bolt', roles: ['admin'] },
-			{ name: 'Schedules', path: '/schedules', icon: 'calendar', roles: ['admin', 'instructor', 'student'] },
+			{ name: 'Schedules', path: '/schedules', icon: 'calendar', roles: ['admin', 'instructor'] },
 			{ name: 'Requests', path: '/requests', icon: 'calendar', roles: ['instructor'] },
 			{ name: 'Change Requests', path: '/requests/admin', icon: 'arrows', roles: ['admin'] },
 			{ name: 'Time Slots', path: '/timeslots', icon: 'clock', roles: ['admin'] },
