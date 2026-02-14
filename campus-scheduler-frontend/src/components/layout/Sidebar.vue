@@ -31,8 +31,8 @@ const navigation: NavGroup[] = [
 		items: [
 			{ name: 'Solver', path: '/solver', icon: 'bolt', roles: ['admin'] },
 			{ name: 'Schedules', path: '/schedules', icon: 'calendar', roles: ['admin', 'instructor'] },
-			{ name: 'Requests', path: '/requests', icon: 'calendar', roles: ['instructor'] },
-			{ name: 'Change Requests', path: '/requests/admin', icon: 'arrows', roles: ['admin'] },
+			// Shared entry: admin is redirected to /requests/admin by the router guard.
+			{ name: 'Requests', path: '/requests', icon: 'arrows', roles: ['admin', 'instructor'] },
 			{ name: 'Time Slots', path: '/timeslots', icon: 'clock', roles: ['admin'] },
 		],
 	},

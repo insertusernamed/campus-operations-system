@@ -168,7 +168,7 @@ test.describe('Change Requests Workflow', () => {
         const roleSelect = page.locator('header select').first();
         await roleSelect.selectOption('admin');
         await expect(roleSelect).toHaveValue('admin');
-        const adminRequestsLink = page.getByRole('link', { name: 'Change Requests' });
+        const adminRequestsLink = page.getByRole('link', { name: 'Requests' });
         await expect(adminRequestsLink).toBeVisible();
         await adminRequestsLink.click();
         await expect(page).toHaveURL('/requests/admin');
