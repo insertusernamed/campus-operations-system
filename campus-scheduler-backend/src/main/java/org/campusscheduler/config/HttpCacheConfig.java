@@ -70,7 +70,10 @@ public class HttpCacheConfig {
                 HttpServletResponse response,
                 FilterChain filterChain
         ) throws ServletException, IOException {
-            // Only set defaults if the controller didn't set caching headers.
+            filterChain.doFilter(request, response);
+
+            // Apply defaults after downstream processing so explicit controller/
+            // filter headers win.
             if (!response.containsHeader(HttpHeaders.CACHE_CONTROL)) {
                 response.setHeader(HttpHeaders.CACHE_CONTROL, "private, max-age=0, must-revalidate");
             }
@@ -80,9 +83,6 @@ public class HttpCacheConfig {
             if (!response.containsHeader(HttpHeaders.EXPIRES)) {
                 response.setDateHeader(HttpHeaders.EXPIRES, 0);
             }
-
-            filterChain.doFilter(request, response);
         }
     }
 }
-
