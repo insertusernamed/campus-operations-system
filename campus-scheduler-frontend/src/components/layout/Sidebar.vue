@@ -9,6 +9,7 @@ const { role } = useRole()
 interface NavItem {
 	name: string
 	path: string
+	pathByRole?: Partial<Record<Role, string>>
 	icon: string
 	roles?: Role[]
 }
@@ -31,8 +32,13 @@ const navigation: NavGroup[] = [
 		items: [
 			{ name: 'Solver', path: '/solver', icon: 'bolt', roles: ['admin'] },
 			{ name: 'Schedules', path: '/schedules', icon: 'calendar', roles: ['admin', 'instructor'] },
-			{ name: 'Requests', path: '/requests', icon: 'calendar', roles: ['instructor'] },
-			{ name: 'Change Requests', path: '/requests/admin', icon: 'arrows', roles: ['admin'] },
+			{
+				name: 'Requests',
+				path: '/requests',
+				pathByRole: { admin: '/requests/admin', instructor: '/requests' },
+				icon: 'arrows',
+				roles: ['admin', 'instructor'],
+			},
 			{ name: 'Time Slots', path: '/timeslots', icon: 'clock', roles: ['admin'] },
 		],
 	},
@@ -65,6 +71,10 @@ function isActive(path: string): boolean {
 	if (path === '/') return route.path === '/'
 	return route.path.startsWith(path)
 }
+
+function getNavPath(item: NavItem): string {
+	return item.pathByRole?.[role.value] ?? item.path
+}
 </script>
 
 <template>
@@ -75,9 +85,9 @@ function isActive(path: string): boolean {
 					{{ group.title }}
 				</h3>
 				<ul>
-					<li v-for="item in group.items" :key="item.path">
-						<RouterLink :to="item.path"
-							class="flex items-center gap-3 mx-2 px-3 py-1.5 text-sm rounded transition-colors" :class="isActive(item.path)
+					<li v-for="item in group.items" :key="item.name">
+						<RouterLink :to="getNavPath(item)"
+							class="flex items-center gap-3 mx-2 px-3 py-1.5 text-sm rounded transition-colors" :class="isActive(getNavPath(item))
 								? 'bg-gray-100 text-gray-900 font-medium'
 								: 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
 								">
