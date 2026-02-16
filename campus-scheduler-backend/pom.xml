@@ -9,10 +9,10 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>org.campusoperationssystem</groupId>
-    <artifactId>campus-scheduler</artifactId>
+    <artifactId>campus-operations-system</artifactId>
     <version>0.0.1</version>
-    <name>campus-scheduler</name>
-    <description>campus-scheduler</description>
+    <name>campus-operations-system</name>
+    <description>campus-operations-system</description>
     <url/>
     <licenses>
         <license/>

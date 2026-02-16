@@ -13,6 +13,8 @@ CLEANUP_DONE=0
 
 BACKEND_PREFIX="$(printf "${BLUE}[BACKEND]${NC} ")"
 FRONTEND_PREFIX="$(printf "${GREEN}[FRONTEND]${NC} ")"
+BACKEND_DIR="$(find . -maxdepth 1 -mindepth 1 -type d -name '*backend' | head -n 1)"
+FRONTEND_DIR="$(find . -maxdepth 1 -mindepth 1 -type d -name '*frontend' | head -n 1)"
 
 prefix_logs() {
     local prefix="$1"
@@ -59,17 +61,22 @@ if ! command -v npm &> /dev/null; then
     exit 1
 fi
 
+if [ -z "$BACKEND_DIR" ] || [ -z "$FRONTEND_DIR" ]; then
+    echo -e "${RED}Error: backend/frontend directories not found${NC}"
+    exit 1
+fi
+
 # Function to run the backend
 run_backend() {
     trap '' INT
-    cd campus-scheduler-backend || exit 1
+    cd "$BACKEND_DIR" || exit 1
     exec ./mvnw spring-boot:run > >(prefix_logs "${BACKEND_PREFIX}") 2>&1
 }
 
 # Function to run the frontend
 run_frontend() {
     trap '' INT
-    cd campus-scheduler-frontend || exit 1
+    cd "$FRONTEND_DIR" || exit 1
     exec npm run dev > >(prefix_logs "${FRONTEND_PREFIX}") 2>&1
 }
 

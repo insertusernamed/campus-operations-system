@@ -66,8 +66,8 @@ test.describe('Change Requests Workflow', () => {
         const changeRequests: any[] = [];
 
         await page.addInitScript(() => {
-            localStorage.setItem('campus-scheduler-role', 'instructor');
-            localStorage.setItem('campus-scheduler-instructor-id', '10');
+            localStorage.setItem('campus-operations-system-role', 'instructor');
+            localStorage.setItem('campus-operations-system-instructor-id', '10');
         });
 
         await page.route(/.*\/api\/instructors$/, async route => {

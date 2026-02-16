@@ -17,15 +17,15 @@ import java.util.List;
 public class OpenApiConfig {
 
     @Bean
-    public OpenAPI campusSchedulerOpenAPI() {
+    public OpenAPI campusOperationsSystemOpenAPI() {
         return new OpenAPI()
                 .info(new Info()
-                        .title("Campus Scheduler API")
+                        .title("Campus Operations System API")
                         .description("REST API for university classroom and space utilization management")
                         .version("1.0.0")
                         .contact(new Contact()
-                                .name("Campus Scheduler Team")
-                                .email("support@campusscheduler.org"))
+                                .name("Campus Operations System Team")
+                                .email("support@campusoperationssystem.org"))
                         .license(new License()
                                 .name("MIT License")
                                 .url("https://opensource.org/licenses/MIT")))

@@ -1,10 +1,10 @@
-# Campus Scheduler
+# Campus Operations System
 
 A full-stack web application for analyzing and optimizing university classroom scheduling. Built as a solo capstone project for COMP 4431/4432 at Lakehead University.
 
 ## Overview
 
-Campus Scheduler helps administrators manage physical university resources (classrooms and labs) by detecting scheduling conflicts, analyzing room utilization, and eventually auto-generating optimized schedules.
+Campus Operations System helps administrators manage physical university resources (classrooms and labs) by detecting scheduling conflicts, analyzing room utilization, and eventually auto-generating optimized schedules.
 
 ### Features
 

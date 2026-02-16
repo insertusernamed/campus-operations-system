@@ -4,8 +4,8 @@ import { computed, ref, watch } from 'vue'
 // entities + enrollments and a proper student selector.
 export type Role = 'admin' | 'instructor' /* | 'student' */
 
-const ROLE_KEY = 'campus-scheduler-role'
-const INSTRUCTOR_KEY = 'campus-scheduler-instructor-id'
+const ROLE_KEY = 'campus-operations-system-role'
+const INSTRUCTOR_KEY = 'campus-operations-system-instructor-id'
 
 function normalizeRole(raw: string | null): Role {
 	if (raw === 'admin' || raw === 'instructor') return raw
