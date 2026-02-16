@@ -36,47 +36,22 @@ onMounted(() => {
 
 <template>
 	<header class="h-14 bg-white border-b border-gray-200 flex items-center px-6">
-		<svg
-			class="h-12 w-auto max-w-[220px] shrink-0"
-			viewBox="0 0 420 92"
-			fill="none"
-			xmlns="http://www.w3.org/2000/svg"
-			role="img"
-			aria-label="Campus Operations System logo"
-		>
-			<path d="M12 22V13H84V22" stroke="#3A6287" stroke-width="3.8" stroke-linecap="square" />
-			<path d="M12 70V79H84V70" stroke="#3A6287" stroke-width="3.8" stroke-linecap="square" />
-			<text
-				x="48"
-				y="61"
-				text-anchor="middle"
-				font-family="'Montserrat', 'Helvetica Neue', Helvetica, Arial, sans-serif"
-				font-size="42"
-				font-weight="700"
-				letter-spacing="-0.7"
-				fill="#3A6287"
-			>COS</text>
-			<text
-				x="266"
-				y="39"
-				text-anchor="middle"
-				font-family="'Montserrat', 'Helvetica Neue', Helvetica, Arial, sans-serif"
-				font-size="22"
-				font-weight="500"
-				letter-spacing="2.0"
-				fill="#4A4F57"
-			>CAMPUS OPERATIONS</text>
-			<text
-				x="266"
-				y="68"
-				text-anchor="middle"
-				font-family="'Montserrat', 'Helvetica Neue', Helvetica, Arial, sans-serif"
-				font-size="22"
-				font-weight="500"
-				letter-spacing="3.1"
-				fill="#4A4F57"
-			>SYSTEM</text>
-		</svg>
+		<RouterLink to="/" class="cursor-pointer">
+			<svg class="h-12 w-auto max-w-55 shrink-0" viewBox="0 0 420 92" fill="none"
+				xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Campus Operations System logo">
+				<path d="M12 22V13H84V22" stroke="#3A6287" stroke-width="3.8" stroke-linecap="square" />
+				<path d="M12 70V79H84V70" stroke="#3A6287" stroke-width="3.8" stroke-linecap="square" />
+				<text x="48" y="61" text-anchor="middle"
+					font-family="'Montserrat', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="42"
+					font-weight="700" letter-spacing="-0.7" fill="#3A6287">COS</text>
+				<text x="266" y="39" text-anchor="middle"
+					font-family="'Montserrat', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="22"
+					font-weight="500" letter-spacing="2.0" fill="#4A4F57">CAMPUS OPERATIONS</text>
+				<text x="266" y="68" text-anchor="middle"
+					font-family="'Montserrat', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="22"
+					font-weight="500" letter-spacing="3.1" fill="#4A4F57">SYSTEM</text>
+			</svg>
+		</RouterLink>
 		<div class="ml-auto flex items-center gap-4 text-sm text-gray-600">
 			<div class="flex items-center gap-2">
 				<span class="text-xs uppercase tracking-wide text-gray-500">Role</span>
