@@ -2,13 +2,20 @@
 import { computed, onMounted, watch } from 'vue'
 import { useRole, type Role } from '@/composables/useRole'
 import { useInstructors } from '@/composables/useInstructors'
+import { useTheme, type Theme } from '@/composables/useTheme'
 
 const { role, instructorId, setRole, setInstructorId } = useRole()
 const { instructors, loading: loadingInstructors, loadInstructors } = useInstructors()
+const { theme, setTheme } = useTheme()
 
 const roleModel = computed({
 	get: () => role.value,
 	set: value => setRole(value as Role),
+})
+
+const themeModel = computed({
+	get: () => theme.value,
+	set: value => setTheme(value as Theme),
 })
 
 const instructorModel = computed({
@@ -39,20 +46,27 @@ onMounted(() => {
 		<RouterLink to="/" class="cursor-pointer">
 			<svg class="h-12 w-auto max-w-55 shrink-0" viewBox="0 0 420 92" fill="none"
 				xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Campus Operations System logo">
-				<path d="M12 22V13H84V22" stroke="#3A6287" stroke-width="3.8" stroke-linecap="square" />
-				<path d="M12 70V79H84V70" stroke="#3A6287" stroke-width="3.8" stroke-linecap="square" />
+				<path class="logo-primary-stroke" d="M12 22V13H84V22" stroke-width="3.8" stroke-linecap="square" />
+				<path class="logo-primary-stroke" d="M12 70V79H84V70" stroke-width="3.8" stroke-linecap="square" />
 				<text x="48" y="61" text-anchor="middle"
 					font-family="'Montserrat', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="42"
-					font-weight="700" letter-spacing="-0.7" fill="#3A6287">COS</text>
+					font-weight="700" letter-spacing="-0.7" class="logo-primary-fill">COS</text>
 				<text x="266" y="39" text-anchor="middle"
 					font-family="'Montserrat', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="22"
-					font-weight="500" letter-spacing="2.0" fill="#4A4F57">CAMPUS OPERATIONS</text>
+					font-weight="500" letter-spacing="2.0" class="logo-secondary-fill">CAMPUS OPERATIONS</text>
 				<text x="266" y="68" text-anchor="middle"
 					font-family="'Montserrat', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="22"
-					font-weight="500" letter-spacing="3.1" fill="#4A4F57">SYSTEM</text>
+					font-weight="500" letter-spacing="3.1" class="logo-secondary-fill">SYSTEM</text>
 			</svg>
 		</RouterLink>
 		<div class="ml-auto flex items-center gap-4 text-sm text-gray-600">
+			<div class="flex items-center gap-2">
+				<span class="text-xs uppercase tracking-wide text-gray-500">Theme</span>
+				<select v-model="themeModel" class="px-2 py-1 border border-gray-300 rounded bg-white text-gray-700">
+					<option value="snow-storm">Frost</option>
+					<option value="slate">Slate</option>
+				</select>
+			</div>
 			<div class="flex items-center gap-2">
 				<span class="text-xs uppercase tracking-wide text-gray-500">Role</span>
 				<select v-model="roleModel" class="px-2 py-1 border border-gray-300 rounded bg-white text-gray-700">
@@ -77,3 +91,17 @@ onMounted(() => {
 		</div>
 	</header>
 </template>
+
+<style scoped>
+.logo-primary-stroke {
+	stroke: var(--brand-logo-primary);
+}
+
+.logo-primary-fill {
+	fill: var(--brand-logo-primary);
+}
+
+.logo-secondary-fill {
+	fill: var(--brand-logo-secondary);
+}
+</style>

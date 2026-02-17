@@ -13,6 +13,7 @@ import {
 	type SemesterDefinition,
 } from '@/services/semesters'
 import { parseSemesterLabel, resolveSemesterDateRange } from '@/utils/semester'
+import { useTheme } from '@/composables/useTheme'
 
 const props = defineProps<{
 	schedules: Schedule[]
@@ -41,6 +42,7 @@ const eventWidth = computed(() => {
 	const raw = props.eventWidth ?? 95
 	return Math.max(1, Math.min(100, raw))
 })
+const { theme } = useTheme()
 
 const emit = defineEmits<{
 	(e: 'event-click', scheduleId: number): void
@@ -58,8 +60,7 @@ const DAY_INDEX: Record<DayOfWeek, number> = {
 
 const semesterDefinitions = ref<SemesterDefinition[]>(DEFAULT_SEMESTER_DEFINITIONS)
 
-// Color palette for events
-const EVENT_COLORS = [
+const EVENT_COLORS_LIGHT = [
 	'#3b82f6', // blue
 	'#10b981', // emerald
 	'#f59e0b', // amber
@@ -69,6 +70,45 @@ const EVENT_COLORS = [
 	'#06b6d4', // cyan
 	'#84cc16', // lime
 ]
+
+const EVENT_COLORS_SLATE = [
+	'#5e81ac', // frost blue
+	'#6f9a7f', // muted green
+	'#b88f53', // muted amber
+	'#a65b66', // muted red
+	'#8a78ad', // muted violet
+	'#a57696', // muted pink
+	'#5e99a8', // muted cyan
+	'#8ba35c', // muted lime
+]
+
+const eventColors = computed(() =>
+	theme.value === 'slate' ? EVENT_COLORS_SLATE : EVENT_COLORS_LIGHT
+)
+
+function normalizeHexColor(input: string): string | null {
+	const trimmed = input.trim()
+	const match = trimmed.match(/^#([0-9a-fA-F]{6})$/)
+	return match ? `#${match[1]}` : null
+}
+
+function getReadableTextColor(backgroundColor: string): string {
+	const hex = normalizeHexColor(backgroundColor)
+	if (!hex) {
+		return '#f8fafc'
+	}
+
+	const red = Number.parseInt(hex.slice(1, 3), 16) / 255
+	const green = Number.parseInt(hex.slice(3, 5), 16) / 255
+	const blue = Number.parseInt(hex.slice(5, 7), 16) / 255
+	const toLinear = (channel: number) =>
+		channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
+
+	const luminance =
+		0.2126 * toLinear(red) + 0.7152 * toLinear(green) + 0.0722 * toLinear(blue)
+
+	return luminance > 0.45 ? '#1f2937' : '#f8fafc'
+}
 
 function getReferenceMonday(inputDate?: Temporal.PlainDate): Temporal.PlainDate {
 	const today = inputDate ?? Temporal.Now.plainDateISO()
@@ -162,7 +202,7 @@ const departmentColorMap = computed(() => {
 		const deptKey = sanitizeKey(rawDept)
 
 		if (!map.has(deptKey)) {
-			map.set(deptKey, colorIndex % EVENT_COLORS.length)
+			map.set(deptKey, colorIndex % eventColors.value.length)
 			colorIndex++
 		}
 	}
@@ -173,13 +213,13 @@ const departmentColorMap = computed(() => {
 const calendarsConfig = computed(() => {
 	const config: Record<string, { colorName: string; lightColors: { main: string; container: string; onContainer: string } }> = {}
 	for (const [deptKey, colorIndex] of departmentColorMap.value.entries()) {
-		const color = EVENT_COLORS[colorIndex] ?? '#6b7280'
+		const color = eventColors.value[colorIndex] ?? '#6b7280'
 		config[deptKey] = {
 			colorName: deptKey, // This label is for internal use mostly
 			lightColors: {
 				main: color,
 				container: color,
-				onContainer: '#ffffff',
+				onContainer: getReadableTextColor(color),
 			},
 		}
 	}
@@ -432,16 +472,16 @@ watch(() => props.arrowScheduleId, () => {
 </script>
 
 <template>
-	<div ref="containerRef" class="schedule-calendar-wrapper"
+	<div ref="containerRef" class="schedule-calendar-wrapper" :class="{ 'is-dark': theme === 'slate' }"
 		:style="{ height: `${calendarHeight}px`, minHeight: `${calendarHeight}px` }">
 		<svg v-if="arrow" class="cs-move-arrow" :width="arrow.width" :height="arrow.height"
 			:viewBox="`0 0 ${arrow.width} ${arrow.height}`">
 			<defs>
 				<marker id="cs-arrow-head" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-					<path d="M0,0 L0,6 L6,3 z" fill="#2563eb" />
+					<path d="M0,0 L0,6 L6,3 z" fill="currentColor" />
 				</marker>
 			</defs>
-			<path :d="`M ${arrow.x1} ${arrow.y1} L ${arrow.x2} ${arrow.y2}`" stroke="#2563eb" stroke-width="2"
+			<path :d="`M ${arrow.x1} ${arrow.y1} L ${arrow.x2} ${arrow.y2}`" stroke="currentColor" stroke-width="2"
 				fill="none" marker-end="url(#cs-arrow-head)" />
 		</svg>
 		<ScheduleXCalendar v-if="calendarApp" :key="calendarKey" :calendar-app="calendarApp" />
@@ -455,6 +495,51 @@ watch(() => props.arrowScheduleId, () => {
 	max-height: 85vh;
 	position: relative;
 	overflow: auto;
+	--sx-color-primary: var(--app-blue-600);
+	--sx-color-on-primary: #ffffff;
+	--sx-color-primary-container: var(--app-blue-50);
+	--sx-color-on-primary-container: var(--app-gray-900);
+	--sx-color-surface: var(--app-surface);
+	--sx-color-surface-dim: var(--app-gray-100);
+	--sx-color-surface-bright: var(--app-surface);
+	--sx-color-on-surface: var(--app-gray-900);
+	--sx-color-surface-container: var(--app-gray-100);
+	--sx-color-surface-container-low: var(--app-gray-50);
+	--sx-color-surface-container-high: var(--app-gray-200);
+	--sx-color-background: var(--app-surface);
+	--sx-color-on-background: var(--app-gray-900);
+	--sx-color-outline: var(--app-gray-500);
+	--sx-color-outline-variant: var(--app-gray-300);
+	--sx-color-neutral: var(--app-gray-600);
+	--sx-color-neutral-variant: var(--app-gray-500);
+	--sx-internal-color-gray-ripple-background: var(--app-gray-200);
+	--sx-internal-color-light-gray: var(--app-gray-50);
+	--sx-internal-color-text: var(--app-gray-900);
+	--sx-border: 1px solid var(--app-gray-300);
+}
+
+.schedule-calendar-wrapper.is-dark {
+	--sx-color-primary: var(--app-blue-500);
+	--sx-color-on-primary: #1f2937;
+	--sx-color-primary-container: var(--app-blue-700);
+	--sx-color-on-primary-container: #eff5fd;
+	--sx-color-surface: var(--app-gray-100);
+	--sx-color-surface-dim: var(--app-gray-200);
+	--sx-color-surface-bright: var(--app-gray-100);
+	--sx-color-on-surface: var(--app-gray-900);
+	--sx-color-surface-container: var(--app-gray-200);
+	--sx-color-surface-container-low: var(--app-gray-100);
+	--sx-color-surface-container-high: var(--app-gray-300);
+	--sx-color-background: var(--app-gray-100);
+	--sx-color-on-background: var(--app-gray-900);
+	--sx-color-outline: var(--app-gray-500);
+	--sx-color-outline-variant: var(--app-gray-300);
+	--sx-color-neutral: var(--app-gray-700);
+	--sx-color-neutral-variant: var(--app-gray-600);
+	--sx-internal-color-gray-ripple-background: var(--app-gray-300);
+	--sx-internal-color-light-gray: var(--app-gray-200);
+	--sx-internal-color-text: var(--app-gray-900);
+	--sx-border: 1px solid var(--app-gray-300);
 }
 
 .schedule-calendar-wrapper :deep(.sx__calendar-wrapper) {
@@ -463,7 +548,7 @@ watch(() => props.arrowScheduleId, () => {
 
 .schedule-calendar-wrapper :deep(.cs-ghost) {
 	opacity: 0.35;
-	border: 1px dashed rgba(0, 0, 0, 0.4);
+	border: 1px dashed var(--color-border);
 	pointer-events: none;
 	position: relative;
 }
@@ -483,8 +568,8 @@ watch(() => props.arrowScheduleId, () => {
 	letter-spacing: 0.02em;
 	padding: 1px 4px;
 	border-radius: 999px;
-	background: rgba(255, 255, 255, 0.85);
-	color: #111827;
+	background: var(--schedule-badge-bg);
+	color: var(--schedule-badge-text);
 }
 
 .schedule-calendar-wrapper :deep(.cs-ghost::after) {
@@ -501,5 +586,6 @@ watch(() => props.arrowScheduleId, () => {
 	left: 0;
 	pointer-events: none;
 	z-index: 3;
+	color: var(--schedule-arrow-color);
 }
 </style>

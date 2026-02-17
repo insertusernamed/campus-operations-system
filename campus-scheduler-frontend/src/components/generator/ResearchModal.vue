@@ -386,7 +386,7 @@ const citations = [
 .modal-tabs {
 	display: flex;
 	gap: 1.5rem;
-	border-bottom: 1px solid #ddd;
+	border-bottom: 1px solid var(--color-border);
 	margin-bottom: 1.5rem;
 }
 
@@ -395,17 +395,17 @@ const citations = [
 	border: none;
 	padding: 0.6rem 0;
 	font-size: 0.875rem;
-	color: #666;
+	color: var(--color-text-mute);
 	cursor: pointer;
 	position: relative;
 }
 
 .modal-tabs button:hover {
-	color: #333;
+	color: var(--color-text);
 }
 
 .modal-tabs button.active {
-	color: #111;
+	color: var(--color-heading);
 	font-weight: 500;
 }
 
@@ -416,7 +416,7 @@ const citations = [
 	left: 0;
 	right: 0;
 	height: 2px;
-	background: #111;
+	background: var(--color-heading);
 }
 
 .tab-container {
@@ -442,12 +442,12 @@ const citations = [
 	margin-bottom: 0.75rem;
 	font-size: 1rem;
 	font-weight: 500;
-	color: #111;
+	color: var(--color-heading);
 }
 
 /* Overview Tab */
 .info-box {
-	border: 1px solid #e5e5e5;
+	border: 1px solid var(--color-border);
 	padding: 1rem 1.25rem;
 	margin-bottom: 2rem;
 }
@@ -457,13 +457,13 @@ const citations = [
 	font-size: 0.8rem;
 	text-transform: uppercase;
 	letter-spacing: 0.05em;
-	color: #888;
+	color: var(--app-gray-500);
 }
 
 .info-box p {
 	margin: 0;
 	line-height: 1.7;
-	color: #333;
+	color: var(--color-text);
 }
 
 .formula-section h3 {
@@ -474,13 +474,13 @@ const citations = [
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 	gap: 1px;
-	background: #e5e5e5;
-	border: 1px solid #e5e5e5;
+	background: var(--color-border);
+	border: 1px solid var(--color-border);
 	margin-bottom: 2rem;
 }
 
 .formula-card {
-	background: #fff;
+	background: var(--color-background);
 	padding: 1.25rem 1rem;
 	text-align: left;
 }
@@ -489,25 +489,25 @@ const citations = [
 	font-size: 1.1rem;
 	font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', monospace;
 	margin-bottom: 0.5rem;
-	color: #111;
+	color: var(--color-heading);
 }
 
 .variable {
-	color: #0066cc;
+	color: var(--app-link-color);
 }
 
 .constant {
-	color: #666;
+	color: var(--color-text-mute);
 }
 
 .formula-legend {
 	font-size: 0.8rem;
-	color: #666;
+	color: var(--color-text-mute);
 	line-height: 1.4;
 }
 
 .key-finding {
-	border-top: 1px solid #e5e5e5;
+	border-top: 1px solid var(--color-border);
 	padding-top: 1.5rem;
 }
 
@@ -515,24 +515,24 @@ const citations = [
 	font-size: 0.8rem;
 	text-transform: uppercase;
 	letter-spacing: 0.05em;
-	color: #888;
+	color: var(--app-gray-500);
 	margin-bottom: 0.75rem;
 }
 
 .key-finding p {
 	margin: 0.5rem 0;
 	line-height: 1.6;
-	color: #333;
+	color: var(--color-text);
 }
 
 .highlight {
 	font-weight: 600;
-	color: #111;
+	color: var(--color-heading);
 }
 
 /* Archetypes Tab */
 .archetype-card {
-	border-bottom: 1px solid #e5e5e5;
+	border-bottom: 1px solid var(--color-border);
 	padding: 1.5rem 0;
 }
 
@@ -559,12 +559,12 @@ const citations = [
 .archetype-badge {
 	font-size: 0.7rem;
 	font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
-	color: #888;
+	color: var(--app-gray-500);
 	letter-spacing: 0.02em;
 }
 
 .archetype-desc {
-	color: #555;
+	color: var(--app-gray-600);
 	margin-bottom: 1.25rem;
 	line-height: 1.5;
 }
@@ -584,26 +584,26 @@ const citations = [
 	display: block;
 	font-size: 1.75rem;
 	font-weight: 400;
-	color: #111;
+	color: var(--color-heading);
 	line-height: 1;
 	margin-bottom: 0.25rem;
 }
 
 .stat-label {
 	font-size: 0.75rem;
-	color: #888;
+	color: var(--app-gray-500);
 }
 
 .archetype-examples {
 	font-size: 0.875rem;
-	color: #666;
+	color: var(--color-text-mute);
 	margin-bottom: 0.75rem;
 }
 
 .characteristics {
 	margin: 0;
 	padding-left: 1.25rem;
-	color: #555;
+	color: var(--app-gray-600);
 }
 
 .characteristics li {
@@ -628,33 +628,33 @@ const citations = [
 .data-table td {
 	padding: 0.625rem 0.75rem;
 	text-align: left;
-	border-bottom: 1px solid #e5e5e5;
+	border-bottom: 1px solid var(--color-border);
 }
 
 .data-table th {
 	font-weight: 500;
-	color: #666;
+	color: var(--color-text-mute);
 	font-size: 0.75rem;
 	text-transform: uppercase;
 	letter-spacing: 0.03em;
 }
 
 .data-table td {
-	color: #333;
+	color: var(--color-text);
 }
 
 .data-table tbody tr:hover {
-	background: #fafafa;
+	background: var(--color-background-mute);
 }
 
 .data-table td.ratio {
 	font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
 	font-size: 0.8rem;
-	color: #0066cc;
+	color: var(--app-link-color);
 }
 
 .ratio-legend {
-	border: 1px solid #e5e5e5;
+	border: 1px solid var(--color-border);
 	padding: 1rem 1.25rem;
 }
 
@@ -667,7 +667,7 @@ const citations = [
 .ratio-legend ul {
 	margin: 0;
 	padding-left: 1.25rem;
-	color: #555;
+	color: var(--app-gray-600);
 }
 
 .ratio-legend li {
@@ -678,14 +678,14 @@ const citations = [
 
 /* Citations */
 .citation-intro {
-	color: #555;
+	color: var(--app-gray-600);
 	margin-bottom: 1.25rem;
 	line-height: 1.6;
 }
 
 .citation-list {
 	padding-left: 1.5rem;
-	color: #333;
+	color: var(--color-text);
 }
 
 .citation-list li {
@@ -699,7 +699,7 @@ const citations = [
 }
 
 .citation-list a {
-	color: #0066cc;
+	color: var(--app-link-color);
 	word-break: break-all;
 }
 
@@ -708,12 +708,12 @@ const citations = [
 }
 
 .access-date {
-	color: #888;
+	color: var(--app-gray-500);
 	font-size: 0.8rem;
 }
 
 .research-note {
-	border-top: 1px solid #e5e5e5;
+	border-top: 1px solid var(--color-border);
 	padding-top: 1.25rem;
 	margin-top: 1.5rem;
 }
@@ -726,7 +726,7 @@ const citations = [
 
 .research-note p {
 	margin: 0;
-	color: #555;
+	color: var(--app-gray-600);
 	line-height: 1.6;
 	font-size: 0.875rem;
 }

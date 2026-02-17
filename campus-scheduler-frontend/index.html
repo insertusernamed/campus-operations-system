@@ -16,6 +16,14 @@
 			window.global = window;
 		}
 	</script>
+	<script>
+		(() => {
+			const THEME_KEY = 'campus-operations-system-theme'
+			const storedTheme = localStorage.getItem(THEME_KEY)
+			const theme = storedTheme === 'slate' ? 'slate' : 'snow-storm'
+			document.documentElement.setAttribute('data-theme', theme)
+		})()
+	</script>
 </head>
 
 <body>

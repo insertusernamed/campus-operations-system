@@ -8,11 +8,12 @@ import FloatingVue from 'floating-vue'
 import 'floating-vue/dist/style.css'
 
 const app = createApp(App)
+const toastTheme = document.documentElement.getAttribute('data-theme') === 'slate' ? 'dark' : 'light'
 app.use(router)
 app.use(Vue3Toastify, {
 	autoClose: 3000,
 	position: 'bottom-right',
-	theme: 'light',
+	theme: toastTheme,
 	hideProgressBar: false,
 	closeOnClick: true,
 	pauseOnHover: true,

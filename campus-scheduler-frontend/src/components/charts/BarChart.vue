@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue'
+import { useTheme } from '@/composables/useTheme'
 
 export interface BarChartData {
 	label: string
@@ -32,6 +33,7 @@ const props = withDefaults(
 )
 
 const canvas = ref<HTMLCanvasElement | null>(null)
+const { theme } = useTheme()
 
 const padding = { top: 20, right: 20, bottom: 70, left: 50 }
 
@@ -51,6 +53,13 @@ function draw() {
 	const ctx = canvas.value.getContext('2d')
 	if (!ctx) return
 
+	const css = getComputedStyle(document.documentElement)
+	const gridColor = css.getPropertyValue('--chart-grid-color').trim() || '#aab3c4'
+	const axisColor = css.getPropertyValue('--chart-axis-color').trim() || '#4c566a'
+	const barColor = css.getPropertyValue('--chart-bar-color').trim() || '#5e81ac'
+	const valueColor = css.getPropertyValue('--chart-value-text').trim() || '#2e3440'
+	const valueOutline = css.getPropertyValue('--chart-value-outline').trim() || '#eceff4'
+
 	const dpr = window.devicePixelRatio || 1
 	const rect = canvas.value.getBoundingClientRect()
 	canvas.value.width = rect.width * dpr
@@ -67,7 +76,7 @@ function draw() {
 	const max = props.maxValue ?? Math.max(...props.data.map((d) => d.value), 1)
 
 	// Grid lines
-	ctx.strokeStyle = '#ccc'
+	ctx.strokeStyle = gridColor
 	ctx.lineWidth = 1
 	for (let i = 0; i <= 4; i++) {
 		const y = padding.top + (chartHeight / 4) * i
@@ -76,7 +85,7 @@ function draw() {
 		ctx.lineTo(width - padding.right, y)
 		ctx.stroke()
 
-		ctx.fillStyle = '#666'
+		ctx.fillStyle = axisColor
 		ctx.font = '11px sans-serif'
 		ctx.textAlign = 'right'
 		const value = max - (max / 4) * i
@@ -98,7 +107,7 @@ function draw() {
 		const barHeight = (item.value / max) * chartHeight
 		const y = padding.top + chartHeight - barHeight
 
-		ctx.fillStyle = '#4a90d9'
+		ctx.fillStyle = barColor
 		ctx.fillRect(x, y, barWidth, barHeight)
 
 		if (props.showValues && item.value > 0 && index % valueLabelStep === 0) {
@@ -121,15 +130,15 @@ function draw() {
 			// while preserving contrast over the bar or grid.
 			ctx.lineJoin = 'round'
 			ctx.miterLimit = 2
-			ctx.strokeStyle = '#fff'
+			ctx.strokeStyle = valueOutline
 			ctx.lineWidth = textOutlineWidth
 			ctx.strokeText(valueText, clampedValueX, valueY)
-			ctx.fillStyle = '#333'
+			ctx.fillStyle = valueColor
 			ctx.fillText(valueText, clampedValueX, valueY)
 			ctx.restore()
 		}
 
-		ctx.fillStyle = '#666'
+		ctx.fillStyle = axisColor
 		ctx.font = '11px sans-serif'
 		ctx.textAlign = 'center'
 		ctx.save()
@@ -172,6 +181,10 @@ watch(
 	draw,
 	{ deep: true }
 )
+
+watch(theme, () => {
+	draw()
+})
 </script>
 
 <template>

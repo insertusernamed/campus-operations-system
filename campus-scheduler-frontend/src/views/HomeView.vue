@@ -21,7 +21,7 @@
 						class="inline-flex items-center justify-center rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
 						Change Requests
 						<span v-if="pendingCount > 0"
-							class="ml-2 inline-flex items-center rounded bg-blue-500 px-2 py-0.5 text-xs font-semibold text-white">
+							class="ml-2 inline-flex items-center rounded bg-blue-700 px-2 py-0.5 text-xs font-semibold text-white">
 							{{ pendingCount }}
 						</span>
 					</RouterLink>

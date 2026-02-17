@@ -215,10 +215,10 @@ function getUniqueRoomCount(schedules: Schedule[]): number {
 }
 
 function getDensityClass(count: number): string {
-	if (count <= 0) return 'bg-gray-50'
-	if (count === 1) return 'bg-blue-50 border-blue-200'
-	if (count <= 3) return 'bg-amber-50 border-amber-200'
-	return 'bg-red-50 border-red-200'
+	if (count <= 0) return 'density-empty'
+	if (count === 1) return 'density-low'
+	if (count <= 3) return 'density-medium'
+	return 'density-high'
 }
 
 const matrixRows = computed<MatrixRow[]>(() =>
@@ -298,24 +298,21 @@ function handleCellClick(cell: GridCell): void {
 	<div class="space-y-3">
 		<div class="flex items-center justify-between">
 			<div class="flex items-center gap-2">
-				<button
-					v-for="day in dayOrder"
-					:key="day"
-					@click="selectedDay = day"
-					:class="[
-						'px-3 py-1.5 text-sm border rounded',
-						selectedDay === day
-							? 'bg-blue-600 text-white border-blue-600'
-							: 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50',
-					]"
-				>
+				<button v-for="day in dayOrder" :key="day" @click="selectedDay = day" :class="[
+					'px-3 py-1.5 text-sm border rounded',
+					selectedDay === day
+						? 'bg-blue-600 text-white border-blue-600'
+						: 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50',
+				]">
 					{{ dayLabels[day] }}
 				</button>
 			</div>
 			<div class="text-sm text-gray-600">
 				<span class="font-medium text-gray-900">{{ scheduleCount }}</span> classes
-				<span v-if="peakRowSummary" class="ml-3">Busiest: <span class="font-medium text-gray-900">{{ peakRowSummary.label }}</span> ({{ peakRowSummary.count }})</span>
-				<span v-if="selectedBuildingName" class="ml-3">Viewing: <span class="font-medium text-gray-900">{{ selectedBuildingName }}</span></span>
+				<span v-if="peakRowSummary" class="ml-3">Busiest: <span class="font-medium text-gray-900">{{
+					peakRowSummary.label }}</span> ({{ peakRowSummary.count }})</span>
+				<span v-if="selectedBuildingName" class="ml-3">Viewing: <span class="font-medium text-gray-900">{{
+					selectedBuildingName }}</span></span>
 			</div>
 		</div>
 
@@ -323,7 +320,8 @@ function handleCellClick(cell: GridCell): void {
 			{{ interactionHint }}
 		</div>
 
-		<div v-if="columns.length === 0 || timeRows.length === 0" class="text-sm text-gray-500 border border-gray-200 rounded p-4 bg-white">
+		<div v-if="columns.length === 0 || timeRows.length === 0"
+			class="text-sm text-gray-500 border border-gray-200 rounded p-4 bg-white">
 			No classes for {{ dayLabels[selectedDay] }} with the current filters.
 		</div>
 
@@ -331,70 +329,67 @@ function handleCellClick(cell: GridCell): void {
 			<table class="border-collapse min-w-max w-full">
 				<thead class="sticky top-0 z-10 bg-gray-50">
 					<tr>
-						<th class="sticky left-0 z-20 bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-600 border-b border-r border-gray-200 px-3 py-2 min-w-44">
+						<th
+							class="sticky left-0 z-20 bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-600 border-b border-r border-gray-200 px-3 py-2 min-w-44">
 							Time
 						</th>
-						<th
-							v-for="column in columns"
-							:key="column.id"
-							class="text-left text-xs uppercase tracking-wide text-gray-600 border-b border-r border-gray-200 px-3 py-2 min-w-44"
-						>
+						<th v-for="column in columns" :key="column.id"
+							class="text-left text-xs uppercase tracking-wide text-gray-600 border-b border-r border-gray-200 px-3 py-2 min-w-44">
 							{{ column.label }}
 						</th>
 					</tr>
 				</thead>
 				<tbody>
 					<tr v-for="matrixRow in matrixRows" :key="matrixRow.row.id">
-						<th class="sticky left-0 z-10 bg-white text-left text-xs text-gray-700 border-b border-r border-gray-200 px-3 py-2 align-top whitespace-nowrap">
+						<th
+							class="sticky left-0 z-10 bg-white text-left text-xs text-gray-700 border-b border-r border-gray-200 px-3 py-2 align-top whitespace-nowrap">
 							{{ formatTimeRange(matrixRow.row.start, matrixRow.row.end) }}
 						</th>
-						<td
-							v-for="cell in matrixRow.cells"
-							:key="cell.key"
-							class="border-b border-r border-gray-200 p-1 align-top"
-						>
-							<button
-								v-if="cell.count > 0"
-								class="w-full h-full min-h-20 border rounded p-2 text-left transition-colors hover:bg-gray-100 cursor-pointer"
-								:class="getDensityClass(cell.count)"
-								@click="handleCellClick(cell)"
-							>
+						<td v-for="cell in matrixRow.cells" :key="cell.key"
+							class="border-b border-r border-gray-200 p-1 align-top">
+							<button v-if="cell.count > 0"
+								class="density-button w-full h-full min-h-20 rounded p-2 text-left transition-colors cursor-pointer"
+								:class="getDensityClass(cell.count)" @click="handleCellClick(cell)">
 								<template v-if="isAggregateMode">
 									<div class="flex items-center justify-between gap-2">
-										<span class="text-xs font-semibold text-gray-900">{{ cell.count }} {{ pluralize('class', cell.count) }}</span>
-										<span class="text-[11px] text-gray-600">{{ cell.uniqueRoomCount }} {{ pluralize('room', cell.uniqueRoomCount) }}</span>
+										<span class="text-xs font-semibold cell-primary">{{ cell.count }} {{
+											pluralize('class', cell.count) }}</span>
+										<span class="text-[11px] cell-secondary">{{ cell.uniqueRoomCount }} {{
+											pluralize('room', cell.uniqueRoomCount) }}</span>
 									</div>
-									<div v-if="cell.previewText" class="mt-1 text-[11px] text-gray-600 truncate">
+									<div v-if="cell.previewText" class="mt-1 text-[11px] cell-secondary truncate">
 										{{ cell.previewText }}
 									</div>
-									<div v-if="cell.overflowCount > 0" class="mt-1 text-[11px] text-gray-500">
+									<div v-if="cell.overflowCount > 0" class="mt-1 text-[11px] cell-tertiary">
 										+{{ cell.overflowCount }} more
 									</div>
 								</template>
 								<template v-else>
 									<template v-if="cell.count === 1">
-										<div class="text-xs font-semibold text-gray-900 truncate">
+										<div class="text-xs font-semibold cell-primary truncate">
 											{{ cell.schedules[0]?.course.code }}
 										</div>
-										<div class="mt-1 text-[11px] text-gray-700 truncate">
+										<div class="mt-1 text-[11px] cell-secondary truncate">
 											{{ getInstructorLabel(cell.schedules[0]) }}
 										</div>
 									</template>
 									<template v-else>
 										<div class="flex items-center justify-between gap-2">
-											<span class="text-xs font-semibold text-gray-900">{{ cell.count }} {{ pluralize('class', cell.count) }}</span>
-											<span class="text-[10px] uppercase tracking-wide text-red-700">Overlap</span>
+											<span class="text-xs font-semibold cell-primary">{{ cell.count }} {{
+												pluralize('class', cell.count) }}</span>
+											<span
+												class="text-[10px] uppercase tracking-wide cell-overlap">Overlap</span>
 										</div>
-										<div v-if="cell.previewText" class="mt-1 text-[11px] text-gray-600 truncate">
+										<div v-if="cell.previewText" class="mt-1 text-[11px] cell-secondary truncate">
 											{{ cell.previewText }}
 										</div>
-										<div v-if="cell.overflowCount > 0" class="mt-1 text-[11px] text-gray-500">
+										<div v-if="cell.overflowCount > 0" class="mt-1 text-[11px] cell-tertiary">
 											+{{ cell.overflowCount }} more
 										</div>
 									</template>
 								</template>
 							</button>
-							<div v-else class="min-h-20 rounded bg-gray-50" />
+							<div v-else class="min-h-20 rounded density-empty-swatch" />
 						</td>
 					</tr>
 				</tbody>
@@ -402,3 +397,68 @@ function handleCellClick(cell: GridCell): void {
 		</div>
 	</div>
 </template>
+
+<style scoped>
+.density-button {
+	border: 1px solid transparent;
+	--cell-primary: var(--app-gray-900);
+	--cell-secondary: var(--app-gray-700);
+	--cell-tertiary: var(--app-gray-600);
+	--cell-overlap: var(--app-red-700);
+}
+
+.density-button:hover {
+	filter: brightness(var(--density-hover-brightness));
+}
+
+.cell-primary {
+	color: var(--cell-primary);
+}
+
+.cell-secondary {
+	color: var(--cell-secondary);
+}
+
+.cell-tertiary {
+	color: var(--cell-tertiary);
+}
+
+.cell-overlap {
+	color: var(--cell-overlap);
+	font-weight: 700;
+}
+
+.density-empty {
+	background: var(--app-gray-50);
+	border-color: var(--app-gray-200);
+}
+
+.density-empty-swatch {
+	background: var(--density-empty-bg);
+}
+
+.density-low {
+	background: var(--density-low-bg);
+	border-color: var(--density-low-border);
+	--cell-primary: var(--density-low-text);
+	--cell-secondary: var(--density-low-subtext);
+	--cell-tertiary: var(--density-low-muted);
+}
+
+.density-medium {
+	background: var(--density-medium-bg);
+	border-color: var(--density-medium-border);
+	--cell-primary: var(--density-medium-text);
+	--cell-secondary: var(--density-medium-subtext);
+	--cell-tertiary: var(--density-medium-muted);
+	--cell-overlap: var(--density-medium-overlap);
+}
+
+.density-high {
+	background: var(--density-high-bg);
+	border-color: var(--density-high-border);
+	--cell-primary: var(--density-high-text);
+	--cell-secondary: var(--density-high-subtext);
+	--cell-tertiary: var(--density-high-muted);
+}
+</style>

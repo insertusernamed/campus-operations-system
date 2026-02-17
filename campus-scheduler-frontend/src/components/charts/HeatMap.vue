@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from 'vue'
+import { useTheme } from '@/composables/useTheme'
 
 export interface HeatmapCell {
 	row: string
@@ -33,6 +34,7 @@ const emit = defineEmits<{
 }>()
 
 const canvas = ref<HTMLCanvasElement | null>(null)
+const { theme } = useTheme()
 const tooltip = ref<{ visible: boolean; x: number; y: number; content: string }>({
 	visible: false,
 	x: 0,
@@ -55,12 +57,12 @@ const cellMap = computed(() => {
 
 function getColor(value: number, min: number, max: number): string {
 	const normalized = max > min ? (value - min) / (max - min) : 0
-	// Green to yellow to red gradient with varying luminance for accessibility
-	// Low values: green (hue 120), High values: red (hue 0)
-	// Luminance also decreases as value increases for colorblind accessibility
-	const hue = 120 - normalized * 120 // 120 (green) -> 0 (red)
-	const saturation = 50 + normalized * 20 // 50% -> 70%
-	const lightness = 85 - normalized * 35 // 85% (light) -> 50% (darker)
+	// Keep gradients readable in both themes:
+	// Snow Storm uses lighter cells, Slate uses darker cells with brighter text.
+	const isSlate = theme.value === 'slate'
+	const hue = 138 - normalized * 130
+	const saturation = isSlate ? 42 + normalized * 28 : 50 + normalized * 20
+	const lightness = isSlate ? 46 - normalized * 20 : 85 - normalized * 35
 	return `hsl(${hue}, ${saturation}%, ${lightness}%)`
 }
 
@@ -69,6 +71,10 @@ function draw() {
 
 	const ctx = canvas.value.getContext('2d')
 	if (!ctx) return
+
+	const css = getComputedStyle(document.documentElement)
+	const axisColor = css.getPropertyValue('--chart-axis-color').trim() || '#4c566a'
+	const emptyCellColor = css.getPropertyValue('--heatmap-empty-cell').trim() || '#e5e9f0'
 
 	const dpr = window.devicePixelRatio || 1
 	const width = padding.left + props.cols.length * props.cellWidth + padding.right
@@ -90,7 +96,7 @@ function draw() {
 	const effectiveMax = max > min ? max : min + 1
 
 	// Column headers
-	ctx.fillStyle = '#333'
+	ctx.fillStyle = axisColor
 	ctx.font = '11px sans-serif'
 	ctx.textAlign = 'center'
 	props.cols.forEach((col, i) => {
@@ -115,13 +121,16 @@ function draw() {
 			if (cell) {
 				ctx.fillStyle = getColor(cell.value, min, effectiveMax)
 			} else {
-				ctx.fillStyle = '#f5f5f5'
+				ctx.fillStyle = emptyCellColor
 			}
 			ctx.fillRect(x + 1, y + 1, props.cellWidth - 2, props.cellHeight - 2)
 
 			if (props.showValues && cell && cell.value > 0) {
 				const normalized = (cell.value - min) / (effectiveMax - min)
-				ctx.fillStyle = normalized > 0.6 ? '#fff' : '#333'
+				const isSlate = theme.value === 'slate'
+				ctx.fillStyle = normalized > 0.6
+					? '#f8fafc'
+					: (isSlate ? '#e5edf9' : '#2e3440')
 				ctx.font = '11px sans-serif'
 				ctx.textAlign = 'center'
 				ctx.fillText(
@@ -200,6 +209,7 @@ function handleClick(event: MouseEvent) {
 
 onMounted(draw)
 watch([() => props.data, () => props.rows, () => props.cols], draw, { deep: true })
+watch(theme, () => draw())
 </script>
 
 <template>
@@ -209,10 +219,18 @@ watch([() => props.data, () => props.rows, () => props.cols], draw, { deep: true
 		<div v-else class="overflow-x-auto relative">
 			<canvas ref="canvas" role="img" :aria-label="title ? `${title} heatmap` : 'Schedule heatmap'"
 				@mousemove="handleMouseMove" @mouseleave="handleMouseLeave" @click="handleClick"></canvas>
-			<div v-if="tooltip.visible" class="absolute bg-black text-white text-xs px-2 py-1 pointer-events-none"
+			<div v-if="tooltip.visible" class="absolute heatmap-tooltip text-xs px-2 py-1 pointer-events-none"
 				:style="{ left: `${tooltip.x}px`, top: `${tooltip.y}px` }">
 				{{ tooltip.content }}
 			</div>
 		</div>
 	</div>
 </template>
+
+<style scoped>
+.heatmap-tooltip {
+	background: var(--heatmap-tooltip-bg);
+	color: var(--heatmap-tooltip-text);
+	border: 1px solid var(--color-border);
+}
+</style>
