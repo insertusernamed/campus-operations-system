@@ -296,6 +296,11 @@ a:not([class*="text-"]) {
 	color: #fff;
 }
 
+.bg-red-600,
+.bg-red-700 {
+	color: #fff;
+}
+
 [data-theme="slate"] .hover\:bg-white:hover {
 	background-color: var(--app-surface);
 }

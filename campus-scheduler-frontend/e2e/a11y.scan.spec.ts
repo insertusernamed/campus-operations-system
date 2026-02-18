@@ -226,6 +226,24 @@ async function runKeyboardFlow(page: Page): Promise<void> {
 	}
 }
 
+async function runStateInteractions(page: Page, target: A11yRouteTarget): Promise<void> {
+	// Exercise the admin schedule-details modal so dynamic UI states are scanned too.
+	if (target.role === 'admin' && target.route === '/schedules') {
+		const densityButtons = page.locator('.density-button')
+		if (await densityButtons.count() === 0) return
+
+		await densityButtons.first().click().catch(() => undefined)
+		await page.waitForTimeout(150)
+
+		const modalHeading = page.getByRole('heading', { name: 'Schedule Details' })
+		const isModalVisible = await modalHeading.isVisible().catch(() => false)
+		if (!isModalVisible) {
+			await densityButtons.first().click().catch(() => undefined)
+			await page.waitForTimeout(150)
+		}
+	}
+}
+
 async function runCustomChecks(page: Page): Promise<A11yViolation[]> {
 	return page.evaluate(() => {
 		type RawIssue = {
@@ -484,6 +502,7 @@ for (const target of targets) {
 			const scrollAxe = await runAxeWithScrollCoverage(page)
 
 			await runKeyboardFlow(page)
+			await runStateInteractions(page, target)
 
 			const secondAxe = await runAxe(page)
 
