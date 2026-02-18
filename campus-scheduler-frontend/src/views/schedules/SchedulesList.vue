@@ -241,7 +241,7 @@ function handleBuildingDrilldown(buildingId: number) {
 			<h1 class="text-2xl font-semibold text-gray-900">Schedules</h1>
 			<div class="flex items-center gap-3">
 				<!-- Building Filter -->
-				<select v-model="selectedBuildingId"
+				<select v-model="selectedBuildingId" aria-label="Building Filter"
 					class="px-3 py-1.5 text-sm border border-gray-300 rounded bg-white text-gray-700">
 					<option :value="null">All Buildings</option>
 					<option v-for="building in buildings" :key="building.id" :value="building.id">
@@ -249,7 +249,7 @@ function handleBuildingDrilldown(buildingId: number) {
 					</option>
 				</select>
 				<!-- Room Filter -->
-				<select v-model="selectedRoomId"
+				<select v-model="selectedRoomId" aria-label="Room Filter"
 					class="px-3 py-1.5 text-sm border border-gray-300 rounded bg-white text-gray-700">
 					<option :value="null">All Rooms</option>
 					<option v-for="room in filteredRooms" :key="room.id" :value="room.id">
@@ -258,7 +258,7 @@ function handleBuildingDrilldown(buildingId: number) {
 					</option>
 				</select>
 				<!-- Semester Filter -->
-				<select v-model="selectedSemester"
+				<select v-model="selectedSemester" aria-label="Semester Filter"
 					class="px-3 py-1.5 text-sm border border-gray-300 rounded bg-white text-gray-700">
 					<option :value="null">All Semesters</option>
 					<option v-for="semester in semesterOptions" :key="semester" :value="semester">
@@ -389,7 +389,7 @@ function handleBuildingDrilldown(buildingId: number) {
 					<div>
 						<label for="request-change-issue" class="block text-sm font-medium text-gray-700 mb-1">Why is
 							this a problem?</label>
-						<select id="request-change-issue" v-model="selectedIssue"
+						<select id="request-change-issue" v-model="selectedIssue" aria-label="Request Issue"
 							class="w-full px-3 py-2 border border-gray-300 rounded">
 							<option value="" disabled>Select a reason</option>
 							<option v-for="option in changeRequestIssueOptions" :key="option.value"

@@ -154,13 +154,13 @@ onMounted(() => {
 		<div class="border p-4 mb-6 flex flex-wrap gap-4">
 			<div>
 				<label for="semester" class="text-sm mr-2">Semester:</label>
-				<select id="semester" v-model="selectedSemester" class="border px-2 py-1">
+				<select id="semester" v-model="selectedSemester" aria-label="Semester" class="border px-2 py-1">
 					<option v-for="sem in semesters" :key="sem" :value="sem">{{ sem }}</option>
 				</select>
 			</div>
 			<div>
 				<label for="building" class="text-sm mr-2">Building:</label>
-				<select id="building" v-model="selectedBuildingId" class="border px-2 py-1">
+				<select id="building" v-model="selectedBuildingId" aria-label="Building" class="border px-2 py-1">
 					<option :value="null">All</option>
 					<option v-for="b in buildings" :key="b.id" :value="b.id">{{ b.name }}</option>
 				</select>

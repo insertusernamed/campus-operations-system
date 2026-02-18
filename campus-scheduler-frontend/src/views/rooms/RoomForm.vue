@@ -71,7 +71,7 @@ async function handleSubmit() {
 					<div class="col-span-2">
 						<label class="block text-sm font-medium text-gray-700 mb-1">Building <span
 								class="text-red-500">*</span></label>
-						<select v-model="selectedBuildingId" required :disabled="isEdit"
+						<select v-model="selectedBuildingId" required :disabled="isEdit" aria-label="Building"
 							class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100">
 							<option :value="null" disabled>-- Select --</option>
 							<option v-for="b in buildings" :key="b.id" :value="b.id">{{ b.code }} - {{ b.name }}
@@ -99,7 +99,7 @@ async function handleSubmit() {
 								v-tooltip="'Room type determines which courses can be scheduled here. The solver will only assign courses to rooms matching their required type.'"
 								class="ml-1 cursor-help text-gray-400 hover:text-gray-600">ⓘ</span>
 						</label>
-						<select v-model="form.type" required
+						<select v-model="form.type" required aria-label="Room Type"
 							class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500">
 							<option v-for="t in ROOM_TYPES" :key="t" :value="t">{{ t.replace('_', ' ') }}</option>
 						</select>
