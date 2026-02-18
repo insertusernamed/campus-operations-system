@@ -290,6 +290,8 @@ let eventsService: any = null
 const containerRef = ref<HTMLDivElement | null>(null)
 const arrow = ref<{ x1: number; y1: number; x2: number; y2: number; width: number; height: number } | null>(null)
 let arrowFrame: number | null = null
+let ariaSanitizeFrame: number | null = null
+let ariaObserver: MutationObserver | null = null
 
 function initCalendar() {
 	eventsService = createEventsServicePlugin()
@@ -420,6 +422,29 @@ function scheduleArrowUpdate() {
 	})
 }
 
+function sanitizeCalendarAriaLabels() {
+	const container = containerRef.value
+	if (!container) {
+		return
+	}
+
+	const invalidAriaLabels = container.querySelectorAll<HTMLElement>('div[aria-label]:not([role])')
+	for (const element of invalidAriaLabels) {
+		element.removeAttribute('aria-label')
+	}
+}
+
+function scheduleAriaSanitization() {
+	if (ariaSanitizeFrame !== null) {
+		return
+	}
+
+	ariaSanitizeFrame = requestAnimationFrame(() => {
+		ariaSanitizeFrame = null
+		sanitizeCalendarAriaLabels()
+	})
+}
+
 async function loadSemesterDefinitions() {
 	semesterDefinitions.value = await semestersService.getDefinitions()
 }
@@ -429,16 +454,34 @@ initCalendar()
 onMounted(() => {
 	void loadSemesterDefinitions()
 	scheduleArrowUpdate()
+	scheduleAriaSanitization()
 	window.addEventListener('resize', scheduleArrowUpdate)
 	containerRef.value?.addEventListener('scroll', scheduleArrowUpdate)
+	ariaObserver = new MutationObserver(() => {
+		scheduleAriaSanitization()
+	})
+	if (containerRef.value) {
+		ariaObserver.observe(containerRef.value, {
+			subtree: true,
+			childList: true,
+			attributes: true,
+			attributeFilter: ['aria-label', 'role', 'class'],
+		})
+	}
 })
 
 onUnmounted(() => {
 	window.removeEventListener('resize', scheduleArrowUpdate)
 	containerRef.value?.removeEventListener('scroll', scheduleArrowUpdate)
+	ariaObserver?.disconnect()
+	ariaObserver = null
 	if (arrowFrame !== null) {
 		cancelAnimationFrame(arrowFrame)
 		arrowFrame = null
+	}
+	if (ariaSanitizeFrame !== null) {
+		cancelAnimationFrame(ariaSanitizeFrame)
+		ariaSanitizeFrame = null
 	}
 })
 
@@ -454,6 +497,7 @@ watch([
 	eventWidth,
 ], () => {
 	initCalendar()
+	scheduleAriaSanitization()
 })
 
 // Update events when schedules change (using current service instance)
@@ -464,10 +508,12 @@ watch(events, (newEvents) => {
 		eventsService.set(newEvents)
 	}
 	scheduleArrowUpdate()
+	scheduleAriaSanitization()
 }, { deep: true })
 
 watch(() => props.arrowScheduleId, () => {
 	scheduleArrowUpdate()
+	scheduleAriaSanitization()
 })
 </script>
 
