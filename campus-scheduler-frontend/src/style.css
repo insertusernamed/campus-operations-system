@@ -77,8 +77,8 @@
 	--app-gray-200: var(--nord4);
 	--app-gray-300: #c7ceda;
 	--app-gray-400: #a6afc0;
-	--app-gray-500: #818aa0;
-	--app-gray-600: #647088;
+	--app-gray-500: #5f6b83;
+	--app-gray-600: #556078;
 	--app-gray-700: var(--nord3);
 	--app-gray-800: var(--nord2);
 	--app-gray-900: var(--nord0);
@@ -87,13 +87,13 @@
 	--app-blue-50: #edf4fb;
 	--app-blue-200: #bad0e5;
 	--app-blue-500: var(--nord9);
-	--app-blue-600: #55779f;
-	--app-blue-700: #4b6c90;
+	--app-blue-600: #35587d;
+	--app-blue-700: #2f4f70;
 	--app-green-50: #eef5ea;
 	--app-green-100: #e2edd8;
 	--app-green-200: #cfe0bd;
 	--app-green-300: #bdd4a7;
-	--app-green-600: #8ca975;
+	--app-green-600: #4f7447;
 	--app-green-700: #76935f;
 	--app-green-800: #627e4f;
 	--app-green-900: #4f663f;
@@ -182,9 +182,9 @@
 	/* Aurora accents tuned for dark surfaces */
 	--app-blue-50: #27384d;
 	--app-blue-200: #3b5979;
-	--app-blue-500: #81a1c1;
-	--app-blue-600: #55779f;
-	--app-blue-700: #4b6c90;
+	--app-blue-500: #93b4da;
+	--app-blue-600: #35587d;
+	--app-blue-700: #2f4f70;
 	--app-green-50: #253830;
 	--app-green-100: #2c4338;
 	--app-green-200: #395a4a;
@@ -285,6 +285,10 @@ a:not([class*="text-"]) {
 
 .bg-white {
 	background-color: var(--app-surface);
+}
+
+.bg-blue-600 {
+	color: #fff;
 }
 
 [data-theme="slate"] .hover\:bg-white:hover {

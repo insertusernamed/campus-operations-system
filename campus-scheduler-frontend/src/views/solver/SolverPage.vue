@@ -513,7 +513,7 @@ const solutionQuality = computed(() => {
 					]">
 					<div class="font-medium text-sm">{{ arch.displayName }}</div>
 					<div class="text-xs text-gray-500 mt-1">{{ arch.description }}</div>
-					<div class="text-xs text-gray-400 mt-1">
+					<div class="text-xs text-gray-500 mt-1">
 						{{ arch.minStudents.toLocaleString() }} - {{ arch.maxStudents.toLocaleString() }} students
 					</div>
 				</button>
@@ -528,7 +528,7 @@ const solutionQuality = computed(() => {
 					:max="selectedArchetypeInfo.maxStudents" :step="1000" :disabled="isGenerating"
 					aria-label="Student population" :aria-valuetext="`${studentPopulation.toLocaleString()} students`"
 					class="w-full h-2 bg-gray-200 rounded-lg cursor-pointer" />
-				<div class="flex justify-between text-xs text-gray-400 mt-1">
+				<div class="flex justify-between text-xs text-gray-500 mt-1">
 					<span>{{ selectedArchetypeInfo.minStudents.toLocaleString() }}</span>
 					<span>{{ selectedArchetypeInfo.maxStudents.toLocaleString() }}</span>
 				</div>
