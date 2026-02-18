@@ -62,9 +62,29 @@ const lastAutoFilledTemplate = ref('')
 
 const selectedSchedule = computed(() => schedules.value.find(schedule => schedule.id === form.value.scheduleId) ?? null)
 const selectedSuggestion = computed(() => suggestions.value.find(suggestion => suggestion.id === selectedSuggestionId.value) ?? null)
+const OTHER_MIN_DETAILS_LENGTH = 30
+
+const isOtherIssue = computed(() => form.value.issue === 'OTHER')
+const otherTemplate = computed(() => buildReasonTemplate('OTHER').trim())
+const notesLength = computed(() => form.value.notes.trim().length)
+const isOtherTemplateUnchanged = computed(() => {
+    return isOtherIssue.value && form.value.notes.trim() === otherTemplate.value
+})
+const isOtherDetailsTooShort = computed(() => {
+    return isOtherIssue.value && notesLength.value < OTHER_MIN_DETAILS_LENGTH
+})
+const isOtherDetailsValid = computed(() => {
+    if (!isOtherIssue.value) return true
+    return !isOtherTemplateUnchanged.value && !isOtherDetailsTooShort.value
+})
 
 const canSubmit = computed(() => {
-    return !!form.value.scheduleId && !!form.value.issue && (form.value.proposedRoomId || form.value.proposedTimeSlotId)
+    return (
+        !!form.value.scheduleId &&
+        !!form.value.issue &&
+        (form.value.proposedRoomId || form.value.proposedTimeSlotId) &&
+        isOtherDetailsValid.value
+    )
 })
 
 const availableSchedules = computed(() => schedules.value)
@@ -394,6 +414,14 @@ async function runValidation() {
 
 async function handleSubmit() {
     if (!canSubmit.value) {
+        if (isOtherIssue.value && isOtherTemplateUnchanged.value) {
+            error.value = 'Add specific details for "Other" instead of keeping the template text'
+            return
+        }
+        if (isOtherIssue.value && isOtherDetailsTooShort.value) {
+            error.value = `Provide at least ${OTHER_MIN_DETAILS_LENGTH} characters for "Other" details`
+            return
+        }
         error.value = 'Select a schedule, reason, and proposed change'
         return
     }
@@ -600,6 +628,14 @@ watch(roomScope, () => {
                         <label class="block text-sm font-medium text-gray-700 mb-1">Additional details (optional)</label>
                         <textarea v-model="form.notes" rows="3"
                             class="w-full px-3 py-2 border border-gray-300 rounded"></textarea>
+                        <div v-if="isOtherIssue" class="mt-1 flex items-center justify-between text-xs">
+                            <span :class="isOtherDetailsTooShort ? 'text-amber-700' : 'text-gray-500'">
+                                {{ notesLength }}/{{ OTHER_MIN_DETAILS_LENGTH }} minimum characters for "Other"
+                            </span>
+                            <span v-if="isOtherTemplateUnchanged" class="text-amber-700">
+                                Replace the template with your own details
+                            </span>
+                        </div>
                     </div>
 
                     <div v-if="validation.hardConflicts.length" class="bg-red-50 border border-red-200 text-red-700 p-3 rounded">
