@@ -5,6 +5,7 @@ import vueParser from 'vue-eslint-parser'
 
 const a11yRules = {
 	...vueA11y.configs.recommended.rules,
+	'vuejs-accessibility/label-has-for': ['error', { required: { some: ['nesting', 'id'] } }],
 	'vuejs-accessibility/no-aria-hidden-on-focusable': 'error',
 	'vuejs-accessibility/no-role-presentation-on-focusable': 'error',
 	'vuejs-accessibility/no-onchange': 'warn',

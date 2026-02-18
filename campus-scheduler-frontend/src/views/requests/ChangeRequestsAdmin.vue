@@ -188,8 +188,8 @@ onMounted(loadData)
 	<div>
 		<div class="flex justify-between items-center mb-6">
 			<h1 class="text-2xl font-semibold text-gray-900">Change Requests</h1>
-            <select id="requests-status-filter" v-model="statusFilter" aria-label="Status Filter"
-                class="px-3 py-1.5 text-sm border border-gray-300 rounded bg-white text-gray-700">
+			<select id="requests-status-filter" v-model="statusFilter" aria-label="Status Filter"
+				class="px-3 py-1.5 text-sm border border-gray-300 rounded bg-white text-gray-700">
 				<option value="ALL">All</option>
 				<option value="PENDING">Pending</option>
 				<option value="APPROVED">Approved</option>
@@ -252,9 +252,10 @@ onMounted(loadData)
 						</div>
 					</div>
 					<div>
-                        <label for="requests-room-override" class="block text-sm font-medium text-gray-700 mb-1">Room Override</label>
-                        <select id="requests-room-override" v-model="overrideRoomId" @change="runValidation" aria-label="Room Override"
-                            class="w-full px-3 py-2 border border-gray-300 rounded">
+						<label for="requests-room-override" class="block text-sm font-medium text-gray-700 mb-1">Room
+							Override</label>
+						<select id="requests-room-override" v-model="overrideRoomId" @change="runValidation"
+							aria-label="Room Override" class="w-full px-3 py-2 border border-gray-300 rounded">
 							<option :value="null">Keep current</option>
 							<option v-for="room in rooms" :key="room.id" :value="room.id">
 								{{ room.buildingCode }} {{ room.roomNumber }} ({{ room.capacity }} seats)
@@ -262,9 +263,10 @@ onMounted(loadData)
 						</select>
 					</div>
 					<div>
-                        <label for="requests-timeslot-override" class="block text-sm font-medium text-gray-700 mb-1">Time Slot Override</label>
-                        <select id="requests-timeslot-override" v-model="overrideTimeSlotId" @change="runValidation" aria-label="Time Slot Override"
-                            class="w-full px-3 py-2 border border-gray-300 rounded">
+						<label for="requests-timeslot-override"
+							class="block text-sm font-medium text-gray-700 mb-1">Time Slot Override</label>
+						<select id="requests-timeslot-override" v-model="overrideTimeSlotId" @change="runValidation"
+							aria-label="Time Slot Override" class="w-full px-3 py-2 border border-gray-300 rounded">
 							<option :value="null">Keep current</option>
 							<option v-for="slot in timeSlots" :key="slot.id" :value="slot.id">
 								{{ timeslotsService.formatTimeSlot(slot) }}
@@ -272,8 +274,9 @@ onMounted(loadData)
 						</select>
 					</div>
 					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-1">Decision Note</label>
-						<textarea v-model="decisionNote" rows="2"
+						<label for="requests-decision-note"
+							class="block text-sm font-medium text-gray-700 mb-1">Decision Note</label>
+						<textarea id="requests-decision-note" v-model="decisionNote" rows="2"
 							class="w-full px-3 py-2 border border-gray-300 rounded"></textarea>
 					</div>
 
@@ -297,7 +300,7 @@ onMounted(loadData)
 					<div v-if="impact" class="bg-gray-50 border border-gray-200 text-gray-700 p-3 rounded">
 						<p class="text-sm font-medium">Impact Analysis</p>
 						<p class="text-xs text-gray-500">Status: {{ impact.status }} · Score: {{ impact.score || 'N/A'
-							}}</p>
+						}}</p>
 
 						<div class="mt-2 text-xs text-gray-600">
 							<p class="font-medium text-gray-700">Requested change</p>
