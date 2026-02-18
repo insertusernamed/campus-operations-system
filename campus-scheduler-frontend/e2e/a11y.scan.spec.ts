@@ -16,6 +16,12 @@ import type {
 const options = parseA11yCliOptions()
 const runtimeDir = path.join(options.reportDir, 'runtime')
 const manifestPath = path.join(options.reportDir, 'manifest.json')
+const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] as const
+const SCROLL_SCAN_MIN_DELTA = 160
+const SCROLL_SCAN_SETTLE_MS = 80
+
+type AxeAnalyzeResult = Awaited<ReturnType<AxeBuilder['analyze']>>
+type Page = import('@playwright/test').Page
 
 function readManifest(filePath: string): A11yRouteManifest {
 	if (!fs.existsSync(filePath)) {
@@ -100,7 +106,114 @@ function axeToViolations(result: Awaited<ReturnType<AxeBuilder['analyze']>>): A1
 	return violations
 }
 
-async function runKeyboardFlow(page: import('@playwright/test').Page): Promise<void> {
+function runAxe(page: Page): Promise<AxeAnalyzeResult> {
+	return new AxeBuilder({ page })
+		.withTags([...AXE_TAGS])
+		.analyze()
+}
+
+interface ScrollCoverageTarget {
+	id: string
+	initialScrollTop: number
+	positions: number[]
+}
+
+async function discoverPrimaryScrollTarget(page: Page): Promise<ScrollCoverageTarget | null> {
+	return page.evaluate((minDelta) => {
+		function isVisible(element: HTMLElement): boolean {
+			const style = window.getComputedStyle(element)
+			if (style.display === 'none' || style.visibility === 'hidden') return false
+			const rect = element.getBoundingClientRect()
+			return rect.width > 0 && rect.height > 0
+		}
+
+		function isScrollable(element: HTMLElement): boolean {
+			const style = window.getComputedStyle(element)
+			const overflowY = style.overflowY
+			if (overflowY !== 'auto' && overflowY !== 'scroll' && overflowY !== 'overlay') {
+				return false
+			}
+			return (element.scrollHeight - element.clientHeight) >= minDelta
+		}
+
+		const seen = new Set<HTMLElement>()
+		const candidates: HTMLElement[] = []
+
+		const main = document.querySelector<HTMLElement>('main')
+		if (main) {
+			seen.add(main)
+			candidates.push(main)
+		}
+
+		const roleMain = document.querySelector<HTMLElement>('[role="main"]')
+		if (roleMain && !seen.has(roleMain)) {
+			seen.add(roleMain)
+			candidates.push(roleMain)
+		}
+
+		for (const element of Array.from(document.querySelectorAll<HTMLElement>('[class*="overflow"], [style*="overflow"]'))) {
+			if (seen.has(element)) continue
+			seen.add(element)
+			candidates.push(element)
+		}
+
+		const scrollable = candidates
+			.filter(element => isVisible(element) && isScrollable(element))
+			.sort((a, b) => (b.scrollHeight - b.clientHeight) - (a.scrollHeight - a.clientHeight))[0]
+
+		if (!scrollable) return null
+
+		const maxScrollTop = Math.max(0, scrollable.scrollHeight - scrollable.clientHeight)
+		if (maxScrollTop < minDelta) return null
+
+		const id = scrollable.getAttribute('data-a11y-scroll-target') || `a11y-scroll-${Math.random().toString(36).slice(2, 8)}`
+		scrollable.setAttribute('data-a11y-scroll-target', id)
+
+		const midpoint = Math.round(maxScrollTop / 2)
+		const positions = Array.from(new Set([midpoint, maxScrollTop].filter(value => value > 0)))
+		if (positions.length === 0) return null
+
+		return {
+			id,
+			initialScrollTop: scrollable.scrollTop,
+			positions,
+		}
+	}, SCROLL_SCAN_MIN_DELTA)
+}
+
+async function setScrollTargetPosition(page: Page, targetId: string, scrollTop: number): Promise<boolean> {
+	return page.evaluate(({ id, top }) => {
+		const element = Array.from(document.querySelectorAll<HTMLElement>('[data-a11y-scroll-target]'))
+			.find(candidate => candidate.getAttribute('data-a11y-scroll-target') === id)
+		if (!element) return false
+
+		element.scrollTop = top
+		return true
+	}, {
+		id: targetId,
+		top: Math.max(0, Math.round(scrollTop)),
+	})
+}
+
+async function runAxeWithScrollCoverage(page: Page): Promise<AxeAnalyzeResult[]> {
+	const target = await discoverPrimaryScrollTarget(page)
+	if (!target) return []
+
+	const results: AxeAnalyzeResult[] = []
+	for (const position of target.positions) {
+		const moved = await setScrollTargetPosition(page, target.id, position)
+		if (!moved) continue
+		await page.waitForTimeout(SCROLL_SCAN_SETTLE_MS)
+		results.push(await runAxe(page))
+	}
+
+	await setScrollTargetPosition(page, target.id, target.initialScrollTop)
+	await page.waitForTimeout(SCROLL_SCAN_SETTLE_MS)
+
+	return results
+}
+
+async function runKeyboardFlow(page: Page): Promise<void> {
 	const focusableCount = await page
 		.locator('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])')
 		.count()
@@ -113,7 +226,7 @@ async function runKeyboardFlow(page: import('@playwright/test').Page): Promise<v
 	}
 }
 
-async function runCustomChecks(page: import('@playwright/test').Page): Promise<A11yViolation[]> {
+async function runCustomChecks(page: Page): Promise<A11yViolation[]> {
 	return page.evaluate(() => {
 		type RawIssue = {
 			source: 'custom'
@@ -367,20 +480,18 @@ for (const target of targets) {
 			await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined)
 			await page.waitForTimeout(200)
 
-			const firstAxe = await new AxeBuilder({ page })
-				.withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-				.analyze()
+			const firstAxe = await runAxe(page)
+			const scrollAxe = await runAxeWithScrollCoverage(page)
 
 			await runKeyboardFlow(page)
 
-			const secondAxe = await new AxeBuilder({ page })
-				.withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-				.analyze()
+			const secondAxe = await runAxe(page)
 
 			const customChecks = await runCustomChecks(page)
 
 			const allViolations = dedupeViolations([
 				...axeToViolations(firstAxe),
+				...scrollAxe.flatMap(axeToViolations),
 				...axeToViolations(secondAxe),
 				...customChecks,
 			])
