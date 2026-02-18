@@ -1,16 +1,17 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test'
 
 export default defineConfig({
 	testDir: './e2e',
-	testIgnore: ['**/a11y.scan.spec.ts'],
-	fullyParallel: true,
+	testMatch: /a11y\.scan\.spec\.ts/,
+	fullyParallel: false,
+	workers: 1,
 	forbidOnly: !!process.env.CI,
-	retries: process.env.CI ? 2 : 0,
-	workers: process.env.CI ? 1 : undefined,
-	reporter: 'html',
+	retries: 0,
+	reporter: [['line']],
+	timeout: 45_000,
 	use: {
 		baseURL: 'http://localhost:5173',
-		trace: 'on-first-retry',
+		trace: 'off',
 	},
 	projects: [
 		{
@@ -23,4 +24,4 @@ export default defineConfig({
 		url: 'http://localhost:5173',
 		reuseExistingServer: !process.env.CI,
 	},
-});
+})
