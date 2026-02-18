@@ -9,6 +9,7 @@ import { roomsService, type Room } from '@/services/rooms'
 import { timeslotsService, type TimeSlot } from '@/services/timeslots'
 import {
     buildReasonDetails,
+    buildReasonTemplate,
     changeRequestIssueOptions,
     resolveIssueOption,
     type ChangeRequestIssue,
@@ -57,6 +58,7 @@ interface ImpactSuggestion {
 
 const suggestions = ref<ImpactSuggestion[]>([])
 const selectedSuggestionId = ref<string | null>(null)
+const lastAutoFilledTemplate = ref('')
 
 const selectedSchedule = computed(() => schedules.value.find(schedule => schedule.id === form.value.scheduleId) ?? null)
 const selectedSuggestion = computed(() => suggestions.value.find(suggestion => suggestion.id === selectedSuggestionId.value) ?? null)
@@ -450,10 +452,27 @@ watch(() => form.value.scheduleId, () => {
     suggestionsError.value = null
 })
 
-watch(() => form.value.issue, () => {
+watch(() => form.value.issue, issue => {
     suggestions.value = []
     selectedSuggestionId.value = null
     suggestionsError.value = null
+
+    if (!issue) {
+        lastAutoFilledTemplate.value = ''
+        return
+    }
+
+    const template = buildReasonTemplate(issue)
+    const notes = form.value.notes
+    const canOverwriteNotes =
+        notes.trim() === '' || notes === lastAutoFilledTemplate.value
+
+    if (!canOverwriteNotes || template.length === 0) {
+        return
+    }
+
+    form.value.notes = template
+    lastAutoFilledTemplate.value = template
 })
 
 watch(roomScope, () => {
