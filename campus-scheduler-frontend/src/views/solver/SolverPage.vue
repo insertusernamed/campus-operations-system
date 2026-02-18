@@ -585,8 +585,8 @@ const solutionQuality = computed(() => {
 			<h2 class="font-semibold mb-3">Solver Controls</h2>
 			<div class="flex items-center gap-4 mb-4">
 				<div>
-					<label class="text-sm mr-2">Semester:</label>
-					<select v-model="semester" aria-label="Semester" class="border px-2 py-1" :disabled="isSolving">
+					<label for="solver-semester" class="text-sm mr-2">Semester:</label>
+					<select id="solver-semester" v-model="semester" aria-label="Semester" class="border px-2 py-1" :disabled="isSolving">
 						<option v-for="sem in semesters" :key="sem" :value="sem">{{ sem }}</option>
 					</select>
 				</div>

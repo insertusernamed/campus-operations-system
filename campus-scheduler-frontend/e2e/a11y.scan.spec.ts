@@ -181,6 +181,17 @@ async function runCustomChecks(page: import('@playwright/test').Page): Promise<A
 			const title = element.getAttribute('title')
 			if (title && title.trim().length > 0) return true
 
+			const labelable = element as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+			if ('labels' in labelable && labelable.labels && labelable.labels.length > 0) {
+				const hasTextLabel = Array.from(labelable.labels).some(label => (label.textContent || '').trim().length > 0)
+				if (hasTextLabel) return true
+			}
+
+			const wrappingLabel = element.closest('label')
+			if (wrappingLabel && (wrappingLabel.textContent || '').trim().length > 0) {
+				return true
+			}
+
 			if (element instanceof HTMLInputElement) {
 				if (element.type === 'button' || element.type === 'submit' || element.type === 'reset') {
 					return (element.value || '').trim().length > 0
@@ -196,6 +207,16 @@ async function runCustomChecks(page: import('@playwright/test').Page): Promise<A
 			return false
 		}
 
+		function isVisibleAndRelevant(element: HTMLElement): boolean {
+			if (element.hasAttribute('disabled')) return false
+			if (element.getAttribute('aria-hidden') === 'true') return false
+
+			const style = window.getComputedStyle(element)
+			if (style.display === 'none' || style.visibility === 'hidden') return false
+
+			return element.getClientRects().length > 0
+		}
+
 		const issues: RawIssue[] = []
 
 		const interactive = Array.from(
@@ -205,6 +226,8 @@ async function runCustomChecks(page: import('@playwright/test').Page): Promise<A
 		)
 
 		for (const element of interactive) {
+			if (!isVisibleAndRelevant(element)) continue
+
 			if (!hasAccessibleName(element)) {
 				issues.push({
 					source: 'custom',

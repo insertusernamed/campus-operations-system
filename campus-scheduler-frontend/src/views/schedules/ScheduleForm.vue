@@ -79,9 +79,9 @@ function formatTimeSlot(ts: TimeSlot) {
 					conflictWarning }}</div>
 
 				<div>
-					<label class="block text-sm font-medium text-gray-700 mb-1">Course <span
+					<label for="schedule-course" class="block text-sm font-medium text-gray-700 mb-1">Course <span
 							class="text-red-500">*</span></label>
-					<select v-model.number="form.courseId" required aria-label="Course"
+					<select id="schedule-course" v-model.number="form.courseId" required aria-label="Course"
 						class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500">
 						<option :value="0" disabled>-- Select course --</option>
 						<option v-for="c in courses" :key="c.id" :value="c.id">{{ c.code }} - {{ c.name }}</option>
@@ -89,9 +89,9 @@ function formatTimeSlot(ts: TimeSlot) {
 				</div>
 
 				<div>
-					<label class="block text-sm font-medium text-gray-700 mb-1">Room <span
+					<label for="schedule-room" class="block text-sm font-medium text-gray-700 mb-1">Room <span
 							class="text-red-500">*</span></label>
-					<select v-model.number="form.roomId" required aria-label="Room"
+					<select id="schedule-room" v-model.number="form.roomId" required aria-label="Room"
 						class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500">
 						<option :value="0" disabled>-- Select room --</option>
 						<option v-for="r in rooms" :key="r.id" :value="r.id">{{ r.buildingCode }} {{ r.roomNumber }} ({{
@@ -100,9 +100,9 @@ function formatTimeSlot(ts: TimeSlot) {
 				</div>
 
 				<div>
-					<label class="block text-sm font-medium text-gray-700 mb-1">Time Slot <span
+					<label for="schedule-timeslot" class="block text-sm font-medium text-gray-700 mb-1">Time Slot <span
 							class="text-red-500">*</span></label>
-					<select v-model.number="form.timeSlotId" required aria-label="Time Slot"
+					<select id="schedule-timeslot" v-model.number="form.timeSlotId" required aria-label="Time Slot"
 						class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500">
 						<option :value="0" disabled>-- Select time slot --</option>
 						<option v-for="ts in timeslots" :key="ts.id" :value="ts.id">{{ formatTimeSlot(ts) }}</option>
@@ -110,9 +110,9 @@ function formatTimeSlot(ts: TimeSlot) {
 				</div>
 
 				<div>
-					<label class="block text-sm font-medium text-gray-700 mb-1">Semester <span
+					<label for="schedule-semester" class="block text-sm font-medium text-gray-700 mb-1">Semester <span
 							class="text-red-500">*</span></label>
-					<input v-model="form.semester" type="text" required maxlength="20"
+					<input id="schedule-semester" v-model="form.semester" type="text" required maxlength="20"
 						class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
 						placeholder="e.g., Fall 2026" />
 				</div>
