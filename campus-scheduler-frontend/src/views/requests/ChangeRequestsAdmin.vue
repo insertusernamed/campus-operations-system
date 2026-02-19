@@ -254,7 +254,7 @@ onMounted(loadData)
 					<div>
 						<label for="requests-room-override" class="block text-sm font-medium text-gray-700 mb-1">Room
 							Override</label>
-						<select id="requests-room-override" v-model="overrideRoomId" @change="runValidation"
+						<select id="requests-room-override" v-model="overrideRoomId" @input="runValidation"
 							aria-label="Room Override" class="w-full px-3 py-2 border border-gray-300 rounded">
 							<option :value="null">Keep current</option>
 							<option v-for="room in rooms" :key="room.id" :value="room.id">
@@ -265,7 +265,7 @@ onMounted(loadData)
 					<div>
 						<label for="requests-timeslot-override"
 							class="block text-sm font-medium text-gray-700 mb-1">Time Slot Override</label>
-						<select id="requests-timeslot-override" v-model="overrideTimeSlotId" @change="runValidation"
+						<select id="requests-timeslot-override" v-model="overrideTimeSlotId" @input="runValidation"
 							aria-label="Time Slot Override" class="w-full px-3 py-2 border border-gray-300 rounded">
 							<option :value="null">Keep current</option>
 							<option v-for="slot in timeSlots" :key="slot.id" :value="slot.id">

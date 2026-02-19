@@ -592,6 +592,20 @@ watch(() => props.arrowScheduleId, () => {
 	height: 100%;
 }
 
+.schedule-calendar-wrapper :deep(.sx__date-input-label) {
+	display: block !important;
+	position: absolute !important;
+	width: 1px !important;
+	height: 1px !important;
+	margin: -1px !important;
+	padding: 0 !important;
+	overflow: hidden !important;
+	white-space: nowrap !important;
+	clip: rect(0, 0, 0, 0) !important;
+	clip-path: inset(50%) !important;
+	border: 0 !important;
+}
+
 .schedule-calendar-wrapper :deep(.cs-ghost) {
 	opacity: 0.35;
 	border: 1px dashed var(--color-border);

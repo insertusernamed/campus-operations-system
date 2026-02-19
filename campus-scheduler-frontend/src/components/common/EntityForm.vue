@@ -73,7 +73,7 @@ function updateField(name: string, value: unknown) {
 						<!-- Select -->
 						<select v-if="field.type === 'select'" :id="field.name" :aria-label="field.label"
 							:value="modelValue[field.name]"
-							@change="updateField(field.name, ($event.target as HTMLSelectElement).value || null)"
+							@input="updateField(field.name, ($event.target as HTMLSelectElement).value || null)"
 							:required="field.required" :disabled="field.disabled"
 							class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100">
 							<option v-for="opt in field.options" :key="String(opt.value)" :value="opt.value">

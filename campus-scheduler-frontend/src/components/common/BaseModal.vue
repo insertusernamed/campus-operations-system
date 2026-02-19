@@ -84,7 +84,9 @@ onUnmounted(() => {
 <template>
 	<Teleport to="body">
 		<Transition name="modal">
-			<div v-if="isOpen" class="modal-overlay" @click.self="handleOverlayClick">
+			<div v-if="isOpen" class="modal-overlay">
+				<button v-if="props.closeOnOverlay" type="button" class="modal-overlay-dismiss"
+					aria-label="Close modal overlay" @click="handleOverlayClick"></button>
 				<div class="modal-container" :class="sizeClasses" role="dialog" aria-modal="true"
 					aria-labelledby="modal-title">
 					<!-- Header -->
@@ -133,11 +135,22 @@ onUnmounted(() => {
 	padding: 1rem;
 }
 
+.modal-overlay-dismiss {
+	position: absolute;
+	inset: 0;
+	border: 0;
+	padding: 0;
+	margin: 0;
+	background: transparent;
+}
+
 .modal-container {
 	background: var(--color-background, #fff);
 	border-radius: 12px;
 	width: 100%;
 	max-height: 85vh;
+	position: relative;
+	z-index: 1;
 	display: flex;
 	flex-direction: column;
 	box-shadow:
