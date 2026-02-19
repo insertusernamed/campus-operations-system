@@ -54,29 +54,29 @@ async function handleSubmit() {
 				<div v-if="error" class="p-3 bg-red-50 border border-red-200 text-red-600 rounded">{{ error }}</div>
 				<div class="grid grid-cols-2 gap-4">
 					<div class="col-span-2">
-						<label class="block text-sm font-medium text-gray-700 mb-1">Day <span
+						<label for="timeslot-day" class="block text-sm font-medium text-gray-700 mb-1">Day <span
 								class="text-red-500">*</span></label>
-						<select v-model="form.dayOfWeek" required
+						<select id="timeslot-day" v-model="form.dayOfWeek" required aria-label="Day of Week"
 							class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500">
 							<option v-for="d in DAY_OF_WEEK_OPTIONS" :key="d.value" :value="d.value">{{ d.label }}
 							</option>
 						</select>
 					</div>
 					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-1">Start <span
+						<label for="timeslot-start" class="block text-sm font-medium text-gray-700 mb-1">Start <span
 								class="text-red-500">*</span></label>
-						<input v-model="form.startTime" type="time" required
+						<input id="timeslot-start" v-model="form.startTime" type="time" required
 							class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500" />
 					</div>
 					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-1">End <span
+						<label for="timeslot-end" class="block text-sm font-medium text-gray-700 mb-1">End <span
 								class="text-red-500">*</span></label>
-						<input v-model="form.endTime" type="time" required
+						<input id="timeslot-end" v-model="form.endTime" type="time" required
 							class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500" />
 					</div>
 					<div class="col-span-2">
-						<label class="block text-sm font-medium text-gray-700 mb-1">Label</label>
-						<input v-model="form.label" type="text" maxlength="50"
+						<label for="timeslot-label" class="block text-sm font-medium text-gray-700 mb-1">Label</label>
+						<input id="timeslot-label" v-model="form.label" type="text" maxlength="50"
 							class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
 							placeholder="e.g., Period 1" />
 					</div>

@@ -62,14 +62,16 @@ onMounted(() => {
 		<div class="ml-auto flex items-center gap-4 text-sm text-gray-600">
 			<div class="flex items-center gap-2">
 				<span class="text-xs uppercase tracking-wide text-gray-500">Theme</span>
-				<select v-model="themeModel" class="px-2 py-1 border border-gray-300 rounded bg-white text-gray-700">
+				<select v-model="themeModel" aria-label="Theme"
+					class="px-2 py-1 border border-gray-300 rounded bg-white text-gray-700">
 					<option value="snow-storm">Frost</option>
 					<option value="slate">Slate</option>
 				</select>
 			</div>
 			<div class="flex items-center gap-2">
 				<span class="text-xs uppercase tracking-wide text-gray-500">Role</span>
-				<select v-model="roleModel" class="px-2 py-1 border border-gray-300 rounded bg-white text-gray-700">
+				<select v-model="roleModel" aria-label="Role"
+					class="px-2 py-1 border border-gray-300 rounded bg-white text-gray-700">
 					<option value="admin">Admin</option>
 					<option value="instructor">Instructor</option>
 					<!-- TODO(student-role): add Student back once it's implemented end-to-end -->
@@ -78,7 +80,7 @@ onMounted(() => {
 			</div>
 			<div v-if="role !== 'admin'" class="flex items-center gap-2">
 				<span class="text-xs uppercase tracking-wide text-gray-500">Instructor</span>
-				<select v-model="instructorModel"
+				<select v-model="instructorModel" aria-label="Instructor"
 					class="px-2 py-1 border border-gray-300 rounded bg-white text-gray-700">
 					<option value="" disabled>
 						{{ loadingInstructors ? 'Loading...' : 'Select instructor' }}

@@ -191,7 +191,7 @@ watch(theme, () => {
 	<div>
 		<h3 v-if="title" class="font-semibold mb-2">{{ title }}</h3>
 		<div v-if="data.length === 0" class="text-gray-500 py-8 text-center">No data</div>
-		<div v-else class="overflow-x-auto pb-1">
+		<div v-else class="overflow-x-auto pb-1" tabindex="0">
 			<canvas ref="canvas" role="img" :aria-label="title ? `${title} bar chart` : 'Bar chart'"
 				:style="{ width: `${estimatedCanvasWidth}px`, minWidth: '100%', height: `${height}px` }"></canvas>
 		</div>

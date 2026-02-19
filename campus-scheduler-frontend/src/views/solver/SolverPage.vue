@@ -513,7 +513,7 @@ const solutionQuality = computed(() => {
 					]">
 					<div class="font-medium text-sm">{{ arch.displayName }}</div>
 					<div class="text-xs text-gray-500 mt-1">{{ arch.description }}</div>
-					<div class="text-xs text-gray-400 mt-1">
+					<div class="text-xs text-gray-500 mt-1">
 						{{ arch.minStudents.toLocaleString() }} - {{ arch.maxStudents.toLocaleString() }} students
 					</div>
 				</button>
@@ -521,14 +521,15 @@ const solutionQuality = computed(() => {
 
 			<!-- Student Population Slider -->
 			<div class="mb-4" v-if="selectedArchetypeInfo">
-				<label class="block text-sm font-medium text-gray-700 mb-2">
+				<label for="solver-student-population" class="block text-sm font-medium text-gray-700 mb-2">
 					Student Population: {{ studentPopulation.toLocaleString() }}
 				</label>
-				<input type="range" v-model.number="studentPopulation" :min="selectedArchetypeInfo.minStudents"
-					:max="selectedArchetypeInfo.maxStudents" :step="1000" :disabled="isGenerating"
-					aria-label="Student population" :aria-valuetext="`${studentPopulation.toLocaleString()} students`"
+				<input id="solver-student-population" type="range" v-model.number="studentPopulation"
+					:min="selectedArchetypeInfo.minStudents" :max="selectedArchetypeInfo.maxStudents" :step="1000"
+					:disabled="isGenerating" aria-label="Student population"
+					:aria-valuetext="`${studentPopulation.toLocaleString()} students`"
 					class="w-full h-2 bg-gray-200 rounded-lg cursor-pointer" />
-				<div class="flex justify-between text-xs text-gray-400 mt-1">
+				<div class="flex justify-between text-xs text-gray-500 mt-1">
 					<span>{{ selectedArchetypeInfo.minStudents.toLocaleString() }}</span>
 					<span>{{ selectedArchetypeInfo.maxStudents.toLocaleString() }}</span>
 				</div>
@@ -585,8 +586,9 @@ const solutionQuality = computed(() => {
 			<h2 class="font-semibold mb-3">Solver Controls</h2>
 			<div class="flex items-center gap-4 mb-4">
 				<div>
-					<label class="text-sm mr-2">Semester:</label>
-					<select v-model="semester" class="border px-2 py-1" :disabled="isSolving">
+					<label for="solver-semester" class="text-sm mr-2">Semester:</label>
+					<select id="solver-semester" v-model="semester" aria-label="Semester" class="border px-2 py-1"
+						:disabled="isSolving">
 						<option v-for="sem in semesters" :key="sem" :value="sem">{{ sem }}</option>
 					</select>
 				</div>

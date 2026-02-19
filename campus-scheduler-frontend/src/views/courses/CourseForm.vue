@@ -96,42 +96,43 @@ async function handleSubmit() {
 
 				<div class="grid grid-cols-2 gap-4">
 					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-1">Code <span
+						<label for="course-code" class="block text-sm font-medium text-gray-700 mb-1">Code <span
 								class="text-red-500">*</span></label>
-						<input v-model="form.code" type="text" required maxlength="20"
+						<input id="course-code" v-model="form.code" type="text" required maxlength="20"
 							class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
 							placeholder="e.g., COMP 4431" />
 					</div>
 					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-1">Name <span
+						<label for="course-name" class="block text-sm font-medium text-gray-700 mb-1">Name <span
 								class="text-red-500">*</span></label>
-						<input v-model="form.name" type="text" required maxlength="100"
+						<input id="course-name" v-model="form.name" type="text" required maxlength="100"
 							class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500" />
 					</div>
 					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-1">Credits <span
+						<label for="course-credits" class="block text-sm font-medium text-gray-700 mb-1">Credits <span
 								class="text-red-500">*</span></label>
-						<input v-model.number="form.credits" type="number" required min="1" max="12"
+						<input id="course-credits" v-model.number="form.credits" type="number" required min="1" max="12"
 							class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500" />
 					</div>
 					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-1">
+						<label for="course-enrollment-capacity" class="block text-sm font-medium text-gray-700 mb-1">
 							Enrollment Capacity <span class="text-red-500">*</span>
 							<span
 								v-tooltip="'Maximum students enrolled. The scheduler will only assign this course to rooms with capacity ≥ this number.'"
 								class="ml-1 cursor-help text-gray-400 hover:text-gray-600">ⓘ</span>
 						</label>
-						<input v-model.number="form.enrollmentCapacity" type="number" required min="1"
+						<input id="course-enrollment-capacity" v-model.number="form.enrollmentCapacity" type="number"
+							required min="1"
 							class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500" />
 					</div>
 					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-1">Department</label>
-						<input v-model="form.department" type="text" maxlength="50"
+						<label for="course-department" class="block text-sm font-medium text-gray-700 mb-1">Department</label>
+						<input id="course-department" v-model="form.department" type="text" maxlength="50"
 							class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500" />
 					</div>
 					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-1">Instructor</label>
-						<select v-model="selectedInstructorId"
+						<label for="course-instructor" class="block text-sm font-medium text-gray-700 mb-1">Instructor</label>
+						<select id="course-instructor" v-model="selectedInstructorId" aria-label="Instructor"
 							class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500">
 							<option :value="null">-- None --</option>
 							<option v-for="i in instructors" :key="i.id" :value="i.id">{{ i.lastName }}, {{ i.firstName
@@ -139,8 +140,8 @@ async function handleSubmit() {
 						</select>
 					</div>
 					<div class="col-span-2">
-						<label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
-						<textarea v-model="form.description" rows="3" maxlength="500"
+						<label for="course-description" class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+						<textarea id="course-description" v-model="form.description" rows="3" maxlength="500"
 							class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"></textarea>
 					</div>
 				</div>

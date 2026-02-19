@@ -69,9 +69,10 @@ async function handleSubmit() {
 				<div v-if="error" class="p-3 bg-red-50 border border-red-200 text-red-600 rounded">{{ error }}</div>
 				<div class="grid grid-cols-2 gap-4">
 					<div class="col-span-2">
-						<label class="block text-sm font-medium text-gray-700 mb-1">Building <span
+						<label for="room-building" class="block text-sm font-medium text-gray-700 mb-1">Building <span
 								class="text-red-500">*</span></label>
-						<select v-model="selectedBuildingId" required :disabled="isEdit"
+						<select id="room-building" v-model="selectedBuildingId" required :disabled="isEdit"
+							aria-label="Building"
 							class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100">
 							<option :value="null" disabled>-- Select --</option>
 							<option v-for="b in buildings" :key="b.id" :value="b.id">{{ b.code }} - {{ b.name }}
@@ -81,32 +82,32 @@ async function handleSubmit() {
 						</p>
 					</div>
 					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-1">Room Number <span
+						<label for="room-number" class="block text-sm font-medium text-gray-700 mb-1">Room Number <span
 								class="text-red-500">*</span></label>
-						<input v-model="form.roomNumber" type="text" required maxlength="20"
+						<input id="room-number" v-model="form.roomNumber" type="text" required maxlength="20"
 							class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500" />
 					</div>
 					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-1">Capacity <span
+						<label for="room-capacity" class="block text-sm font-medium text-gray-700 mb-1">Capacity <span
 								class="text-red-500">*</span></label>
-						<input v-model.number="form.capacity" type="number" required min="1"
+						<input id="room-capacity" v-model.number="form.capacity" type="number" required min="1"
 							class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500" />
 					</div>
 					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-1">
+						<label for="room-type" class="block text-sm font-medium text-gray-700 mb-1">
 							Type <span class="text-red-500">*</span>
 							<span
 								v-tooltip="'Room type determines which courses can be scheduled here. The solver will only assign courses to rooms matching their required type.'"
 								class="ml-1 cursor-help text-gray-400 hover:text-gray-600">ⓘ</span>
 						</label>
-						<select v-model="form.type" required
+						<select id="room-type" v-model="form.type" required aria-label="Room Type"
 							class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500">
 							<option v-for="t in ROOM_TYPES" :key="t" :value="t">{{ t.replace('_', ' ') }}</option>
 						</select>
 					</div>
 					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-1">Features</label>
-						<input v-model="form.features" type="text" maxlength="255"
+						<label for="room-features" class="block text-sm font-medium text-gray-700 mb-1">Features</label>
+						<input id="room-features" v-model="form.features" type="text" maxlength="255"
 							class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
 							placeholder="Projector, Whiteboard..." />
 					</div>

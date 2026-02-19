@@ -29,18 +29,8 @@ const props = withDefaults(
 	}
 )
 
-const emit = defineEmits<{
-	cellClick: [cell: HeatmapCell]
-}>()
-
 const canvas = ref<HTMLCanvasElement | null>(null)
 const { theme } = useTheme()
-const tooltip = ref<{ visible: boolean; x: number; y: number; content: string }>({
-	visible: false,
-	x: 0,
-	y: 0,
-	content: '',
-})
 
 const defaultFormatter = (value: number) => value.toString()
 const formatter = computed(() => props.valueFormatter || defaultFormatter)
@@ -143,70 +133,6 @@ function draw() {
 	})
 }
 
-function handleMouseMove(event: MouseEvent) {
-	if (!canvas.value) return
-
-	const rect = canvas.value.getBoundingClientRect()
-	const x = event.clientX - rect.left
-	const y = event.clientY - rect.top
-
-	const colIndex = Math.floor((x - padding.left) / props.cellWidth)
-	const rowIndex = Math.floor((y - padding.top) / props.cellHeight)
-
-	if (
-		colIndex >= 0 &&
-		colIndex < props.cols.length &&
-		rowIndex >= 0 &&
-		rowIndex < props.rows.length
-	) {
-		const row = props.rows[rowIndex]
-		const col = props.cols[colIndex]
-		const cell = cellMap.value.get(`${row}-${col}`)
-
-		if (cell) {
-			tooltip.value = {
-				visible: true,
-				x: event.clientX - rect.left + 10,
-				y: event.clientY - rect.top - 10,
-				content: cell.label || `${row} - ${col}: ${formatter.value(cell.value)}`,
-			}
-			return
-		}
-	}
-
-	tooltip.value.visible = false
-}
-
-function handleMouseLeave() {
-	tooltip.value.visible = false
-}
-
-function handleClick(event: MouseEvent) {
-	if (!canvas.value) return
-
-	const rect = canvas.value.getBoundingClientRect()
-	const x = event.clientX - rect.left
-	const y = event.clientY - rect.top
-
-	const colIndex = Math.floor((x - padding.left) / props.cellWidth)
-	const rowIndex = Math.floor((y - padding.top) / props.cellHeight)
-
-	if (
-		colIndex >= 0 &&
-		colIndex < props.cols.length &&
-		rowIndex >= 0 &&
-		rowIndex < props.rows.length
-	) {
-		const row = props.rows[rowIndex]
-		const col = props.cols[colIndex]
-		const cell = cellMap.value.get(`${row}-${col}`)
-
-		if (cell) {
-			emit('cellClick', cell)
-		}
-	}
-}
-
 onMounted(draw)
 watch([() => props.data, () => props.rows, () => props.cols], draw, { deep: true })
 watch(theme, () => draw())
@@ -217,20 +143,7 @@ watch(theme, () => draw())
 		<h3 v-if="title" class="font-semibold mb-2">{{ title }}</h3>
 		<div v-if="data.length === 0" class="text-gray-500 py-8 text-center">No data</div>
 		<div v-else class="overflow-x-auto relative">
-			<canvas ref="canvas" role="img" :aria-label="title ? `${title} heatmap` : 'Schedule heatmap'"
-				@mousemove="handleMouseMove" @mouseleave="handleMouseLeave" @click="handleClick"></canvas>
-			<div v-if="tooltip.visible" class="absolute heatmap-tooltip text-xs px-2 py-1 pointer-events-none"
-				:style="{ left: `${tooltip.x}px`, top: `${tooltip.y}px` }">
-				{{ tooltip.content }}
-			</div>
+			<canvas ref="canvas" role="img" :aria-label="title ? `${title} heatmap` : 'Schedule heatmap'"></canvas>
 		</div>
 	</div>
 </template>
-
-<style scoped>
-.heatmap-tooltip {
-	background: var(--heatmap-tooltip-bg);
-	color: var(--heatmap-tooltip-text);
-	border: 1px solid var(--color-border);
-}
-</style>
