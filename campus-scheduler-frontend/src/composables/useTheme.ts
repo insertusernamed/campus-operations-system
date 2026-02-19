@@ -3,13 +3,42 @@ import { computed, ref, watch } from 'vue'
 export type Theme = 'snow-storm' | 'slate'
 
 const THEME_KEY = 'campus-operations-system-theme'
+const THEME_TRANSITION_CLASS = 'theme-transitioning'
+const THEME_TRANSITION_DURATION_MS = 480
+
+let themeTransitionTimeout: ReturnType<typeof window.setTimeout> | null = null
 
 function normalizeTheme(raw: string | null): Theme {
 	return raw === 'slate' ? 'slate' : 'snow-storm'
 }
 
-function applyTheme(theme: Theme) {
-	document.documentElement.setAttribute('data-theme', theme)
+function shouldAnimateThemeTransition() {
+	if (typeof window.matchMedia !== 'function') {
+		return true
+	}
+
+	return !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+function applyTheme(theme: Theme, options: { animate?: boolean } = {}) {
+	const root = document.documentElement
+	const animate = options.animate === true && shouldAnimateThemeTransition()
+
+	if (animate) {
+		root.classList.add(THEME_TRANSITION_CLASS)
+		if (themeTransitionTimeout !== null) {
+			window.clearTimeout(themeTransitionTimeout)
+		}
+	}
+
+	root.setAttribute('data-theme', theme)
+
+	if (animate) {
+		themeTransitionTimeout = window.setTimeout(() => {
+			root.classList.remove(THEME_TRANSITION_CLASS)
+			themeTransitionTimeout = null
+		}, THEME_TRANSITION_DURATION_MS)
+	}
 }
 
 const rawStoredTheme = localStorage.getItem(THEME_KEY)
@@ -24,7 +53,7 @@ applyTheme(storedTheme)
 
 watch(theme, value => {
 	localStorage.setItem(THEME_KEY, value)
-	applyTheme(value)
+	applyTheme(value, { animate: true })
 })
 
 export function useTheme() {
