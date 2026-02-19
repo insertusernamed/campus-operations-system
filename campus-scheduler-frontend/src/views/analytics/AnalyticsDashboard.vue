@@ -194,6 +194,8 @@ onMounted(() => {
 					:value="`${summary.totalScheduledSlots}/${summary.totalAvailableSlots}`" />
 			</div>
 
+			<h2 class="text-xl font-semibold text-gray-900 mb-3">Charts</h2>
+
 			<!-- Charts -->
 			<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
 				<div class="border p-4">
