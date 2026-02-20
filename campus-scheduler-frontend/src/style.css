@@ -300,7 +300,7 @@ body {
 input,
 select,
 textarea,
-button {
+button:not([class*="text-"]) {
 	color: inherit;
 }
 

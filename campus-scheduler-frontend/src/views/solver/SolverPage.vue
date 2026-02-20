@@ -572,7 +572,7 @@ const solutionQuality = computed(() => {
 					{{ isGenerating ? 'Generating...' : 'Generate Data' }}
 				</button>
 				<button @click="clearData" :disabled="isLoading"
-					class="px-4 py-2 border border-red-500 text-red-600 rounded hover:bg-red-50 disabled:opacity-50">
+					class="px-4 py-2 border border-red-600 text-red-700 rounded hover:bg-red-50 disabled:opacity-50">
 					Clear All
 				</button>
 			</div>

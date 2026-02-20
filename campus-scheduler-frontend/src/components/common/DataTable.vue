@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="T extends { id: number }">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, useSlots, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import TableSkeleton from './TableSkeleton.vue'
 
@@ -22,10 +22,13 @@ const props = defineProps<{
 	createLabel?: string
 	editRoute?: (item: T) => string
 	onDelete?: (id: number) => void
+	searchPlaceholder?: string
+	hideSearch?: boolean
 }>()
 
 const PAGE_SIZE = 25
 
+const slots = useSlots()
 const searchQuery = ref('')
 const page = ref(1)
 const tableRef = ref<HTMLTableElement | null>(null)
@@ -48,7 +51,7 @@ const normalizedQuery = computed(() => searchQuery.value.trim().toLowerCase())
 
 const filteredItems = computed(() => {
 	const q = normalizedQuery.value
-	if (!q) return props.items
+	if (props.hideSearch || !q) return props.items
 
 	return props.items.filter((item) =>
 		props.columns.some((col) => getValue(item, col).toLowerCase().includes(q)),
@@ -68,6 +71,10 @@ const startItemIndex = computed(() => {
 })
 
 const endItemIndex = computed(() => Math.min(page.value * PAGE_SIZE, filteredItems.value.length))
+const hasFilterSlot = computed(() => Boolean(slots.filters))
+const hasMetricsSlot = computed(() => Boolean(slots.metrics))
+const hasCellSlot = computed(() => Boolean(slots.cell))
+const hasActionsSlot = computed(() => Boolean(slots.actions))
 
 function prefersReducedMotion(): boolean {
 	if (typeof window === 'undefined') return true
@@ -101,20 +108,28 @@ watch(
 
 <template>
 	<div>
-		<div class="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-6">
+		<div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 			<h1 class="text-2xl font-semibold text-gray-900">{{ title }}</h1>
-			<div v-if="!loading && !error && items.length > 0" class="flex flex-col gap-3 sm:flex-row sm:items-center">
-				<input v-model="searchQuery" type="text" placeholder="Search..." aria-label="Search"
-					class="w-full sm:w-64 h-10 px-3 py-2 text-sm border border-gray-300 rounded bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+			<div v-if="!loading && !error && items.length > 0"
+				class="flex w-full sm:w-auto flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+				<input v-if="!hideSearch" v-model="searchQuery" type="text"
+					:placeholder="searchPlaceholder || 'Search...'" aria-label="Search"
+					class="h-10 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-64" />
+				<slot v-if="hasFilterSlot" name="filters" :items="items" :filtered-items="filteredItems"
+					:query="searchQuery" />
 				<RouterLink v-if="createRoute" :to="createRoute"
-					class="h-10 inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 whitespace-nowrap">
+					class="inline-flex h-10 items-center justify-center whitespace-nowrap rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
 					{{ createLabel || 'Add New' }}
 				</RouterLink>
 			</div>
 			<RouterLink v-else-if="createRoute" :to="createRoute"
-				class="h-10 inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 whitespace-nowrap">
+				class="inline-flex h-10 items-center justify-center whitespace-nowrap rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
 				{{ createLabel || 'Add New' }}
 			</RouterLink>
+		</div>
+
+		<div v-if="hasMetricsSlot && !loading && !error" class="mb-5">
+			<slot name="metrics" :items="items" :filtered-items="filteredItems" />
 		</div>
 
 		<div v-if="loading">
@@ -127,18 +142,20 @@ watch(
 			</slot>
 		</template>
 		<div v-else-if="filteredItems.length === 0" class="text-gray-500">
-			No matching items found.
+			<slot name="filtered-empty">
+				No matching items found.
+			</slot>
 		</div>
 
 		<div v-else>
-			<table ref="tableRef" class="w-full bg-white border border-gray-200">
+			<table ref="tableRef" class="w-full border border-gray-200 bg-white">
 				<thead>
-					<tr class="bg-gray-50 border-b border-gray-200">
+					<tr class="border-b border-gray-200 bg-gray-50">
 						<th v-for="col in columns" :key="String(col.key)"
-							class="text-left px-4 py-3 text-sm font-medium text-gray-700">
+							class="px-4 py-3 text-left text-sm font-medium text-gray-700">
 							{{ col.label }}
 						</th>
-						<th v-if="editRoute || onDelete" class="text-left px-4 py-3 text-sm font-medium text-gray-700">
+						<th v-if="editRoute || onDelete" class="px-4 py-3 text-left text-sm font-medium text-gray-700">
 							Actions
 						</th>
 					</tr>
@@ -146,38 +163,46 @@ watch(
 				<tbody>
 					<tr v-for="item in pagedItems" :key="item.id" class="border-b border-gray-100">
 						<td v-for="col in columns" :key="String(col.key)" class="px-4 py-3">
-							<RouterLink v-if="col.linkTo" :to="col.linkTo(item)" class="text-blue-600 hover:underline">
-								{{ getValue(item, col) }}
-							</RouterLink>
-							<span v-else class="text-gray-600">{{ getValue(item, col) }}</span>
+							<slot v-if="hasCellSlot" name="cell" :item="item" :column="col"
+								:value="getValue(item, col)" />
+							<template v-else>
+								<RouterLink v-if="col.linkTo" :to="col.linkTo(item)"
+									class="text-blue-600 hover:underline">
+									{{ getValue(item, col) }}
+								</RouterLink>
+								<span v-else class="text-gray-600">{{ getValue(item, col) }}</span>
+							</template>
 						</td>
 						<td v-if="editRoute || onDelete" class="px-4 py-3">
-							<RouterLink v-if="editRoute" :to="editRoute(item)"
-								class="text-blue-600 hover:underline mr-4">
-								Edit
-							</RouterLink>
-							<button v-if="onDelete" @click="onDelete(item.id)" class="text-red-600 hover:underline">
-								Delete
-							</button>
+							<slot v-if="hasActionsSlot" name="actions" :item="item" />
+							<template v-else>
+								<RouterLink v-if="editRoute" :to="editRoute(item)"
+									class="mr-4 text-blue-600 hover:underline">
+									Edit
+								</RouterLink>
+								<button v-if="onDelete" @click="onDelete(item.id)" class="text-red-600 hover:underline">
+									Delete
+								</button>
+							</template>
 						</td>
 					</tr>
 				</tbody>
 			</table>
 
-			<div v-if="filteredItems.length > PAGE_SIZE" class="flex justify-between items-center mt-4">
+			<div v-if="filteredItems.length > PAGE_SIZE" class="mt-4 flex items-center justify-between">
 				<div class="text-sm text-gray-500">
 					Showing {{ startItemIndex }}-{{ endItemIndex }} of {{ filteredItems.length }}
 				</div>
 				<div class="flex items-center gap-2">
 					<button type="button" @click="goToPage(page - 1)" :disabled="page === 1"
-						class="px-3 py-1.5 text-sm border border-gray-300 rounded bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-white">
+						class="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-white">
 						Previous
 					</button>
 					<div class="text-sm text-gray-700">
 						Page {{ page }} of {{ totalPages }}
 					</div>
 					<button type="button" @click="goToPage(page + 1)" :disabled="page === totalPages"
-						class="px-3 py-1.5 text-sm border border-gray-300 rounded bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-white">
+						class="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-white">
 						Next
 					</button>
 				</div>
