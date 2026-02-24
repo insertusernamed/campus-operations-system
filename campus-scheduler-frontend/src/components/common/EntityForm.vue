@@ -62,9 +62,8 @@ function updateField(name: string, value: unknown) {
 					{{ error }}
 				</div>
 
-				<div class="grid grid-cols-2 gap-4">
-					<div v-for="field in fields" :key="field.name"
-						:class="field.span === 2 ? 'col-span-2' : 'col-span-1'">
+				<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+					<div v-for="field in fields" :key="field.name" :class="field.span === 2 ? 'col-span-full' : ''">
 						<label :for="field.name" class="block text-sm font-medium text-gray-700 mb-1">
 							{{ field.label }}
 							<span v-if="field.required" class="text-red-500">*</span>

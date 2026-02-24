@@ -46,8 +46,8 @@ defineProps<{
 				</RouterLink>
 			</div>
 
-			<dl class="grid grid-cols-2 gap-4">
-				<div v-for="field in fields" :key="field.label" :class="{ 'col-span-2': field.fullWidth }">
+			<dl class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+				<div v-for="field in fields" :key="field.label" :class="{ 'col-span-full': field.fullWidth }">
 					<dt class="text-sm font-medium text-gray-500">{{ field.label }}</dt>
 					<dd class="text-gray-900">
 						<RouterLink v-if="field.linkTo && field.value" :to="field.linkTo"
