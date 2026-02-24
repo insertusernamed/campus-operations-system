@@ -199,14 +199,14 @@ watch(
 				</div>
 				<div class="flex items-center gap-2">
 					<button type="button" @click="goToPage(page - 1)" :disabled="page === 1"
-						class="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-white">
+						class="rounded border border-gray-300 bg-white px-3 py-1.5 min-h-11 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-white">
 						Previous
 					</button>
 					<div class="text-sm text-gray-700">
 						Page {{ page }} of {{ totalPages }}
 					</div>
 					<button type="button" @click="goToPage(page + 1)" :disabled="page === totalPages"
-						class="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-white">
+						class="rounded border border-gray-300 bg-white px-3 py-1.5 min-h-11 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-white">
 						Next
 					</button>
 				</div>

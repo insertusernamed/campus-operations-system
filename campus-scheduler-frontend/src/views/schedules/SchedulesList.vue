@@ -315,36 +315,38 @@ function handleBuildingDrilldown(buildingId: number) {
 			:event-width="role === 'admin' && calendarRangeMode === 'day' ? 100 : 95" @event-click="handleEventClick" />
 
 		<!-- Table View -->
-		<table v-else class="w-full bg-white border border-gray-200">
-			<thead>
-				<tr class="bg-gray-50 border-b border-gray-200">
-					<th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Course</th>
-					<th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Room</th>
-					<th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Time</th>
-					<th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Semester</th>
-					<th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Actions</th>
-				</tr>
-			</thead>
-			<tbody>
-				<tr v-for="s in filteredItems" :key="s.id" class="border-b border-gray-100">
-					<td class="px-4 py-3">
-						<RouterLink :to="`/courses/${s.course.id}`" class="text-blue-600 hover:underline">{{
-							s.course.code }}</RouterLink>
-						<span class="text-gray-500 ml-1">{{ s.course.name }}</span>
-					</td>
-					<td class="px-4 py-3">
-						<RouterLink :to="`/rooms/${s.room.id}`" class="text-blue-600 hover:underline">{{
-							s.room.buildingCode }} {{ s.room.roomNumber }}</RouterLink>
-					</td>
-					<td class="px-4 py-3 text-gray-600">{{ timeslotsService.formatTimeSlot(s.timeSlot) }}</td>
-					<td class="px-4 py-3 text-gray-600">{{ s.semester }}</td>
-					<td class="px-4 py-3">
-						<button v-if="role === 'admin'" @click="handleDelete(s.id)"
-							class="text-red-600 hover:underline">Delete</button>
-					</td>
-				</tr>
-			</tbody>
-		</table>
+		<div v-else class="overflow-x-auto">
+			<table class="w-full bg-white border border-gray-200">
+				<thead>
+					<tr class="bg-gray-50 border-b border-gray-200">
+						<th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Course</th>
+						<th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Room</th>
+						<th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Time</th>
+						<th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Semester</th>
+						<th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Actions</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr v-for="s in filteredItems" :key="s.id" class="border-b border-gray-100">
+						<td class="px-4 py-3">
+							<RouterLink :to="`/courses/${s.course.id}`" class="text-blue-600 hover:underline">{{
+								s.course.code }}</RouterLink>
+							<span class="text-gray-500 ml-1">{{ s.course.name }}</span>
+						</td>
+						<td class="px-4 py-3">
+							<RouterLink :to="`/rooms/${s.room.id}`" class="text-blue-600 hover:underline">{{
+								s.room.buildingCode }} {{ s.room.roomNumber }}</RouterLink>
+						</td>
+						<td class="px-4 py-3 text-gray-600">{{ timeslotsService.formatTimeSlot(s.timeSlot) }}</td>
+						<td class="px-4 py-3 text-gray-600">{{ s.semester }}</td>
+						<td class="px-4 py-3">
+							<button v-if="role === 'admin'" @click="handleDelete(s.id)"
+								class="text-red-600 hover:underline">Delete</button>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
 
 		<BaseModal :model-value="requestModalOpen" :title="role === 'admin' ? 'Schedule Details' : 'Request a Change'"
 			@update:model-value="handleModalVisibilityChange">

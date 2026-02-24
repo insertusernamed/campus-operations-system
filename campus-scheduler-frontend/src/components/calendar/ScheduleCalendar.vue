@@ -31,6 +31,13 @@ const props = defineProps<{
 
 const calendarHeight = computed(() => props.height ?? 800)
 const calendarViewMode = computed(() => props.viewMode ?? 'week')
+
+// Auto-switch to day view on narrow screens
+const isMobile = ref(false)
+const mobileQuery = typeof window !== 'undefined' ? window.matchMedia('(max-width: 767px)') : null
+function updateIsMobile() { isMobile.value = mobileQuery?.matches ?? false }
+const effectiveViewMode = computed(() => isMobile.value ? 'day' : calendarViewMode.value)
+
 const weekDaysToShow = computed(() => {
 	const raw = props.weekDays ?? 5
 	return Math.max(1, Math.min(7, raw))
@@ -163,7 +170,7 @@ function getClassDatesForSemester(schedule: Schedule): Temporal.PlainDate[] {
 }
 
 const selectedDate = ref<Temporal.PlainDate>(getReferenceMonday())
-watch(calendarViewMode, (mode, previousMode) => {
+watch(effectiveViewMode, (mode, previousMode) => {
 	if (!previousMode) {
 		selectedDate.value = mode === 'day' ? Temporal.Now.plainDateISO() : getReferenceMonday()
 	}
@@ -299,13 +306,13 @@ function initCalendar() {
 	calendarApp.value = createCalendar({
 		selectedDate: selectedDate.value,
 		views: [createViewDay(), createViewWeek()],
-		defaultView: calendarViewMode.value,
+		defaultView: effectiveViewMode.value,
 		dayBoundaries: {
 			start: dayStart.value,
 			end: dayEnd.value,
 		},
 		weekOptions: {
-			nDays: calendarViewMode.value === 'day' ? 1 : weekDaysToShow.value,
+			nDays: effectiveViewMode.value === 'day' ? 1 : weekDaysToShow.value,
 			gridHeight: calendarHeight.value,
 			eventWidth: eventWidth.value,
 			gridStep: gridStep.value,
@@ -452,6 +459,8 @@ async function loadSemesterDefinitions() {
 // Initialize on mount
 initCalendar()
 onMounted(() => {
+	updateIsMobile()
+	mobileQuery?.addEventListener('change', updateIsMobile)
 	void loadSemesterDefinitions()
 	scheduleArrowUpdate()
 	scheduleAriaSanitization()
@@ -471,6 +480,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+	mobileQuery?.removeEventListener('change', updateIsMobile)
 	window.removeEventListener('resize', scheduleArrowUpdate)
 	containerRef.value?.removeEventListener('scroll', scheduleArrowUpdate)
 	ariaObserver?.disconnect()
@@ -489,7 +499,7 @@ onUnmounted(() => {
 watch([
 	calendarsSignature,
 	calendarHeight,
-	calendarViewMode,
+	effectiveViewMode,
 	weekDaysToShow,
 	dayStart,
 	dayEnd,

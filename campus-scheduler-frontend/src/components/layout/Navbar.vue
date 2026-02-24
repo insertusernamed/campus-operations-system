@@ -57,7 +57,7 @@ onMounted(() => {
 		</button>
 
 		<!-- Logo — clips to COS mark on mobile, full on md+ -->
-		<RouterLink to="/" class="cursor-pointer shrink-0 overflow-hidden w-11 md:w-auto" aria-label="Home">
+		<RouterLink to="/" class="cursor-pointer shrink-0 overflow-hidden w-14 md:w-auto" aria-label="Home">
 			<svg class="h-12 w-auto max-w-55" viewBox="0 0 420 92" fill="none" xmlns="http://www.w3.org/2000/svg"
 				role="img" aria-label="Campus Operations System logo">
 				<path class="logo-primary-stroke" d="M12 22V13H84V22" stroke-width="3.8" stroke-linecap="square" />
