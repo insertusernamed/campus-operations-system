@@ -203,6 +203,16 @@
 						class="inline-flex items-center justify-center rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50">
 						Requests
 					</RouterLink>
+					<button
+						@click="handleExportFullSemester"
+						:disabled="!mySchedules?.length"
+						v-tooltip="'Download your full class schedule as an .ics file you can import into Google Calendar, Outlook, or Apple Calendar'"
+						class="inline-flex items-center justify-center gap-1.5 rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50">
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+							<path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" />
+						</svg>
+						Export to iCal
+					</button>
 					<button @click="refreshInstructor" :disabled="instructorRefreshing"
 						class="inline-flex items-center justify-center rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50">
 						{{ instructorRefreshing ? 'Refreshing...' : 'Refresh' }}
@@ -270,9 +280,23 @@
 								<h2 class="text-sm font-semibold text-gray-900">My Schedule</h2>
 								<p class="mt-0.5 text-xs text-gray-500">Weekly view (sorted by day and start time).</p>
 							</div>
-							<RouterLink to="/schedules" class="text-sm font-medium text-blue-700 hover:underline">
-								Open schedule
-							</RouterLink>
+							<div class="flex items-center gap-2">
+								<button
+									@click="handleExportFullSemester"
+									:disabled="!mySchedules?.length"
+									v-tooltip="'Download your full class schedule as an .ics file'"
+									class="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-gray-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+										<path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" />
+									</svg>
+									Export to iCal
+								</button>
+								<RouterLink
+									to="/schedules"
+									class="inline-flex items-center rounded border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
+									Open schedule
+								</RouterLink>
+							</div>
 						</div>
 
 						<div v-if="mySchedulesLoading && mySchedules === null" class="p-4 space-y-3">
@@ -416,6 +440,7 @@ import { changeRequestsService, type ScheduleChangeRequest } from '@/services/ch
 import { schedulesService, type Schedule } from '@/services/schedules'
 import { timeslotsService, type TimeSlot } from '@/services/timeslots'
 import { useInstructors } from '@/composables/useInstructors'
+import { exportFullSemester } from '@/utils/icalExport'
 
 type Kpi = {
 	label: string
@@ -575,6 +600,11 @@ async function refresh() {
 async function refreshInstructor() {
 	if (!instructorId.value) return
 	await Promise.allSettled([fetchMySchedules(), fetchMyRequests()])
+}
+
+function handleExportFullSemester() {
+	if (!mySchedules.value?.length) return
+	exportFullSemester(mySchedules.value)
 }
 
 function formatDate(value: string): string {

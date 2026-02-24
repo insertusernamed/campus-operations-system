@@ -13,6 +13,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import TableSkeleton from '@/components/common/TableSkeleton.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
 import { changeRequestIssueOptions, type ChangeRequestIssue } from '@/constants/changeRequestIssues'
+import { exportSingleClass, exportClassForSemester } from '@/utils/icalExport'
 
 type ViewMode = 'table' | 'calendar'
 type CalendarRangeMode = 'day' | 'week'
@@ -233,6 +234,16 @@ function handleBuildingDrilldown(buildingId: number) {
 	selectedBuildingId.value = buildingId
 	selectedRoomId.value = null
 }
+
+function handleExportSingleClass() {
+	if (!selectedSchedule.value) return
+	exportSingleClass(selectedSchedule.value)
+}
+
+function handleExportClassForSemester() {
+	if (!selectedSchedule.value) return
+	exportClassForSemester(selectedSchedule.value)
+}
 </script>
 
 <template>
@@ -385,20 +396,57 @@ function handleBuildingDrilldown(buildingId: number) {
 						<span class="font-medium text-gray-900">Current room:</span>
 						{{ selectedSchedule.room.buildingCode }} {{ selectedSchedule.room.roomNumber }}
 					</div>
-					<p class="text-gray-600">
-						Start a change request for this class. You can refine the details on the next step.
-					</p>
-					<div>
-						<label for="request-change-issue" class="block text-sm font-medium text-gray-700 mb-1">Why is
-							this a problem?</label>
-						<select id="request-change-issue" v-model="selectedIssue" aria-label="Request Issue"
-							class="w-full px-3 py-2 border border-gray-300 rounded">
-							<option value="" disabled>Select a reason</option>
-							<option v-for="option in changeRequestIssueOptions" :key="option.value"
-								:value="option.value">
-								{{ option.label }}
-							</option>
-						</select>
+
+					<!-- iCal export section -->
+					<div class="border-t border-gray-200 pt-3 mt-1">
+						<p class="text-xs font-medium text-gray-700 mb-1">Add to Calendar</p>
+						<p class="text-xs text-gray-500 mb-2">Download an .ics file to import into Google Calendar,
+							Outlook, or Apple Calendar.</p>
+						<div class="flex flex-wrap gap-2">
+							<button v-tooltip="'One-time event for the next upcoming session of this class'"
+								class="inline-flex items-center gap-1.5 rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+								@click="handleExportSingleClass">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-gray-500"
+									viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+									<path fill-rule="evenodd"
+										d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z"
+										clip-rule="evenodd" />
+								</svg>
+								Next Session
+							</button>
+							<button v-tooltip="'Weekly recurring events for this class through the end of the semester'"
+								class="inline-flex items-center gap-1.5 rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+								@click="handleExportClassForSemester">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-gray-500"
+									viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+									<path fill-rule="evenodd"
+										d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z"
+										clip-rule="evenodd" />
+								</svg>
+								Full Semester
+							</button>
+						</div>
+					</div>
+
+					<!-- Change request section -->
+					<div class="border-t border-gray-200 pt-3 mt-1">
+						<p class="text-xs font-medium text-gray-700 mb-1">Request a Change</p>
+						<p class="text-gray-600 text-xs mb-2">
+							Start a change request for this class. You can refine the details on the next step.
+						</p>
+						<div>
+							<label for="request-change-issue" class="block text-sm font-medium text-gray-700 mb-1">Why
+								is
+								this a problem?</label>
+							<select id="request-change-issue" v-model="selectedIssue" aria-label="Request Issue"
+								class="w-full px-3 py-2 border border-gray-300 rounded">
+								<option value="" disabled>Select a reason</option>
+								<option v-for="option in changeRequestIssueOptions" :key="option.value"
+									:value="option.value">
+									{{ option.label }}
+								</option>
+							</select>
+						</div>
 					</div>
 				</template>
 			</div>

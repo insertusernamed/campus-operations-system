@@ -23,6 +23,7 @@
 		"@tailwindcss/vite": "^4.1.18",
 		"axios": "^1.13.2",
 		"floating-vue": "^5.2.2",
+		"ical-generator": "^10.0.0",
 		"sockjs-client": "^1.6.1",
 		"tailwindcss": "^4.1.18",
 		"temporal-polyfill": "0.3.0",
