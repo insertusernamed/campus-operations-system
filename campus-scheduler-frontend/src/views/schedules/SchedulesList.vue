@@ -237,9 +237,9 @@ function handleBuildingDrilldown(buildingId: number) {
 
 <template>
 	<div>
-		<div class="flex justify-between items-center mb-6">
+		<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
 			<h1 class="text-2xl font-semibold text-gray-900">Schedules</h1>
-			<div class="flex items-center gap-3">
+			<div class="flex flex-wrap items-center gap-2">
 				<!-- Building Filter -->
 				<select v-model="selectedBuildingId" aria-label="Building Filter"
 					class="px-3 py-1.5 text-sm border border-gray-300 rounded bg-white text-gray-700">

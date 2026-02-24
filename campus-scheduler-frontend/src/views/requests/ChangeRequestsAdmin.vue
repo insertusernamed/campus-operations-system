@@ -202,38 +202,40 @@ onMounted(loadData)
 		<EmptyState v-else-if="filteredRequests.length === 0" title="No change requests"
 			description="Requests from instructors will show up here." />
 
-		<table v-else class="w-full bg-white border border-gray-200">
-			<thead>
-				<tr class="bg-gray-50 border-b border-gray-200">
-					<th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Course</th>
-					<th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Instructor</th>
-					<th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Reason</th>
-					<th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Status</th>
-					<th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Actions</th>
-				</tr>
-			</thead>
-			<tbody>
-				<tr v-for="request in filteredRequests" :key="request.id" class="border-b border-gray-100">
-					<td class="px-4 py-3">
-						<div class="text-sm text-gray-900">{{ request.schedule.course.code }}</div>
-						<div class="text-xs text-gray-500">{{ request.schedule.course.name }}</div>
-					</td>
-					<td class="px-4 py-3 text-sm text-gray-600">
-						{{ request.requestedByInstructor.firstName }} {{ request.requestedByInstructor.lastName }}
-					</td>
-					<td class="px-4 py-3 text-sm text-gray-600">
-						{{ reasonLabel(request.reasonCategory) }}
-					</td>
-					<td class="px-4 py-3 text-sm">
-						<span class="px-2 py-1 rounded bg-gray-100 text-gray-700">{{ request.status }}</span>
-					</td>
-					<td class="px-4 py-3 text-sm">
-						<button v-if="request.status === 'PENDING'" @click="openModal(request)"
-							class="text-blue-600 hover:underline">Review</button>
-					</td>
-				</tr>
-			</tbody>
-		</table>
+		<div v-else class="overflow-x-auto">
+			<table class="w-full bg-white border border-gray-200">
+				<thead>
+					<tr class="bg-gray-50 border-b border-gray-200">
+						<th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Course</th>
+						<th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Instructor</th>
+						<th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Reason</th>
+						<th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Status</th>
+						<th class="text-left px-4 py-3 text-sm font-medium text-gray-700">Actions</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr v-for="request in filteredRequests" :key="request.id" class="border-b border-gray-100">
+						<td class="px-4 py-3">
+							<div class="text-sm text-gray-900">{{ request.schedule.course.code }}</div>
+							<div class="text-xs text-gray-500">{{ request.schedule.course.name }}</div>
+						</td>
+						<td class="px-4 py-3 text-sm text-gray-600">
+							{{ request.requestedByInstructor.firstName }} {{ request.requestedByInstructor.lastName }}
+						</td>
+						<td class="px-4 py-3 text-sm text-gray-600">
+							{{ reasonLabel(request.reasonCategory) }}
+						</td>
+						<td class="px-4 py-3 text-sm">
+							<span class="px-2 py-1 rounded bg-gray-100 text-gray-700">{{ request.status }}</span>
+						</td>
+						<td class="px-4 py-3 text-sm">
+							<button v-if="request.status === 'PENDING'" @click="openModal(request)"
+								class="text-blue-600 hover:underline">Review</button>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
 
 		<BaseModal v-model="modalOpen" title="Review Request">
 			<template #default>
