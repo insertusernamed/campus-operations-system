@@ -148,46 +148,50 @@ watch(
 		</div>
 
 		<div v-else>
-			<table ref="tableRef" class="w-full border border-gray-200 bg-white">
-				<thead>
-					<tr class="border-b border-gray-200 bg-gray-50">
-						<th v-for="col in columns" :key="String(col.key)"
-							class="px-4 py-3 text-left text-sm font-medium text-gray-700">
-							{{ col.label }}
-						</th>
-						<th v-if="editRoute || onDelete" class="px-4 py-3 text-left text-sm font-medium text-gray-700">
-							Actions
-						</th>
-					</tr>
-				</thead>
-				<tbody>
-					<tr v-for="item in pagedItems" :key="item.id" class="border-b border-gray-100">
-						<td v-for="col in columns" :key="String(col.key)" class="px-4 py-3">
-							<slot v-if="hasCellSlot" name="cell" :item="item" :column="col"
-								:value="getValue(item, col)" />
-							<template v-else>
-								<RouterLink v-if="col.linkTo" :to="col.linkTo(item)"
-									class="text-blue-600 hover:underline">
-									{{ getValue(item, col) }}
-								</RouterLink>
-								<span v-else class="text-gray-600">{{ getValue(item, col) }}</span>
-							</template>
-						</td>
-						<td v-if="editRoute || onDelete" class="px-4 py-3">
-							<slot v-if="hasActionsSlot" name="actions" :item="item" />
-							<template v-else>
-								<RouterLink v-if="editRoute" :to="editRoute(item)"
-									class="mr-4 text-blue-600 hover:underline">
-									Edit
-								</RouterLink>
-								<button v-if="onDelete" @click="onDelete(item.id)" class="text-red-600 hover:underline">
-									Delete
-								</button>
-							</template>
-						</td>
-					</tr>
-				</tbody>
-			</table>
+			<div class="overflow-x-auto">
+				<table ref="tableRef" class="w-full border border-gray-200 bg-white">
+					<thead>
+						<tr class="border-b border-gray-200 bg-gray-50">
+							<th v-for="col in columns" :key="String(col.key)"
+								class="px-4 py-3 text-left text-sm font-medium text-gray-700">
+								{{ col.label }}
+							</th>
+							<th v-if="editRoute || onDelete"
+								class="px-4 py-3 text-left text-sm font-medium text-gray-700">
+								Actions
+							</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr v-for="item in pagedItems" :key="item.id" class="border-b border-gray-100">
+							<td v-for="col in columns" :key="String(col.key)" class="px-4 py-3">
+								<slot v-if="hasCellSlot" name="cell" :item="item" :column="col"
+									:value="getValue(item, col)" />
+								<template v-else>
+									<RouterLink v-if="col.linkTo" :to="col.linkTo(item)"
+										class="text-blue-600 hover:underline">
+										{{ getValue(item, col) }}
+									</RouterLink>
+									<span v-else class="text-gray-600">{{ getValue(item, col) }}</span>
+								</template>
+							</td>
+							<td v-if="editRoute || onDelete" class="px-4 py-3">
+								<slot v-if="hasActionsSlot" name="actions" :item="item" />
+								<template v-else>
+									<RouterLink v-if="editRoute" :to="editRoute(item)"
+										class="mr-4 text-blue-600 hover:underline">
+										Edit
+									</RouterLink>
+									<button v-if="onDelete" @click="onDelete(item.id)"
+										class="text-red-600 hover:underline">
+										Delete
+									</button>
+								</template>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
 
 			<div v-if="filteredItems.length > PAGE_SIZE" class="mt-4 flex items-center justify-between">
 				<div class="text-sm text-gray-500">
