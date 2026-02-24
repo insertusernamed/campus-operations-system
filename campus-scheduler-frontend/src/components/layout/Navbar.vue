@@ -4,6 +4,10 @@ import { useRole, type Role } from '@/composables/useRole'
 import { useInstructors } from '@/composables/useInstructors'
 import { useTheme, type Theme } from '@/composables/useTheme'
 
+defineEmits<{
+	(e: 'toggle-sidebar'): void
+}>()
+
 const { role, instructorId, setRole, setInstructorId } = useRole()
 const { instructors, loading: loadingInstructors, loadInstructors } = useInstructors()
 const { theme, setTheme } = useTheme()
@@ -42,10 +46,20 @@ onMounted(() => {
 </script>
 
 <template>
-	<header class="h-14 bg-white border-b border-gray-200 flex items-center px-6">
-		<RouterLink to="/" class="cursor-pointer">
-			<svg class="h-12 w-auto max-w-55 shrink-0" viewBox="0 0 420 92" fill="none"
-				xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Campus Operations System logo">
+	<header class="h-14 bg-white border-b border-gray-200 flex items-center gap-2 px-3 sm:px-6">
+		<!-- Hamburger — mobile only -->
+		<button type="button"
+			class="md:hidden p-2 -ml-1 rounded text-gray-600 hover:text-gray-900 hover:bg-gray-100 shrink-0"
+			aria-label="Toggle navigation" @click="$emit('toggle-sidebar')">
+			<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+			</svg>
+		</button>
+
+		<!-- Logo — clips to COS mark on mobile, full on md+ -->
+		<RouterLink to="/" class="cursor-pointer shrink-0 overflow-hidden w-11 md:w-auto" aria-label="Home">
+			<svg class="h-12 w-auto max-w-55" viewBox="0 0 420 92" fill="none" xmlns="http://www.w3.org/2000/svg"
+				role="img" aria-label="Campus Operations System logo">
 				<path class="logo-primary-stroke" d="M12 22V13H84V22" stroke-width="3.8" stroke-linecap="square" />
 				<path class="logo-primary-stroke" d="M12 70V79H84V70" stroke-width="3.8" stroke-linecap="square" />
 				<text x="48" y="61" text-anchor="middle"
@@ -59,29 +73,29 @@ onMounted(() => {
 					font-weight="500" letter-spacing="3.1" class="logo-secondary-fill">SYSTEM</text>
 			</svg>
 		</RouterLink>
-		<div class="ml-auto flex items-center gap-4 text-sm text-gray-600">
-			<div class="flex items-center gap-2">
-				<span class="text-xs uppercase tracking-wide text-gray-500">Theme</span>
+
+		<!-- Controls -->
+		<div class="ml-auto flex items-center gap-2 sm:gap-4 text-sm text-gray-600">
+			<div class="flex items-center gap-1.5 sm:gap-2">
+				<span class="hidden sm:inline text-xs uppercase tracking-wide text-gray-500">Theme</span>
 				<select v-model="themeModel" aria-label="Theme"
-					class="px-2 py-1 border border-gray-300 rounded bg-white text-gray-700">
+					class="px-2 py-1 border border-gray-300 rounded bg-white text-gray-700 text-xs sm:text-sm">
 					<option value="snow-storm">Frost</option>
 					<option value="slate">Slate</option>
 				</select>
 			</div>
-			<div class="flex items-center gap-2">
-				<span class="text-xs uppercase tracking-wide text-gray-500">Role</span>
+			<div class="flex items-center gap-1.5 sm:gap-2">
+				<span class="hidden sm:inline text-xs uppercase tracking-wide text-gray-500">Role</span>
 				<select v-model="roleModel" aria-label="Role"
-					class="px-2 py-1 border border-gray-300 rounded bg-white text-gray-700">
+					class="px-2 py-1 border border-gray-300 rounded bg-white text-gray-700 text-xs sm:text-sm">
 					<option value="admin">Admin</option>
 					<option value="instructor">Instructor</option>
-					<!-- TODO(student-role): add Student back once it's implemented end-to-end -->
-					<!-- <option value="student">Student</option> -->
 				</select>
 			</div>
-			<div v-if="role !== 'admin'" class="flex items-center gap-2">
-				<span class="text-xs uppercase tracking-wide text-gray-500">Instructor</span>
+			<div v-if="role !== 'admin'" class="flex items-center gap-1.5 sm:gap-2">
+				<span class="hidden sm:inline text-xs uppercase tracking-wide text-gray-500">Instructor</span>
 				<select v-model="instructorModel" aria-label="Instructor"
-					class="px-2 py-1 border border-gray-300 rounded bg-white text-gray-700">
+					class="px-2 py-1 border border-gray-300 rounded bg-white text-gray-700 text-xs sm:text-sm max-w-32 sm:max-w-none">
 					<option value="" disabled>
 						{{ loadingInstructors ? 'Loading...' : 'Select instructor' }}
 					</option>
