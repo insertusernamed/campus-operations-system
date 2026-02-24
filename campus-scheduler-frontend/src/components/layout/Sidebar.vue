@@ -105,7 +105,8 @@ function getNavPath(item: NavItem): string {
 				<ul>
 					<li v-for="item in group.items" :key="item.name">
 						<RouterLink :to="getNavPath(item)" @click="handleNavClick"
-							class="flex items-center gap-3 mx-2 px-3 py-1.5 text-sm rounded transition-colors" :class="isActive(getNavPath(item))
+							class="flex items-center gap-3 mx-2 px-3 py-1.5 min-h-11 text-sm rounded transition-colors"
+							:class="isActive(getNavPath(item))
 								? 'bg-gray-100 text-gray-900 font-medium'
 								: 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
 								">

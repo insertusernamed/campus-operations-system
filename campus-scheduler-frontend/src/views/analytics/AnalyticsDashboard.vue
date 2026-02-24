@@ -154,13 +154,15 @@ onMounted(() => {
 		<div class="border p-4 mb-6 flex flex-wrap gap-4">
 			<div>
 				<label for="semester" class="text-sm mr-2">Semester:</label>
-				<select id="semester" v-model="selectedSemester" aria-label="Semester" class="border px-2 py-1">
+				<select id="semester" v-model="selectedSemester" aria-label="Semester"
+					class="border px-2 py-1 min-h-11">
 					<option v-for="sem in semesters" :key="sem" :value="sem">{{ sem }}</option>
 				</select>
 			</div>
 			<div>
 				<label for="building" class="text-sm mr-2">Building:</label>
-				<select id="building" v-model="selectedBuildingId" aria-label="Building" class="border px-2 py-1">
+				<select id="building" v-model="selectedBuildingId" aria-label="Building"
+					class="border px-2 py-1 min-h-11">
 					<option :value="null">All</option>
 					<option v-for="b in buildings" :key="b.id" :value="b.id">{{ b.name }}</option>
 				</select>
@@ -222,29 +224,33 @@ onMounted(() => {
 			<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 				<div class="border p-4">
 					<h3 class="font-semibold mb-3">Top Utilized Rooms</h3>
-					<table class="w-full text-sm">
-						<tbody>
-							<tr v-for="room in summary.topUtilizedRooms" :key="room.roomId" class="border-b">
-								<td class="py-2">{{ room.buildingCode }}-{{ room.roomNumber }}</td>
-								<td class="py-2 text-gray-500">{{ room.buildingName }}</td>
-								<td class="py-2 text-right">{{ formatPercent(room.utilizationPercentage) }}</td>
-							</tr>
-						</tbody>
-					</table>
+					<div class="overflow-x-auto">
+						<table class="w-full text-sm">
+							<tbody>
+								<tr v-for="room in summary.topUtilizedRooms" :key="room.roomId" class="border-b">
+									<td class="py-2">{{ room.buildingCode }}-{{ room.roomNumber }}</td>
+									<td class="py-2 text-gray-500">{{ room.buildingName }}</td>
+									<td class="py-2 text-right">{{ formatPercent(room.utilizationPercentage) }}</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
 					<p v-if="!summary.topUtilizedRooms.length" class="text-gray-500 py-4">No data</p>
 				</div>
 
 				<div class="border p-4">
 					<h3 class="font-semibold mb-3">Least Utilized Rooms</h3>
-					<table class="w-full text-sm">
-						<tbody>
-							<tr v-for="room in summary.leastUtilizedRooms" :key="room.roomId" class="border-b">
-								<td class="py-2">{{ room.buildingCode }}-{{ room.roomNumber }}</td>
-								<td class="py-2 text-gray-500">{{ room.buildingName }}</td>
-								<td class="py-2 text-right">{{ formatPercent(room.utilizationPercentage) }}</td>
-							</tr>
-						</tbody>
-					</table>
+					<div class="overflow-x-auto">
+						<table class="w-full text-sm">
+							<tbody>
+								<tr v-for="room in summary.leastUtilizedRooms" :key="room.roomId" class="border-b">
+									<td class="py-2">{{ room.buildingCode }}-{{ room.roomNumber }}</td>
+									<td class="py-2 text-gray-500">{{ room.buildingName }}</td>
+									<td class="py-2 text-right">{{ formatPercent(room.utilizationPercentage) }}</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
 					<p v-if="!summary.leastUtilizedRooms.length" class="text-gray-500 py-4">No data</p>
 				</div>
 			</div>
