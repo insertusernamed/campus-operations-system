@@ -3,6 +3,19 @@ import { computed } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { useRole, type Role } from '@/composables/useRole'
 
+const props = defineProps<{
+	isOpen: boolean
+}>()
+
+const emit = defineEmits<{
+	(e: 'close'): void
+}>()
+
+function handleNavClick() {
+	// Close the drawer on mobile after navigating
+	emit('close')
+}
+
 const route = useRoute()
 const { role } = useRole()
 
@@ -78,15 +91,20 @@ function getNavPath(item: NavItem): string {
 </script>
 
 <template>
-	<aside class="w-56 bg-white border-r border-gray-200 flex flex-col">
-		<nav class="flex-1 py-4">
+	<aside :class="[
+		'w-56 flex flex-col bg-white border-r border-gray-200',
+		'fixed top-14 bottom-0 left-0 z-40 transition-transform duration-300 ease-in-out',
+		'md:relative md:top-auto md:bottom-auto md:z-auto',
+		isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
+	]">
+		<nav class="flex-1 py-4 overflow-y-auto">
 			<div v-for="group in visibleNavigation" :key="group.title" class="mb-6">
 				<h3 class="px-4 mb-1 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
 					{{ group.title }}
 				</h3>
 				<ul>
 					<li v-for="item in group.items" :key="item.name">
-						<RouterLink :to="getNavPath(item)"
+						<RouterLink :to="getNavPath(item)" @click="handleNavClick"
 							class="flex items-center gap-3 mx-2 px-3 py-1.5 text-sm rounded transition-colors" :class="isActive(getNavPath(item))
 								? 'bg-gray-100 text-gray-900 font-medium'
 								: 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
