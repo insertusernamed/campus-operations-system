@@ -296,8 +296,8 @@ function handleCellClick(cell: GridCell): void {
 
 <template>
 	<div class="space-y-3">
-		<div class="flex items-center justify-between">
-			<div class="flex items-center gap-2">
+		<div class="flex flex-wrap items-start gap-y-2 justify-between">
+			<div class="flex flex-wrap items-center gap-2">
 				<button v-for="day in dayOrder" :key="day" @click="selectedDay = day" :class="[
 					'px-3 py-1.5 text-sm border rounded',
 					selectedDay === day
