@@ -60,8 +60,11 @@ campus-scheduler/
 ### Instructor
 
 - View own schedule
+- Save teaching preferences (time window, gap tolerance, travel buffer, room/building preferences)
+- See proactive schedule frictions with one-click “Fix” links
 - Submit schedule change requests
-- Receive validation feedback and workflow status
+- Receive validation feedback with preference-aware suggestion ranking
+- Track request timelines (requested/reviewed/applied) and decision notes
 
 ### Platform
 
@@ -113,6 +116,15 @@ cd campus-scheduler-frontend
 npm run dev
 ```
 
+Optional frontend feature flag:
+
+```bash
+# .env.local
+VITE_INSTRUCTOR_FRICTION_MVP=true
+```
+
+Set `VITE_INSTRUCTOR_FRICTION_MVP=false` to hide friction-preference UI.
+
 ## API and Local Tools
 
 - OpenAPI / Swagger UI: `http://localhost:8080/swagger-ui/index.html`
@@ -121,6 +133,8 @@ npm run dev
   - JDBC URL: `jdbc:h2:file:./data/campusdb`
   - Username: `sa`
   - Password: *(blank)*
+- Instructor preference API: `GET/PUT /api/instructor-preferences/{instructorId}`
+- Instructor friction insights API: `GET /api/instructor-insights/frictions?instructorId={id}&semester={semester}`
 
 ## Testing
 

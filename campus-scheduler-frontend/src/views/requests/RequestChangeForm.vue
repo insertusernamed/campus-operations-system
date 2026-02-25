@@ -16,6 +16,12 @@ import {
 } from '@/constants/changeRequestIssues'
 import { solverService, type ImpactAnalysisMove, type ImpactAnalysisResponse } from '@/services/solver'
 import ScheduleCalendar from '@/components/calendar/ScheduleCalendar.vue'
+import {
+	instructorPreferencesService,
+	type InstructorPreference,
+	type RoomFeatureOption,
+} from '@/services/instructorPreferences'
+import { INSTRUCTOR_FRICTION_MVP } from '@/config/features'
 
 const router = useRouter()
 const route = useRoute()
@@ -54,11 +60,18 @@ interface ImpactSuggestion {
 	timeSlot: TimeSlot
 	room: Room
 	impact: ImpactAnalysisResponse
+	penaltyScore: number
+	penaltyReasons: string[]
+	hasHardConflicts: boolean
+	hardConflicts: string[]
+	softWarnings: string[]
 }
 
 const suggestions = ref<ImpactSuggestion[]>([])
 const selectedSuggestionId = ref<string | null>(null)
 const lastAutoFilledTemplate = ref('')
+const instructorPreferences = ref<InstructorPreference | null>(null)
+const roomFeatureOptions = ref<RoomFeatureOption[]>([])
 
 const selectedSchedule = computed(() => schedules.value.find(schedule => schedule.id === form.value.scheduleId) ?? null)
 const selectedSuggestion = computed(() => suggestions.value.find(suggestion => suggestion.id === selectedSuggestionId.value) ?? null)
@@ -90,6 +103,18 @@ const canSubmit = computed(() => {
 const availableSchedules = computed(() => schedules.value)
 const canGenerateSuggestions = computed(() => !!selectedSchedule.value && !!form.value.issue)
 
+const DEFAULT_PREFERENCES: InstructorPreference = {
+	instructorId: 0,
+	preferredStartTime: '08:00',
+	preferredEndTime: '18:00',
+	maxGapMinutes: 120,
+	minTravelBufferMinutes: 15,
+	avoidBuildingHops: true,
+	preferredBuildingIds: [],
+	requiredRoomFeatures: [],
+	updatedAt: '',
+}
+
 function formatRoom(room: Room): string {
 	const parts = [room.buildingCode, room.roomNumber].filter(Boolean)
 	return parts.join(' ')
@@ -112,6 +137,34 @@ async function loadData() {
 		error.value = 'Failed to load data'
 	} finally {
 		loading.value = false
+	}
+}
+
+async function loadInstructorPreferences() {
+	if (!INSTRUCTOR_FRICTION_MVP || !instructorId.value) {
+		instructorPreferences.value = null
+		return
+	}
+
+	try {
+		instructorPreferences.value = await instructorPreferencesService.getByInstructorId(instructorId.value)
+	} catch (e) {
+		console.error(e)
+		instructorPreferences.value = null
+	}
+}
+
+async function loadRoomFeatureOptions() {
+	if (!INSTRUCTOR_FRICTION_MVP) {
+		roomFeatureOptions.value = []
+		return
+	}
+
+	try {
+		roomFeatureOptions.value = await instructorPreferencesService.getRoomFeatureOptions()
+	} catch (e) {
+		console.error(e)
+		roomFeatureOptions.value = []
 	}
 }
 
@@ -218,7 +271,170 @@ function getCandidateRooms(schedule: Schedule, scope: RoomScope): Room[] {
 	return uniqueRooms
 }
 
+function getEffectivePreferences(): InstructorPreference {
+	return instructorPreferences.value ?? DEFAULT_PREFERENCES
+}
+
+function normalizeFeatureText(value: string | null | undefined): string {
+	if (!value) return ''
+	return value
+		.toLowerCase()
+		.replace(/[_\-\\/]/g, ' ')
+		.replace(/[^a-z0-9 ]/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim()
+}
+
+function hasRequiredRoomFeature(roomFeatures: string | null, requiredFeature: string): boolean {
+	const normalizedRoomFeatures = normalizeFeatureText(roomFeatures)
+	if (!normalizedRoomFeatures) return false
+
+	const normalizedRequiredFeature = normalizeFeatureText(requiredFeature)
+	const option = roomFeatureOptions.value.find(
+		item => normalizeFeatureText(item.value) === normalizedRequiredFeature,
+	)
+
+	const keywords = option
+		? (Array.isArray(option.matchKeywords) ? option.matchKeywords : [option.value])
+			.map(keyword => normalizeFeatureText(keyword))
+			.filter(Boolean)
+		: [normalizedRequiredFeature]
+
+	return keywords.some(keyword => normalizedRoomFeatures.includes(keyword))
+}
+
+function parsePreferenceTime(value: string | null): number | null {
+	if (!value) return null
+	return timeToMinutes(value)
+}
+
+function getDaySchedules(schedule: Schedule, targetTimeSlot: TimeSlot): Schedule[] {
+	return schedules.value
+		.filter(item =>
+			item.id !== schedule.id
+			&& item.semester === schedule.semester
+			&& item.timeSlot.dayOfWeek === targetTimeSlot.dayOfWeek,
+		)
+		.sort((a, b) => timeToMinutes(a.timeSlot.startTime) - timeToMinutes(b.timeSlot.startTime))
+}
+
+function getNearestNeighbors(schedule: Schedule, targetTimeSlot: TimeSlot): { previous: Schedule | null; next: Schedule | null } {
+	const daySchedules = getDaySchedules(schedule, targetTimeSlot)
+	const targetStart = timeToMinutes(targetTimeSlot.startTime)
+	const targetEnd = timeToMinutes(targetTimeSlot.endTime)
+	let previous: Schedule | null = null
+	let next: Schedule | null = null
+
+	for (const item of daySchedules) {
+		const start = timeToMinutes(item.timeSlot.startTime)
+		const end = timeToMinutes(item.timeSlot.endTime)
+		if (end <= targetStart) {
+			if (!previous || timeToMinutes(previous.timeSlot.endTime) < end) {
+				previous = item
+			}
+		}
+		if (start >= targetEnd) {
+			if (!next || timeToMinutes(next.timeSlot.startTime) > start) {
+				next = item
+			}
+		}
+	}
+
+	return { previous, next }
+}
+
+function evaluateSuggestionPenalty(
+	schedule: Schedule,
+	timeSlot: TimeSlot,
+	room: Room,
+	impact: ImpactAnalysisResponse,
+): { score: number; reasons: string[] } {
+	const prefs = getEffectivePreferences()
+	let score = 0
+	const reasons: string[] = []
+
+	const chainMoves = Math.max((impact.moves?.length ?? 0) - 1, 0)
+	if (chainMoves > 0) {
+		const value = 12 * chainMoves
+		score += value
+		reasons.push(`+${value} chain moves`)
+	}
+
+	const preferredStart = parsePreferenceTime(prefs.preferredStartTime)
+	const preferredEnd = parsePreferenceTime(prefs.preferredEndTime)
+	const slotStart = timeToMinutes(timeSlot.startTime)
+	const slotEnd = timeToMinutes(timeSlot.endTime)
+	if ((preferredStart !== null && slotStart < preferredStart) || (preferredEnd !== null && slotEnd > preferredEnd)) {
+		score += 20
+		reasons.push('+20 outside preferred time window')
+	}
+
+	const { previous, next } = getNearestNeighbors(schedule, timeSlot)
+
+	if (prefs.avoidBuildingHops) {
+		const hasTightHop = [previous, next]
+			.filter((item): item is Schedule => !!item)
+			.some(item => {
+				const isDifferentBuilding = item.room.buildingId !== room.buildingId
+				if (!isDifferentBuilding) return false
+
+				const priorEnd = timeToMinutes(item.timeSlot.endTime)
+				const priorStart = timeToMinutes(item.timeSlot.startTime)
+				if (priorEnd <= slotStart) {
+					return slotStart - priorEnd < prefs.minTravelBufferMinutes
+				}
+				if (slotEnd <= priorStart) {
+					return priorStart - slotEnd < prefs.minTravelBufferMinutes
+				}
+				return false
+			})
+
+		if (hasTightHop) {
+			score += 15
+			reasons.push('+15 short travel time between buildings')
+		}
+	}
+
+	if (prefs.requiredRoomFeatures.length > 0) {
+		const missingFeatures = prefs.requiredRoomFeatures
+			.filter(feature => !hasRequiredRoomFeature(room.features, feature))
+		if (missingFeatures.length > 0) {
+			score += 15
+			reasons.push('+15 missing room setup')
+		}
+	}
+
+	if (
+		prefs.preferredBuildingIds.length > 0
+		&& room.buildingId !== null
+		&& !prefs.preferredBuildingIds.includes(room.buildingId)
+	) {
+		score += 8
+		reasons.push('+8 outside preferred buildings')
+	}
+
+	const previousEnd = previous ? timeToMinutes(previous.timeSlot.endTime) : null
+	const nextStart = next ? timeToMinutes(next.timeSlot.startTime) : null
+	const gapBefore = previousEnd !== null ? slotStart - previousEnd : 0
+	const gapAfter = nextStart !== null ? nextStart - slotEnd : 0
+	const gapOver = Math.max(0, gapBefore - prefs.maxGapMinutes, gapAfter - prefs.maxGapMinutes)
+	if (gapOver > 0) {
+		const gapPenalty = Math.min(20, Math.floor(gapOver / 30) * 5)
+		if (gapPenalty > 0) {
+			score += gapPenalty
+			reasons.push(`+${gapPenalty} long break between classes`)
+		}
+	}
+
+	if (reasons.length === 0) {
+		reasons.push('Best match for your preferences')
+	}
+
+	return { score, reasons }
+}
+
 function applySuggestion(suggestion: ImpactSuggestion) {
+	if (suggestion.hasHardConflicts) return
 	selectedSuggestionId.value = suggestion.id
 	form.value.proposedTimeSlotId = suggestion.timeSlot.id
 	form.value.proposedRoomId = suggestion.room.id
@@ -280,11 +496,11 @@ function suggestionSummary(suggestion: ImpactSuggestion): string {
 		? 'No chain reaction needed.'
 		: `${moves.length - 1} other class${moves.length === 2 ? '' : 'es'} would move.`
 
-	if (suggestion.impact.status === 'NO_SOLUTION') {
-		return `${chain} Hard conflicts remain.`
+	if (suggestion.hasHardConflicts) {
+		return `${chain} Hard conflicts remain for this option.`
 	}
 
-	return chain
+	return `${chain} Penalty score: ${suggestion.penaltyScore}.`
 }
 
 async function generateSuggestions() {
@@ -332,30 +548,67 @@ async function generateSuggestions() {
 					proposedTimeSlotId: slot.id,
 					proposedRoomId: room.id,
 				})
-				return { slot, room, impact }
+				const validationResult = INSTRUCTOR_FRICTION_MVP
+					? await changeRequestsService.validate({
+						scheduleId: selectedSchedule.value!.id,
+						proposedTimeSlotId: slot.id,
+						proposedRoomId: room.id,
+					})
+					: { hardConflicts: [] as string[], softWarnings: [] as string[] }
+				return { slot, room, impact, validationResult }
 			})
 		)
 
-		const resolved = results
-			.filter((result): result is PromiseFulfilledResult<{ slot: TimeSlot; room: Room; impact: ImpactAnalysisResponse }> => result.status === 'fulfilled')
-			.map(result => result.value)
-			.filter(result => (result.impact.moves ?? []).some(move => move.scheduleId === selectedSchedule.value!.id))
-			.sort((a, b) => (a.impact.moves?.length ?? 0) - (b.impact.moves?.length ?? 0))
+		const fulfilledResults = results.flatMap(result => (result.status === 'fulfilled' ? [result.value] : []))
+
+		const resolved = fulfilledResults
+			.filter(result => (result.impact.moves ?? []).some((move: ImpactAnalysisMove) => move.scheduleId === selectedSchedule.value!.id))
+			.map((result) => {
+				const penalty = INSTRUCTOR_FRICTION_MVP
+					? evaluateSuggestionPenalty(
+						selectedSchedule.value!,
+						result.slot,
+						result.room,
+						result.impact,
+					)
+					: {
+						score: Math.max((result.impact.moves?.length ?? 0) - 1, 0),
+						reasons: ['Ranked by minimal chain moves'],
+					}
+				const hasHardConflicts = INSTRUCTOR_FRICTION_MVP && result.validationResult.hardConflicts.length > 0
+				return {
+					id: `slot-${result.slot.id}-room-${result.room.id}`,
+					timeSlot: result.slot,
+					room: result.room,
+					impact: result.impact,
+					penaltyScore: penalty.score,
+					penaltyReasons: penalty.reasons,
+					hasHardConflicts,
+					hardConflicts: result.validationResult.hardConflicts,
+					softWarnings: result.validationResult.softWarnings,
+				}
+			})
+			.sort((a, b) => {
+				if (a.hasHardConflicts !== b.hasHardConflicts) {
+					return a.hasHardConflicts ? 1 : -1
+				}
+				if (a.penaltyScore !== b.penaltyScore) {
+					return a.penaltyScore - b.penaltyScore
+				}
+				return (a.impact.moves?.length ?? 0) - (b.impact.moves?.length ?? 0)
+			})
 			.slice(0, 3)
 
-		suggestions.value = resolved.map((result) => ({
-			id: `slot-${result.slot.id}-room-${result.room.id}`,
-			timeSlot: result.slot,
-			room: result.room,
-			impact: result.impact,
-		}))
+		suggestions.value = resolved
 
 		if (suggestions.value.length === 0) {
 			suggestionsError.value = 'No viable options found. Try adjusting manually.'
 		} else {
-			const firstSuggestion = suggestions.value[0]
+			const firstSuggestion = suggestions.value.find(item => !item.hasHardConflicts) ?? null
 			if (firstSuggestion) {
 				applySuggestion(firstSuggestion)
+			} else {
+				suggestionsError.value = 'Only conflicting options were found. Try adjusting manually.'
 			}
 		}
 	} catch (e) {
@@ -461,7 +714,7 @@ watch(() => [form.value.scheduleId, form.value.proposedRoomId, form.value.propos
 })
 
 onMounted(async () => {
-	await loadData()
+	await Promise.all([loadData(), loadInstructorPreferences(), loadRoomFeatureOptions()])
 	applySchedulePrefill()
 	applyIssuePrefill()
 })
@@ -472,6 +725,10 @@ watch(() => route.query.scheduleId, () => {
 
 watch(() => route.query.issue, () => {
 	applyIssuePrefill()
+})
+
+watch(instructorId, () => {
+	void loadInstructorPreferences()
 })
 
 watch(() => form.value.scheduleId, () => {
@@ -525,7 +782,8 @@ watch(roomScope, () => {
 
 				<div class="space-y-4">
 					<div>
-						<label for="request-schedule" class="block text-sm font-medium text-gray-700 mb-1">Schedule</label>
+						<label for="request-schedule"
+							class="block text-sm font-medium text-gray-700 mb-1">Schedule</label>
 						<select id="request-schedule" v-model.number="form.scheduleId" aria-label="Schedule"
 							class="w-full px-3 py-2 border border-gray-300 rounded">
 							<option :value="0" disabled>Select schedule</option>
@@ -536,7 +794,8 @@ watch(roomScope, () => {
 					</div>
 
 					<div>
-						<label for="request-issue" class="block text-sm font-medium text-gray-700 mb-1">Why is this a problem?</label>
+						<label for="request-issue" class="block text-sm font-medium text-gray-700 mb-1">Why is this a
+							problem?</label>
 						<select id="request-issue" v-model="form.issue" aria-label="Issue"
 							class="w-full px-3 py-2 border border-gray-300 rounded">
 							<option value="" disabled>Select a reason</option>
@@ -585,14 +844,26 @@ watch(roomScope, () => {
 							<label v-for="suggestion in suggestions" :key="suggestion.id"
 								class="flex items-start gap-2 text-sm text-gray-700">
 								<input type="radio" class="mt-1" :value="suggestion.id" v-model="selectedSuggestionId"
-									@change="applySuggestion(suggestion)" />
+									:disabled="suggestion.hasHardConflicts" @change="applySuggestion(suggestion)" />
 								<div>
-									<div class="font-medium text-gray-900">
+									<div class="font-medium"
+										:class="suggestion.hasHardConflicts ? 'text-gray-500' : 'text-gray-900'">
 										{{ timeslotsService.formatTimeSlot(suggestion.timeSlot) }} • {{
 											formatRoom(suggestion.room) }}
 									</div>
 									<div class="text-xs text-gray-500">
 										{{ suggestionSummary(suggestion) }}
+									</div>
+									<div class="mt-1 flex flex-wrap gap-1">
+										<span v-for="reason in suggestion.penaltyReasons"
+											:key="`${suggestion.id}-${reason}`"
+											class="text-[11px] rounded bg-gray-100 px-2 py-0.5 text-gray-600">
+											{{ reason }}
+										</span>
+										<span v-if="suggestion.hasHardConflicts"
+											class="text-[11px] rounded bg-red-100 px-2 py-0.5 text-red-700">
+											Hard conflict
+										</span>
 									</div>
 								</div>
 							</label>
@@ -606,7 +877,8 @@ watch(roomScope, () => {
 					</div>
 
 					<div>
-						<label for="request-proposed-room" class="block text-sm font-medium text-gray-700 mb-1">Proposed Room</label>
+						<label for="request-proposed-room" class="block text-sm font-medium text-gray-700 mb-1">Proposed
+							Room</label>
 						<select id="request-proposed-room" v-model="form.proposedRoomId" aria-label="Proposed Room"
 							class="w-full px-3 py-2 border border-gray-300 rounded">
 							<option :value="null">Keep current</option>
@@ -617,9 +889,10 @@ watch(roomScope, () => {
 					</div>
 
 					<div>
-						<label for="request-proposed-timeslot" class="block text-sm font-medium text-gray-700 mb-1">Proposed Time Slot</label>
-						<select id="request-proposed-timeslot" v-model="form.proposedTimeSlotId" aria-label="Proposed Time Slot"
-							class="w-full px-3 py-2 border border-gray-300 rounded">
+						<label for="request-proposed-timeslot"
+							class="block text-sm font-medium text-gray-700 mb-1">Proposed Time Slot</label>
+						<select id="request-proposed-timeslot" v-model="form.proposedTimeSlotId"
+							aria-label="Proposed Time Slot" class="w-full px-3 py-2 border border-gray-300 rounded">
 							<option :value="null">Keep current</option>
 							<option v-for="slot in timeSlots" :key="slot.id" :value="slot.id">
 								{{ timeslotsService.formatTimeSlot(slot) }}
@@ -628,7 +901,8 @@ watch(roomScope, () => {
 					</div>
 
 					<div>
-						<label for="request-notes" class="block text-sm font-medium text-gray-700 mb-1">Additional details
+						<label for="request-notes" class="block text-sm font-medium text-gray-700 mb-1">Additional
+							details
 							(optional)</label>
 						<textarea id="request-notes" v-model="form.notes" rows="3"
 							class="w-full px-3 py-2 border border-gray-300 rounded"></textarea>
