@@ -193,7 +193,7 @@ async function fetchFrictions() {
 	} catch (e) {
 		console.error('Failed to load frictions', e)
 		frictions.value = []
-		frictionsError.value = 'Failed to load schedule frictions'
+		frictionsError.value = 'Could not load schedule issues'
 	} finally {
 		frictionsLoading.value = false
 	}
@@ -211,12 +211,25 @@ function frictionSeverityClass(value: InstructorFrictionIssue['severity']): stri
 }
 
 function formatFrictionType(value: InstructorFrictionIssue['type']): string {
-	return value
-		.replace(/_/g, ' ')
-		.toLowerCase()
-		.split(' ')
-		.map(word => word.slice(0, 1).toUpperCase() + word.slice(1))
-		.join(' ')
+	switch (value) {
+		case 'LARGE_GAP':
+			return 'Long break'
+		case 'TIGHT_BUILDING_HOP':
+			return 'Short travel time'
+		case 'OUTSIDE_PREFERRED_WINDOW':
+			return 'Outside your preferred hours'
+		case 'ROOM_FEATURE_MISMATCH':
+			return 'Missing room setup'
+		case 'NON_PREFERRED_BUILDING':
+			return 'Different building'
+		default:
+			return value
+				.replace(/_/g, ' ')
+				.toLowerCase()
+				.split(' ')
+				.map(word => word.slice(0, 1).toUpperCase() + word.slice(1))
+				.join(' ')
+	}
 }
 
 function handleEventClick(scheduleId: number) {
@@ -362,8 +375,8 @@ function handleExportClassForSemester() {
 		<div v-if="INSTRUCTOR_FRICTION_MVP && role === 'instructor'" class="mb-6 rounded border border-gray-200 bg-white">
 			<div class="flex items-center justify-between border-b border-gray-200 p-4">
 				<div>
-					<h2 class="text-sm font-semibold text-gray-900">Schedule Frictions</h2>
-					<p class="mt-0.5 text-xs text-gray-500">Detected for {{ insightsSemester || 'current semester' }}.</p>
+					<h2 class="text-sm font-semibold text-gray-900">Schedule Issues</h2>
+					<p class="mt-0.5 text-xs text-gray-500">Found for {{ insightsSemester || 'current semester' }}.</p>
 				</div>
 				<button class="text-sm font-medium text-blue-700 hover:underline" @click="fetchFrictions">Refresh</button>
 			</div>
@@ -372,7 +385,7 @@ function handleExportClassForSemester() {
 				<div v-for="i in 3" :key="i" class="h-4 w-56 rounded bg-gray-200 animate-pulse"></div>
 			</div>
 			<div v-else-if="frictionsError" class="p-4 text-sm text-red-700">{{ frictionsError }}</div>
-			<div v-else-if="frictions.length === 0" class="p-4 text-sm text-gray-600">No frictions detected.</div>
+			<div v-else-if="frictions.length === 0" class="p-4 text-sm text-gray-600">No schedule issues found.</div>
 			<ul v-else class="divide-y divide-gray-100">
 				<li v-for="issue in frictions.slice(0, 8)" :key="issue.id" class="p-4 flex items-start gap-4">
 					<div class="flex-1 min-w-0">

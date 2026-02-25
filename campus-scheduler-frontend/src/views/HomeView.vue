@@ -205,7 +205,7 @@
 					</RouterLink>
 					<button v-if="INSTRUCTOR_FRICTION_MVP" @click="teachingPrefsOpen = true"
 						class="inline-flex items-center justify-center rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50">
-						Teaching Preferences
+						Class Preferences
 					</button>
 					<button @click="handleExportFullSemester" :disabled="!mySchedules?.length"
 						v-tooltip="'Download your full class schedule as an .ics file you can import into Google Calendar, Outlook, or Apple Calendar'"
@@ -280,9 +280,9 @@
 				<div v-if="INSTRUCTOR_FRICTION_MVP" class="rounded border border-gray-200 bg-white overflow-hidden">
 					<div class="flex items-center justify-between gap-4 border-b border-gray-200 p-4">
 						<div>
-							<h2 class="text-sm font-semibold text-gray-900">Schedule Frictions</h2>
+							<h2 class="text-sm font-semibold text-gray-900">Schedule Issues</h2>
 							<p class="mt-0.5 text-xs text-gray-500">
-								Detected for {{ activeInstructorSemester || 'current semester' }}.
+								Found for {{ activeInstructorSemester || 'current semester' }}.
 							</p>
 						</div>
 						<RouterLink to="/schedules" class="text-sm font-medium text-blue-700 hover:underline">
@@ -300,7 +300,7 @@
 						</button>
 					</div>
 					<div v-else-if="frictions.length === 0" class="p-4 text-sm text-gray-600">
-						No frictions detected right now.
+						No schedule issues right now.
 					</div>
 					<ul v-else class="divide-y divide-gray-100">
 						<li v-for="issue in frictions.slice(0, 5)" :key="issue.id" class="p-4 flex items-start gap-4">
@@ -488,20 +488,20 @@
 				</div>
 			</template>
 
-			<BaseModal v-if="INSTRUCTOR_FRICTION_MVP" :model-value="teachingPrefsOpen" title="Teaching Preferences"
+			<BaseModal v-if="INSTRUCTOR_FRICTION_MVP" :model-value="teachingPrefsOpen" title="Class Preferences"
 				@update:model-value="teachingPrefsOpen = $event">
 				<div class="space-y-4">
 					<div v-if="teachingPrefsError" class="text-sm text-red-700">{{ teachingPrefsError }}</div>
-					<div v-if="teachingPrefsLoading" class="text-sm text-gray-500">Loading preferences...</div>
+					<div v-if="teachingPrefsLoading" class="text-sm text-gray-500">Loading your preferences...</div>
 					<template v-else>
 						<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
 							<div>
-								<label for="pref-start" class="block text-sm font-medium text-gray-700 mb-1">Preferred start</label>
+								<label for="pref-start" class="block text-sm font-medium text-gray-700 mb-1">Earliest class start</label>
 								<input id="pref-start" v-model="teachingPrefsForm.preferredStartTime" type="time"
 									class="w-full px-3 py-2 border border-gray-300 rounded" />
 							</div>
 							<div>
-								<label for="pref-end" class="block text-sm font-medium text-gray-700 mb-1">Preferred end</label>
+								<label for="pref-end" class="block text-sm font-medium text-gray-700 mb-1">Latest class end</label>
 								<input id="pref-end" v-model="teachingPrefsForm.preferredEndTime" type="time"
 									class="w-full px-3 py-2 border border-gray-300 rounded" />
 							</div>
@@ -509,14 +509,12 @@
 
 						<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
 							<div>
-								<label for="pref-max-gap" class="block text-sm font-medium text-gray-700 mb-1">Max gap
-									(minutes)</label>
+								<label for="pref-max-gap" class="block text-sm font-medium text-gray-700 mb-1">Longest break between classes (minutes)</label>
 								<input id="pref-max-gap" v-model.number="teachingPrefsForm.maxGapMinutes" type="number"
 									min="0" max="360" class="w-full px-3 py-2 border border-gray-300 rounded" />
 							</div>
 							<div>
-								<label for="pref-travel" class="block text-sm font-medium text-gray-700 mb-1">Min travel
-									buffer (minutes)</label>
+								<label for="pref-travel" class="block text-sm font-medium text-gray-700 mb-1">Travel time between classes (minutes)</label>
 								<input id="pref-travel" v-model.number="teachingPrefsForm.minTravelBufferMinutes"
 									type="number" min="0" max="60" class="w-full px-3 py-2 border border-gray-300 rounded" />
 							</div>
@@ -524,7 +522,7 @@
 
 						<label class="flex items-start gap-2">
 							<input type="checkbox" v-model="teachingPrefsForm.avoidBuildingHops" class="mt-1" />
-							<span class="text-sm text-gray-700">Avoid tight building hops between adjacent classes</span>
+							<span class="text-sm text-gray-700">Avoid back-to-back classes in different buildings</span>
 						</label>
 
 						<div>
@@ -539,12 +537,11 @@
 						</div>
 
 						<div>
-							<label for="pref-features" class="block text-sm font-medium text-gray-700 mb-1">Required room
-								features</label>
+							<label for="pref-features" class="block text-sm font-medium text-gray-700 mb-1">Room must-haves</label>
 							<input id="pref-features" v-model="requiredFeaturesText" type="text"
 								placeholder="projector, microphone, smart board"
 								class="w-full px-3 py-2 border border-gray-300 rounded" />
-							<p class="mt-1 text-xs text-gray-500">Comma-separated keywords used for room mismatch checks.</p>
+							<p class="mt-1 text-xs text-gray-500">Use commas to separate items, for example: projector, microphone.</p>
 						</div>
 					</template>
 				</div>
@@ -556,7 +553,7 @@
 						<button :disabled="teachingPrefsLoading || teachingPrefsSaving"
 							class="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
 							@click="saveTeachingPreferences">
-							{{ teachingPrefsSaving ? 'Saving...' : 'Save Preferences' }}
+							{{ teachingPrefsSaving ? 'Saving...' : 'Save' }}
 						</button>
 					</div>
 				</template>
@@ -857,12 +854,25 @@ function frictionSeverityClass(value: InstructorFrictionIssue['severity']): stri
 }
 
 function formatFrictionType(value: InstructorFrictionIssue['type']): string {
-	return value
-		.replace(/_/g, ' ')
-		.toLowerCase()
-		.split(' ')
-		.map(word => word.slice(0, 1).toUpperCase() + word.slice(1))
-		.join(' ')
+	switch (value) {
+		case 'LARGE_GAP':
+			return 'Long break'
+		case 'TIGHT_BUILDING_HOP':
+			return 'Short travel time'
+		case 'OUTSIDE_PREFERRED_WINDOW':
+			return 'Outside your preferred hours'
+		case 'ROOM_FEATURE_MISMATCH':
+			return 'Missing room setup'
+		case 'NON_PREFERRED_BUILDING':
+			return 'Different building'
+		default:
+			return value
+				.replace(/_/g, ' ')
+				.toLowerCase()
+				.split(' ')
+				.map(word => word.slice(0, 1).toUpperCase() + word.slice(1))
+				.join(' ')
+	}
 }
 
 function normalizeFeatures(text: string): string[] {
@@ -893,7 +903,7 @@ async function loadTeachingPreferences() {
 		requiredFeaturesText.value = prefs.requiredRoomFeatures.join(', ')
 	} catch (error) {
 		console.error(error)
-		teachingPrefsError.value = 'Failed to load teaching preferences'
+		teachingPrefsError.value = 'Could not load your class preferences'
 	} finally {
 		teachingPrefsLoading.value = false
 	}
@@ -906,7 +916,7 @@ async function saveTeachingPreferences() {
 	const start = teachingPrefsForm.value.preferredStartTime
 	const end = teachingPrefsForm.value.preferredEndTime
 	if (start && end && start >= end) {
-		teachingPrefsError.value = 'Preferred start time must be earlier than preferred end time'
+		teachingPrefsError.value = 'Start time should be earlier than end time'
 		return
 	}
 
@@ -925,7 +935,7 @@ async function saveTeachingPreferences() {
 		teachingPrefsOpen.value = false
 	} catch (error: any) {
 		console.error(error)
-		teachingPrefsError.value = error?.response?.data?.error || 'Failed to save teaching preferences'
+		teachingPrefsError.value = error?.response?.data?.error || 'Could not save your class preferences'
 	} finally {
 		teachingPrefsSaving.value = false
 	}
@@ -948,7 +958,7 @@ async function fetchFrictions() {
 		)
 	} catch (error) {
 		console.error(error)
-		frictionsError.value = 'Failed to load schedule frictions'
+		frictionsError.value = 'Could not load schedule issues'
 		frictions.value = []
 	} finally {
 		frictionsLoading.value = false

@@ -347,7 +347,7 @@ function evaluateSuggestionPenalty(
 
 		if (hasTightHop) {
 			score += 15
-			reasons.push('+15 tight building hop')
+			reasons.push('+15 short travel time between buildings')
 		}
 	}
 
@@ -358,7 +358,7 @@ function evaluateSuggestionPenalty(
 			.filter(feature => !roomFeatures.includes(feature))
 		if (missingFeatures.length > 0) {
 			score += 15
-			reasons.push('+15 room feature mismatch')
+			reasons.push('+15 missing room setup')
 		}
 	}
 
@@ -368,7 +368,7 @@ function evaluateSuggestionPenalty(
 		&& !prefs.preferredBuildingIds.includes(room.buildingId)
 	) {
 		score += 8
-		reasons.push('+8 non-preferred building')
+		reasons.push('+8 outside preferred buildings')
 	}
 
 	const previousEnd = previous ? timeToMinutes(previous.timeSlot.endTime) : null
@@ -380,12 +380,12 @@ function evaluateSuggestionPenalty(
 		const gapPenalty = Math.min(20, Math.floor(gapOver / 30) * 5)
 		if (gapPenalty > 0) {
 			score += gapPenalty
-			reasons.push(`+${gapPenalty} large gap remains`)
+			reasons.push(`+${gapPenalty} long break between classes`)
 		}
 	}
 
 	if (reasons.length === 0) {
-		reasons.push('Best fit for current preferences')
+		reasons.push('Best match for your preferences')
 	}
 
 	return { score, reasons }
