@@ -56,6 +56,20 @@ class InstructorPreferenceControllerTest {
     }
 
     @Test
+    @DisplayName("GET room-feature-options returns catalog payload")
+    void getRoomFeatureOptionsReturnsOptions() throws Exception {
+        when(preferenceService.getRoomFeatureOptions()).thenReturn(List.of(
+                new RoomFeatureOptionResponse("projector", "Projector", "Presentation and AV"),
+                new RoomFeatureOptionResponse("microphone", "Microphone", "Presentation and AV")));
+
+        mockMvc.perform(get("/api/instructor-preferences/room-feature-options"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].value").value("projector"))
+                .andExpect(jsonPath("$[1].value").value("microphone"));
+    }
+
+    @Test
     @DisplayName("PUT validates max gap range")
     void putValidatesPayload() throws Exception {
         mockMvc.perform(put("/api/instructor-preferences/10")

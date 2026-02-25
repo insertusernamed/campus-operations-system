@@ -522,26 +522,60 @@
 						</label>
 
 						<div>
-							<div class="text-sm font-medium text-gray-700 mb-1">Preferred buildings</div>
-							<div
-								class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto border border-gray-200 rounded p-2">
-								<label v-for="building in buildings ?? []" :key="building.id"
-									class="flex items-center gap-2 text-sm text-gray-700">
-									<input type="checkbox" :value="building.id"
-										v-model="teachingPrefsForm.preferredBuildingIds" />
-									<span>{{ building.code }} - {{ building.name }}</span>
-								</label>
+							<div class="flex items-center justify-between gap-3 mb-1">
+								<div class="text-sm font-medium text-gray-700">Preferred buildings</div>
+								<button type="button"
+									class="text-xs text-blue-700 hover:text-blue-800 disabled:text-gray-400"
+									:disabled="teachingPrefsForm.preferredBuildingIds.length === 0"
+									@click="clearPreferredBuildings">
+									Clear all
+								</button>
+							</div>
+							<p class="text-xs text-gray-500 mb-2">Select buildings you want prioritized.</p>
+							<div class="border border-gray-200 rounded p-3">
+								<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+									<label v-for="building in buildings ?? []" :key="building.id"
+										class="flex items-start gap-2 text-sm text-gray-700">
+										<input type="checkbox" :value="building.id"
+											v-model="teachingPrefsForm.preferredBuildingIds" />
+										<span>{{ building.code }} - {{ building.name }}</span>
+									</label>
+								</div>
 							</div>
 						</div>
 
 						<div>
-							<label for="pref-features" class="block text-sm font-medium text-gray-700 mb-1">Room
-								must-haves</label>
-							<input id="pref-features" v-model="requiredFeaturesText" type="text"
-								placeholder="projector, microphone, smart board"
-								class="w-full px-3 py-2 border border-gray-300 rounded" />
-							<p class="mt-1 text-xs text-gray-500">Use commas to separate items, for example: projector,
-								microphone.</p>
+							<div class="flex items-center justify-between gap-3 mb-1">
+								<div class="text-sm font-medium text-gray-700">Room must-haves</div>
+								<button type="button"
+									class="text-xs text-blue-700 hover:text-blue-800 disabled:text-gray-400"
+									:disabled="teachingPrefsForm.requiredRoomFeatures.length === 0"
+									@click="clearRequiredRoomFeatures">
+									Clear all
+								</button>
+							</div>
+							<p class="text-xs text-gray-500 mb-2">Select the setup your class needs.</p>
+
+							<div v-if="roomFeatureOptionsLoading" class="text-sm text-gray-500">Loading room options...</div>
+							<div v-else-if="roomFeatureOptionsError" class="text-sm text-red-700">
+								Could not load room must-have options right now.
+							</div>
+							<div v-else class="border border-gray-200 rounded p-3">
+								<div class="space-y-3">
+									<div v-for="group in roomFeatureGroups" :key="group.category" class="space-y-2">
+										<p class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ group.category }}</p>
+										<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+											<label v-for="option in group.options" :key="option.value"
+												:for="`pref-feature-${toFeatureId(option.value)}`"
+												class="flex items-start gap-2 text-sm text-gray-700">
+												<input :id="`pref-feature-${toFeatureId(option.value)}`" type="checkbox"
+													:value="option.value" v-model="teachingPrefsForm.requiredRoomFeatures" />
+												<span>{{ option.label }}</span>
+											</label>
+										</div>
+									</div>
+								</div>
+							</div>
 						</div>
 					</template>
 				</div>
@@ -583,6 +617,7 @@ import BaseModal from '@/components/common/BaseModal.vue'
 import { buildingsService, type Building } from '@/services/buildings'
 import {
 	instructorPreferencesService,
+	type RoomFeatureOption,
 	type InstructorPreferenceUpdateRequest,
 } from '@/services/instructorPreferences'
 import {
@@ -605,7 +640,6 @@ const teachingPrefsOpen = ref(false)
 const teachingPrefsLoading = ref(false)
 const teachingPrefsSaving = ref(false)
 const teachingPrefsError = ref<string | null>(null)
-const requiredFeaturesText = ref('')
 
 const teachingPrefsForm = ref<InstructorPreferenceUpdateRequest>({
 	preferredStartTime: '08:00',
@@ -625,6 +659,16 @@ const {
 	data: buildings,
 	execute: fetchBuildings,
 } = useAsyncData<Building[]>(() => buildingsService.getAll(), { immediate: false })
+
+const {
+	data: roomFeatureOptions,
+	loading: roomFeatureOptionsLoading,
+	error: roomFeatureOptionsError,
+	execute: fetchRoomFeatureOptions,
+} = useAsyncData<RoomFeatureOption[]>(
+	() => instructorPreferencesService.getRoomFeatureOptions(),
+	{ immediate: false }
+)
 
 const {
 	data: stats,
@@ -686,6 +730,22 @@ const quickLinks = computed(() => {
 			description: 'Room utilization and peak usage patterns.',
 		},
 	]
+})
+
+type RoomFeatureGroup = {
+	category: string
+	options: RoomFeatureOption[]
+}
+
+const roomFeatureGroups = computed<RoomFeatureGroup[]>(() => {
+	const groups = new Map<string, RoomFeatureOption[]>()
+	for (const option of roomFeatureOptions.value ?? []) {
+		const items = groups.get(option.category) ?? []
+		items.push(option)
+		groups.set(option.category, items)
+	}
+
+	return Array.from(groups.entries()).map(([category, options]) => ({ category, options }))
 })
 
 const instructorLabel = computed(() => {
@@ -864,14 +924,16 @@ function formatFrictionType(value: InstructorFrictionIssue['type']): string {
 	return labels[value]
 }
 
-function normalizeFeatures(text: string): string[] {
-	const normalized = new Set<string>()
-	text
-		.split(',')
-		.map(item => item.trim().toLowerCase())
-		.filter(Boolean)
-		.forEach(item => normalized.add(item))
-	return Array.from(normalized)
+function toFeatureId(value: string): string {
+	return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+}
+
+function clearPreferredBuildings() {
+	teachingPrefsForm.value.preferredBuildingIds = []
+}
+
+function clearRequiredRoomFeatures() {
+	teachingPrefsForm.value.requiredRoomFeatures = []
 }
 
 async function loadTeachingPreferences() {
@@ -889,7 +951,6 @@ async function loadTeachingPreferences() {
 			preferredBuildingIds: prefs.preferredBuildingIds,
 			requiredRoomFeatures: prefs.requiredRoomFeatures,
 		}
-		requiredFeaturesText.value = prefs.requiredRoomFeatures.join(', ')
 	} catch (error) {
 		console.error(error)
 		teachingPrefsError.value = 'Could not load your class preferences'
@@ -916,7 +977,7 @@ async function saveTeachingPreferences() {
 			preferredBuildingIds: [...new Set(teachingPrefsForm.value.preferredBuildingIds)]
 				.map(value => Number(value))
 				.filter(value => Number.isFinite(value) && value > 0),
-			requiredRoomFeatures: normalizeFeatures(requiredFeaturesText.value),
+			requiredRoomFeatures: [...new Set(teachingPrefsForm.value.requiredRoomFeatures)],
 		}
 		await instructorPreferencesService.upsert(instructorId.value, payload)
 		await loadTeachingPreferences()
@@ -992,11 +1053,18 @@ watch(
 		}
 		if (INSTRUCTOR_FRICTION_MVP) {
 			void fetchBuildings()
+			void fetchRoomFeatureOptions()
 		}
 		void refreshInstructor()
 	},
 	{ immediate: true }
 )
+
+watch(teachingPrefsOpen, (open) => {
+	if (!open || !INSTRUCTOR_FRICTION_MVP) return
+	if ((roomFeatureOptions.value ?? []).length > 0) return
+	void fetchRoomFeatureOptions()
+})
 
 watch(
 	[activeInstructorSemester, instructorId],

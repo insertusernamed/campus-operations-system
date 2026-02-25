@@ -3,6 +3,7 @@ package org.campusscheduler.domain.instructorinsight;
 import lombok.RequiredArgsConstructor;
 import org.campusscheduler.domain.instructorpreference.InstructorPreferenceSettings;
 import org.campusscheduler.domain.instructorpreference.InstructorPreferenceService;
+import org.campusscheduler.domain.instructorpreference.RoomFeatureCatalog;
 import org.campusscheduler.domain.schedule.Schedule;
 import org.campusscheduler.domain.schedule.ScheduleRepository;
 import org.springframework.stereotype.Service;
@@ -302,13 +303,11 @@ public class InstructorInsightsService {
             return null;
         }
 
-        String roomFeatures = schedule.getRoom() != null && schedule.getRoom().getFeatures() != null
-                ? schedule.getRoom().getFeatures().toLowerCase()
-                : "";
+        String roomFeatures = schedule.getRoom() != null ? schedule.getRoom().getFeatures() : null;
 
         List<String> missing = settings.requiredRoomFeatures().stream()
-                .map(String::toLowerCase)
-                .filter(feature -> !roomFeatures.contains(feature))
+                .filter(feature -> !RoomFeatureCatalog.matchesRoomFeatures(roomFeatures, feature))
+                .map(RoomFeatureCatalog::labelFor)
                 .toList();
 
         if (missing.isEmpty()) {

@@ -31,6 +31,10 @@ public class InstructorPreferenceService {
     private final InstructorPreferenceRepository preferenceRepository;
     private final InstructorRepository instructorRepository;
 
+    public List<RoomFeatureOptionResponse> getRoomFeatureOptions() {
+        return RoomFeatureCatalog.options();
+    }
+
     public Optional<InstructorPreferenceResponse> getByInstructorId(Long instructorId) {
         if (instructorRepository.findById(instructorId).isEmpty()) {
             return Optional.empty();
@@ -101,14 +105,8 @@ public class InstructorPreferenceService {
 
         LinkedHashSet<String> normalized = new LinkedHashSet<>();
         for (String feature : raw) {
-            if (feature == null) {
-                continue;
-            }
-            String trimmed = feature.trim();
-            if (trimmed.isEmpty()) {
-                continue;
-            }
-            normalized.add(trimmed.toLowerCase());
+            RoomFeatureCatalog.canonicalize(feature)
+                    .ifPresent(normalized::add);
         }
 
         return new ArrayList<>(normalized);

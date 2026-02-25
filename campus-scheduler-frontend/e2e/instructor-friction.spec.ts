@@ -35,6 +35,11 @@ const buildings = [
 	{ id: 2, code: 'ENG', name: 'Engineering', address: '200 Campus Rd' },
 ]
 
+const roomFeatureOptions = [
+	{ value: 'projector', label: 'Projector', category: 'Presentation and AV' },
+	{ value: 'microphone', label: 'Microphone', category: 'Presentation and AV' },
+]
+
 const rooms = [
 	{
 		id: 1,
@@ -122,6 +127,10 @@ async function setupBaseMocks(page: any) {
 		await route.fulfill({ json: buildings })
 	})
 
+	await page.route(/.*\/api\/instructor-preferences\/room-feature-options$/, async (route: any) => {
+		await route.fulfill({ json: roomFeatureOptions })
+	})
+
 	await page.route(/.*\/api\/rooms$/, async (route: any) => {
 		await route.fulfill({ json: rooms })
 	})
@@ -177,12 +186,14 @@ test.describe('Instructor friction workflows', () => {
 		await page.getByRole('button', { name: 'Class Preferences' }).click()
 
 		await page.locator('#pref-max-gap').fill('75')
-		await page.locator('#pref-features').fill('projector, microphone')
+		await page.locator('#pref-feature-projector').check()
+		await page.locator('#pref-feature-microphone').check()
 		await page.getByRole('button', { name: 'Save' }).click()
 
 		await page.getByRole('button', { name: 'Class Preferences' }).click()
 		await expect(page.locator('#pref-max-gap')).toHaveValue('75')
-		await expect(page.locator('#pref-features')).toHaveValue('projector, microphone')
+		await expect(page.locator('#pref-feature-projector')).toBeChecked()
+		await expect(page.locator('#pref-feature-microphone')).toBeChecked()
 	})
 
 	test('friction fix CTA deep-links to prefilled request form', async ({ page }) => {

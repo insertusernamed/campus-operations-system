@@ -162,6 +162,29 @@ class InstructorInsightsServiceTest {
         assertThat(response.get()).isEmpty();
     }
 
+    @Test
+    void supportsAliasMatchingForRoomFeatures() {
+        InstructorPreferenceSettings settings = new InstructorPreferenceSettings(
+                LocalTime.of(8, 0),
+                LocalTime.of(18, 0),
+                180,
+                10,
+                true,
+                List.of(1L),
+                List.of("lecture capture"));
+
+        Schedule schedule = schedule(7L, DayOfWeek.MONDAY, "09:00", "10:00", 1L, "SCI", "Projector, Recording Equipment");
+
+        when(preferenceService.getEffectiveSettings(10L)).thenReturn(Optional.of(settings));
+        when(scheduleRepository.findByCourseInstructorIdAndSemester(10L, "Fall 2026"))
+                .thenReturn(List.of(schedule));
+
+        Optional<List<InstructorFrictionIssueResponse>> response = insightsService.findFrictions(10L, "Fall 2026");
+
+        assertThat(response).isPresent();
+        assertThat(response.get()).isEmpty();
+    }
+
     private static Schedule schedule(
             Long scheduleId,
             DayOfWeek day,

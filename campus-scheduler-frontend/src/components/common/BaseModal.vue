@@ -125,7 +125,7 @@ onUnmounted(() => {
 	top: 0;
 	left: 0;
 	width: 100%;
-	height: 100%;
+	height: 100dvh;
 	background: rgba(0, 0, 0, 0.5);
 	display: flex;
 	justify-content: center;
@@ -148,7 +148,7 @@ onUnmounted(() => {
 	background: var(--color-background, #fff);
 	border-radius: 12px;
 	width: 100%;
-	max-height: 85vh;
+	max-height: calc(100dvh - 2rem);
 	position: relative;
 	z-index: 1;
 	display: flex;
@@ -204,6 +204,7 @@ onUnmounted(() => {
 	padding: 1.5rem;
 	overflow-y: auto;
 	flex: 1;
+	min-height: 0;
 }
 
 .modal-footer {

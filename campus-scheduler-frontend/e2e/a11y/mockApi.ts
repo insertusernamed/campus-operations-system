@@ -843,6 +843,59 @@ export async function installA11yMockApi(
 			return
 		}
 
+		if (pathname === '/instructor-preferences/room-feature-options' && method === 'GET') {
+			await asJson(route, [
+				{ value: 'projector', label: 'Projector', category: 'Presentation and AV' },
+				{ value: 'microphone', label: 'Microphone', category: 'Presentation and AV' },
+				{ value: 'whiteboard', label: 'Whiteboard', category: 'Teaching setup' },
+			])
+			return
+		}
+
+		if (/^\/instructor-preferences\/\d+$/.test(pathname)) {
+			const instructorId = getNumericPathId(pathname)
+			if (!instructorId) {
+				await asJson(route, { message: 'Instructor not found' }, 404)
+				return
+			}
+
+			if (method === 'GET') {
+				await asJson(route, {
+					instructorId,
+					preferredStartTime: '08:00',
+					preferredEndTime: '18:00',
+					maxGapMinutes: 120,
+					minTravelBufferMinutes: 15,
+					avoidBuildingHops: true,
+					preferredBuildingIds: [],
+					requiredRoomFeatures: [],
+					updatedAt: new Date().toISOString(),
+				})
+				return
+			}
+
+			if (method === 'PUT') {
+				const payload = request.postDataJSON() as Record<string, unknown>
+				await asJson(route, {
+					instructorId,
+					preferredStartTime: payload.preferredStartTime ?? '08:00',
+					preferredEndTime: payload.preferredEndTime ?? '18:00',
+					maxGapMinutes: payload.maxGapMinutes ?? 120,
+					minTravelBufferMinutes: payload.minTravelBufferMinutes ?? 15,
+					avoidBuildingHops: payload.avoidBuildingHops ?? true,
+					preferredBuildingIds: payload.preferredBuildingIds ?? [],
+					requiredRoomFeatures: payload.requiredRoomFeatures ?? [],
+					updatedAt: new Date().toISOString(),
+				})
+				return
+			}
+		}
+
+		if (pathname === '/instructor-insights/frictions' && method === 'GET') {
+			await asJson(route, [])
+			return
+		}
+
 		if (pathname === '/analytics/rooms' && method === 'GET') {
 			await asJson(route, analytics.rooms)
 			return

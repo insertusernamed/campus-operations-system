@@ -22,9 +22,20 @@ export interface InstructorPreferenceUpdateRequest {
 	requiredRoomFeatures: string[]
 }
 
+export interface RoomFeatureOption {
+	value: string
+	label: string
+	category: string
+}
+
 export const instructorPreferencesService = {
 	async getByInstructorId(instructorId: number): Promise<InstructorPreference> {
 		const response = await api.get<InstructorPreference>(`/instructor-preferences/${instructorId}`)
+		return response.data
+	},
+
+	async getRoomFeatureOptions(): Promise<RoomFeatureOption[]> {
+		const response = await api.get<RoomFeatureOption[]>('/instructor-preferences/room-feature-options')
 		return response.data
 	},
 

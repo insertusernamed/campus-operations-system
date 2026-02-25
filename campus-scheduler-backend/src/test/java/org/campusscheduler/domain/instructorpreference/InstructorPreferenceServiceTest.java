@@ -77,15 +77,24 @@ class InstructorPreferenceServiceTest {
         request.setMinTravelBufferMinutes(20);
         request.setAvoidBuildingHops(true);
         request.setPreferredBuildingIds(Arrays.asList(3L, 2L, 3L, null, -1L));
-        request.setRequiredRoomFeatures(Arrays.asList(" Projector ", "", null, "projector", "Mic"));
+        request.setRequiredRoomFeatures(Arrays.asList(" Projector ", "", null, "projector", "Mic", "smart board", "unknown"));
 
         Optional<InstructorPreferenceResponse> response = preferenceService.upsert(11L, request);
 
         assertThat(response).isPresent();
         assertThat(response.get().preferredBuildingIds()).containsExactly(2L, 3L);
-        assertThat(response.get().requiredRoomFeatures()).containsExactly("projector", "mic");
+        assertThat(response.get().requiredRoomFeatures()).containsExactly("projector", "microphone", "interactive display");
         assertThat(response.get().maxGapMinutes()).isEqualTo(90);
         assertThat(response.get().minTravelBufferMinutes()).isEqualTo(20);
         assertThat(response.get().updatedAt()).isNotNull();
+    }
+
+    @Test
+    void getRoomFeatureOptionsReturnsCatalog() {
+        List<RoomFeatureOptionResponse> options = preferenceService.getRoomFeatureOptions();
+
+        assertThat(options).hasSize(20);
+        assertThat(options.getFirst().value()).isEqualTo("projector");
+        assertThat(options.getLast().value()).isEqualTo("eyewash station");
     }
 }

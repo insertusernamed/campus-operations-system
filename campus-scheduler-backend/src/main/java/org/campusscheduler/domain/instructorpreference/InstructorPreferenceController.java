@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
  * REST endpoints for instructor preference profiles.
  */
@@ -37,6 +39,15 @@ public class InstructorPreferenceController {
         return instructorPreferenceService.getByInstructorId(instructorId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/room-feature-options")
+    @Operation(summary = "Get room must-have options")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Options returned")
+    })
+    public ResponseEntity<List<RoomFeatureOptionResponse>> getRoomFeatureOptions() {
+        return ResponseEntity.ok(instructorPreferenceService.getRoomFeatureOptions());
     }
 
     @PutMapping("/{instructorId}")
