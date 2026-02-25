@@ -854,25 +854,14 @@ function frictionSeverityClass(value: InstructorFrictionIssue['severity']): stri
 }
 
 function formatFrictionType(value: InstructorFrictionIssue['type']): string {
-	switch (value) {
-		case 'LARGE_GAP':
-			return 'Long break'
-		case 'TIGHT_BUILDING_HOP':
-			return 'Short travel time'
-		case 'OUTSIDE_PREFERRED_WINDOW':
-			return 'Outside your preferred hours'
-		case 'ROOM_FEATURE_MISMATCH':
-			return 'Missing room setup'
-		case 'NON_PREFERRED_BUILDING':
-			return 'Different building'
-		default:
-			return value
-				.replace(/_/g, ' ')
-				.toLowerCase()
-				.split(' ')
-				.map(word => word.slice(0, 1).toUpperCase() + word.slice(1))
-				.join(' ')
+	const labels: Record<InstructorFrictionIssue['type'], string> = {
+		LARGE_GAP: 'Long break',
+		TIGHT_BUILDING_HOP: 'Short travel time',
+		OUTSIDE_PREFERRED_WINDOW: 'Outside your preferred hours',
+		ROOM_FEATURE_MISMATCH: 'Missing room setup',
+		NON_PREFERRED_BUILDING: 'Different building',
 	}
+	return labels[value]
 }
 
 function normalizeFeatures(text: string): string[] {
