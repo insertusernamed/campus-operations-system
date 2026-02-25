@@ -14,6 +14,11 @@ import TableSkeleton from '@/components/common/TableSkeleton.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
 import { changeRequestIssueOptions, type ChangeRequestIssue } from '@/constants/changeRequestIssues'
 import { exportSingleClass, exportClassForSemester } from '@/utils/icalExport'
+import { INSTRUCTOR_FRICTION_MVP } from '@/config/features'
+import {
+	instructorInsightsService,
+	type InstructorFrictionIssue,
+} from '@/services/instructorInsights'
 
 type ViewMode = 'table' | 'calendar'
 type CalendarRangeMode = 'day' | 'week'
@@ -31,6 +36,9 @@ const calendarRangeMode = ref<CalendarRangeMode>(role.value === 'admin' ? 'day' 
 const requestModalOpen = ref(false)
 const selectedScheduleId = ref<number | null>(null)
 const selectedIssue = ref<ChangeRequestIssue | ''>('')
+const frictions = ref<InstructorFrictionIssue[]>([])
+const frictionsLoading = ref(false)
+const frictionsError = ref<string | null>(null)
 
 const { items, loading, error, fetchAll, handleDelete } = useCrud<Schedule, never>({
 	getAll: () => schedulesService.getAll({
@@ -114,6 +122,8 @@ const semesterOptions = computed(() => {
 		})
 })
 
+const insightsSemester = computed(() => selectedSemester.value ?? semesterOptions.value[0] ?? '')
+
 // Filter schedules by selected building and room
 const filteredItems = computed(() => {
 	let result = hydratedItems.value
@@ -142,15 +152,15 @@ watch(selectedBuildingId, () => {
 // Refetch when role or instructor changes
 watch([role, instructorId], () => {
 	calendarRangeMode.value = role.value === 'admin' ? 'day' : 'week'
-	fetchAll()
+	void refreshSchedulesAndFrictions()
 })
 
 watch(selectedSemester, () => {
-	fetchAll()
+	void refreshSchedulesAndFrictions()
 })
 
 onMounted(async () => {
-	await fetchAll()
+	await refreshSchedulesAndFrictions()
 	try {
 		const [roomsData, buildingsData] = await Promise.all([
 			roomsService.getAll(),
@@ -163,6 +173,51 @@ onMounted(async () => {
 		error.value = 'Failed to load filter data. Please try reloading the page.' as any
 	}
 })
+
+async function refreshSchedulesAndFrictions() {
+	await fetchAll()
+	await fetchFrictions()
+}
+
+async function fetchFrictions() {
+	if (!INSTRUCTOR_FRICTION_MVP || role.value !== 'instructor' || !instructorId.value || !insightsSemester.value) {
+		frictions.value = []
+		frictionsError.value = null
+		return
+	}
+
+	frictionsLoading.value = true
+	frictionsError.value = null
+	try {
+		frictions.value = await instructorInsightsService.getFrictions(instructorId.value, insightsSemester.value)
+	} catch (e) {
+		console.error('Failed to load frictions', e)
+		frictions.value = []
+		frictionsError.value = 'Failed to load schedule frictions'
+	} finally {
+		frictionsLoading.value = false
+	}
+}
+
+function frictionSeverityClass(value: InstructorFrictionIssue['severity']): string {
+	switch (value) {
+		case 'HIGH':
+			return 'bg-red-100 text-red-700'
+		case 'MEDIUM':
+			return 'bg-amber-100 text-amber-700'
+		default:
+			return 'bg-blue-100 text-blue-700'
+	}
+}
+
+function formatFrictionType(value: InstructorFrictionIssue['type']): string {
+	return value
+		.replace(/_/g, ' ')
+		.toLowerCase()
+		.split(' ')
+		.map(word => word.slice(0, 1).toUpperCase() + word.slice(1))
+		.join(' ')
+}
 
 function handleEventClick(scheduleId: number) {
 	selectedScheduleId.value = scheduleId
@@ -302,6 +357,40 @@ function handleExportClassForSemester() {
 					class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Add
 					Schedule</RouterLink>
 			</div>
+		</div>
+
+		<div v-if="INSTRUCTOR_FRICTION_MVP && role === 'instructor'" class="mb-6 rounded border border-gray-200 bg-white">
+			<div class="flex items-center justify-between border-b border-gray-200 p-4">
+				<div>
+					<h2 class="text-sm font-semibold text-gray-900">Schedule Frictions</h2>
+					<p class="mt-0.5 text-xs text-gray-500">Detected for {{ insightsSemester || 'current semester' }}.</p>
+				</div>
+				<button class="text-sm font-medium text-blue-700 hover:underline" @click="fetchFrictions">Refresh</button>
+			</div>
+
+			<div v-if="frictionsLoading" class="p-4 space-y-2">
+				<div v-for="i in 3" :key="i" class="h-4 w-56 rounded bg-gray-200 animate-pulse"></div>
+			</div>
+			<div v-else-if="frictionsError" class="p-4 text-sm text-red-700">{{ frictionsError }}</div>
+			<div v-else-if="frictions.length === 0" class="p-4 text-sm text-gray-600">No frictions detected.</div>
+			<ul v-else class="divide-y divide-gray-100">
+				<li v-for="issue in frictions.slice(0, 8)" :key="issue.id" class="p-4 flex items-start gap-4">
+					<div class="flex-1 min-w-0">
+						<div class="flex flex-wrap items-center gap-2">
+							<span class="text-xs px-2 py-0.5 rounded font-medium" :class="frictionSeverityClass(issue.severity)">
+								{{ issue.severity }}
+							</span>
+							<span class="text-xs text-gray-500">{{ formatFrictionType(issue.type) }}</span>
+						</div>
+						<p class="mt-2 text-sm text-gray-700">{{ issue.message }}</p>
+					</div>
+					<RouterLink
+						:to="{ path: '/requests/new', query: { scheduleId: String(issue.scheduleId), issue: issue.recommendedIssue } }"
+						class="shrink-0 inline-flex items-center rounded border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+						Fix
+					</RouterLink>
+				</li>
+			</ul>
 		</div>
 
 		<TableSkeleton v-if="loading" :columns="5" :rows="6" />
