@@ -207,17 +207,6 @@
 						class="inline-flex items-center justify-center rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50">
 						Class Preferences
 					</button>
-					<button @click="handleExportFullSemester" :disabled="!mySchedules?.length"
-						v-tooltip="'Download your full class schedule as an .ics file you can import into Google Calendar, Outlook, or Apple Calendar'"
-						class="inline-flex items-center justify-center gap-1.5 rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50">
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" viewBox="0 0 20 20"
-							fill="currentColor" aria-hidden="true">
-							<path fill-rule="evenodd"
-								d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z"
-								clip-rule="evenodd" />
-						</svg>
-						Export to iCal
-					</button>
 					<button @click="refreshInstructor" :disabled="instructorRefreshing"
 						class="inline-flex items-center justify-center rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50">
 						{{ instructorRefreshing ? 'Refreshing...' : 'Refresh' }}
@@ -470,7 +459,8 @@
 						</ul>
 
 						<div v-if="recentResolvedRequests.length" class="border-t border-gray-200 p-3">
-							<div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Recent Decisions
+							<div class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Recent
+								Decisions
 							</div>
 							<ul class="space-y-2">
 								<li v-for="request in recentResolvedRequests" :key="`resolved-${request.id}`"
@@ -479,8 +469,9 @@
 									<span class="mx-1">-</span>
 									<span>{{ request.status }}</span>
 									<span v-if="request.decisionNote" class="mx-1">|</span>
-									<span v-if="request.decisionNote" class="text-gray-500 truncate">{{ request.decisionNote
-									}}</span>
+									<span v-if="request.decisionNote" class="text-gray-500 truncate">{{
+										request.decisionNote
+										}}</span>
 								</li>
 							</ul>
 						</div>
@@ -496,12 +487,14 @@
 					<template v-else>
 						<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
 							<div>
-								<label for="pref-start" class="block text-sm font-medium text-gray-700 mb-1">Earliest class start</label>
+								<label for="pref-start" class="block text-sm font-medium text-gray-700 mb-1">Earliest
+									class start</label>
 								<input id="pref-start" v-model="teachingPrefsForm.preferredStartTime" type="time"
 									class="w-full px-3 py-2 border border-gray-300 rounded" />
 							</div>
 							<div>
-								<label for="pref-end" class="block text-sm font-medium text-gray-700 mb-1">Latest class end</label>
+								<label for="pref-end" class="block text-sm font-medium text-gray-700 mb-1">Latest class
+									end</label>
 								<input id="pref-end" v-model="teachingPrefsForm.preferredEndTime" type="time"
 									class="w-full px-3 py-2 border border-gray-300 rounded" />
 							</div>
@@ -509,14 +502,17 @@
 
 						<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
 							<div>
-								<label for="pref-max-gap" class="block text-sm font-medium text-gray-700 mb-1">Longest break between classes (minutes)</label>
+								<label for="pref-max-gap" class="block text-sm font-medium text-gray-700 mb-1">Longest
+									break between classes (minutes)</label>
 								<input id="pref-max-gap" v-model.number="teachingPrefsForm.maxGapMinutes" type="number"
 									min="0" max="360" class="w-full px-3 py-2 border border-gray-300 rounded" />
 							</div>
 							<div>
-								<label for="pref-travel" class="block text-sm font-medium text-gray-700 mb-1">Travel time between classes (minutes)</label>
+								<label for="pref-travel" class="block text-sm font-medium text-gray-700 mb-1">Travel
+									time between classes (minutes)</label>
 								<input id="pref-travel" v-model.number="teachingPrefsForm.minTravelBufferMinutes"
-									type="number" min="0" max="60" class="w-full px-3 py-2 border border-gray-300 rounded" />
+									type="number" min="0" max="60"
+									class="w-full px-3 py-2 border border-gray-300 rounded" />
 							</div>
 						</div>
 
@@ -527,21 +523,25 @@
 
 						<div>
 							<div class="text-sm font-medium text-gray-700 mb-1">Preferred buildings</div>
-							<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto border border-gray-200 rounded p-2">
+							<div
+								class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto border border-gray-200 rounded p-2">
 								<label v-for="building in buildings ?? []" :key="building.id"
 									class="flex items-center gap-2 text-sm text-gray-700">
-									<input type="checkbox" :value="building.id" v-model="teachingPrefsForm.preferredBuildingIds" />
+									<input type="checkbox" :value="building.id"
+										v-model="teachingPrefsForm.preferredBuildingIds" />
 									<span>{{ building.code }} - {{ building.name }}</span>
 								</label>
 							</div>
 						</div>
 
 						<div>
-							<label for="pref-features" class="block text-sm font-medium text-gray-700 mb-1">Room must-haves</label>
+							<label for="pref-features" class="block text-sm font-medium text-gray-700 mb-1">Room
+								must-haves</label>
 							<input id="pref-features" v-model="requiredFeaturesText" type="text"
 								placeholder="projector, microphone, smart board"
 								class="w-full px-3 py-2 border border-gray-300 rounded" />
-							<p class="mt-1 text-xs text-gray-500">Use commas to separate items, for example: projector, microphone.</p>
+							<p class="mt-1 text-xs text-gray-500">Use commas to separate items, for example: projector,
+								microphone.</p>
 						</div>
 					</template>
 				</div>
