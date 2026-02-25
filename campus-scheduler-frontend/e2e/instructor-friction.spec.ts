@@ -174,13 +174,13 @@ test.describe('Instructor friction workflows', () => {
 		})
 
 		await page.goto('/')
-		await page.getByRole('button', { name: 'Teaching Preferences' }).click()
+		await page.getByRole('button', { name: 'Class Preferences' }).click()
 
 		await page.locator('#pref-max-gap').fill('75')
 		await page.locator('#pref-features').fill('projector, microphone')
-		await page.getByRole('button', { name: 'Save Preferences' }).click()
+		await page.getByRole('button', { name: 'Save' }).click()
 
-		await page.getByRole('button', { name: 'Teaching Preferences' }).click()
+		await page.getByRole('button', { name: 'Class Preferences' }).click()
 		await expect(page.locator('#pref-max-gap')).toHaveValue('75')
 		await expect(page.locator('#pref-features')).toHaveValue('projector, microphone')
 	})
@@ -301,7 +301,7 @@ test.describe('Instructor friction workflows', () => {
 		await main.getByRole('button', { name: 'Generate options' }).click()
 
 		await expect(main.locator('#request-proposed-room')).toHaveValue('1')
-		await expect(main.getByText('Best fit for current preferences')).toBeVisible()
+		await expect(main.getByText('Best match for your preferences')).toBeVisible()
 	})
 
 	test('my requests shows timeline and status refresh updates', async ({ page }) => {

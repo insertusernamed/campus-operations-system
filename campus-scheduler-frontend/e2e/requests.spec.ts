@@ -162,10 +162,10 @@ test.describe('Change Requests Workflow', () => {
         await main.getByRole('button', { name: 'Submit Request' }).click();
 
         await expect(page).toHaveURL('/requests');
-        await expect(main.getByText('PENDING')).toBeVisible();
+        await expect(main.getByText('PENDING', { exact: true })).toBeVisible();
 
         // Switch to admin and approve the request.
-        const roleSelect = page.locator('header select').first();
+        const roleSelect = page.getByRole('combobox', { name: 'Role' });
         await roleSelect.selectOption('admin');
         await expect(roleSelect).toHaveValue('admin');
         const adminRequestsLink = page.getByRole('link', { name: 'Requests' });
