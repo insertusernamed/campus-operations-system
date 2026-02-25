@@ -26,6 +26,7 @@ export interface RoomFeatureOption {
 	value: string
 	label: string
 	category: string
+	matchKeywords: string[]
 }
 
 export const instructorPreferencesService = {

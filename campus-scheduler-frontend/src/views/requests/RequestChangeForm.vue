@@ -19,6 +19,7 @@ import ScheduleCalendar from '@/components/calendar/ScheduleCalendar.vue'
 import {
 	instructorPreferencesService,
 	type InstructorPreference,
+	type RoomFeatureOption,
 } from '@/services/instructorPreferences'
 import { INSTRUCTOR_FRICTION_MVP } from '@/config/features'
 
@@ -70,6 +71,7 @@ const suggestions = ref<ImpactSuggestion[]>([])
 const selectedSuggestionId = ref<string | null>(null)
 const lastAutoFilledTemplate = ref('')
 const instructorPreferences = ref<InstructorPreference | null>(null)
+const roomFeatureOptions = ref<RoomFeatureOption[]>([])
 
 const selectedSchedule = computed(() => schedules.value.find(schedule => schedule.id === form.value.scheduleId) ?? null)
 const selectedSuggestion = computed(() => suggestions.value.find(suggestion => suggestion.id === selectedSuggestionId.value) ?? null)
@@ -149,6 +151,20 @@ async function loadInstructorPreferences() {
 	} catch (e) {
 		console.error(e)
 		instructorPreferences.value = null
+	}
+}
+
+async function loadRoomFeatureOptions() {
+	if (!INSTRUCTOR_FRICTION_MVP) {
+		roomFeatureOptions.value = []
+		return
+	}
+
+	try {
+		roomFeatureOptions.value = await instructorPreferencesService.getRoomFeatureOptions()
+	} catch (e) {
+		console.error(e)
+		roomFeatureOptions.value = []
 	}
 }
 
@@ -259,6 +275,34 @@ function getEffectivePreferences(): InstructorPreference {
 	return instructorPreferences.value ?? DEFAULT_PREFERENCES
 }
 
+function normalizeFeatureText(value: string | null | undefined): string {
+	if (!value) return ''
+	return value
+		.toLowerCase()
+		.replace(/[_\-\\/]/g, ' ')
+		.replace(/[^a-z0-9 ]/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim()
+}
+
+function hasRequiredRoomFeature(roomFeatures: string | null, requiredFeature: string): boolean {
+	const normalizedRoomFeatures = normalizeFeatureText(roomFeatures)
+	if (!normalizedRoomFeatures) return false
+
+	const normalizedRequiredFeature = normalizeFeatureText(requiredFeature)
+	const option = roomFeatureOptions.value.find(
+		item => normalizeFeatureText(item.value) === normalizedRequiredFeature,
+	)
+
+	const keywords = option
+		? (Array.isArray(option.matchKeywords) ? option.matchKeywords : [option.value])
+			.map(keyword => normalizeFeatureText(keyword))
+			.filter(Boolean)
+		: [normalizedRequiredFeature]
+
+	return keywords.some(keyword => normalizedRoomFeatures.includes(keyword))
+}
+
 function parsePreferenceTime(value: string | null): number | null {
 	if (!value) return null
 	return timeToMinutes(value)
@@ -352,10 +396,8 @@ function evaluateSuggestionPenalty(
 	}
 
 	if (prefs.requiredRoomFeatures.length > 0) {
-		const roomFeatures = (room.features ?? '').toLowerCase()
 		const missingFeatures = prefs.requiredRoomFeatures
-			.map(feature => feature.toLowerCase())
-			.filter(feature => !roomFeatures.includes(feature))
+			.filter(feature => !hasRequiredRoomFeature(room.features, feature))
 		if (missingFeatures.length > 0) {
 			score += 15
 			reasons.push('+15 missing room setup')
@@ -672,8 +714,7 @@ watch(() => [form.value.scheduleId, form.value.proposedRoomId, form.value.propos
 })
 
 onMounted(async () => {
-	await loadData()
-	await loadInstructorPreferences()
+	await Promise.all([loadData(), loadInstructorPreferences(), loadRoomFeatureOptions()])
 	applySchedulePrefill()
 	applyIssuePrefill()
 })
@@ -741,7 +782,8 @@ watch(roomScope, () => {
 
 				<div class="space-y-4">
 					<div>
-						<label for="request-schedule" class="block text-sm font-medium text-gray-700 mb-1">Schedule</label>
+						<label for="request-schedule"
+							class="block text-sm font-medium text-gray-700 mb-1">Schedule</label>
 						<select id="request-schedule" v-model.number="form.scheduleId" aria-label="Schedule"
 							class="w-full px-3 py-2 border border-gray-300 rounded">
 							<option :value="0" disabled>Select schedule</option>
@@ -752,7 +794,8 @@ watch(roomScope, () => {
 					</div>
 
 					<div>
-						<label for="request-issue" class="block text-sm font-medium text-gray-700 mb-1">Why is this a problem?</label>
+						<label for="request-issue" class="block text-sm font-medium text-gray-700 mb-1">Why is this a
+							problem?</label>
 						<select id="request-issue" v-model="form.issue" aria-label="Issue"
 							class="w-full px-3 py-2 border border-gray-300 rounded">
 							<option value="" disabled>Select a reason</option>
@@ -801,10 +844,10 @@ watch(roomScope, () => {
 							<label v-for="suggestion in suggestions" :key="suggestion.id"
 								class="flex items-start gap-2 text-sm text-gray-700">
 								<input type="radio" class="mt-1" :value="suggestion.id" v-model="selectedSuggestionId"
-									:disabled="suggestion.hasHardConflicts"
-									@change="applySuggestion(suggestion)" />
+									:disabled="suggestion.hasHardConflicts" @change="applySuggestion(suggestion)" />
 								<div>
-									<div class="font-medium" :class="suggestion.hasHardConflicts ? 'text-gray-500' : 'text-gray-900'">
+									<div class="font-medium"
+										:class="suggestion.hasHardConflicts ? 'text-gray-500' : 'text-gray-900'">
 										{{ timeslotsService.formatTimeSlot(suggestion.timeSlot) }} • {{
 											formatRoom(suggestion.room) }}
 									</div>
@@ -812,7 +855,8 @@ watch(roomScope, () => {
 										{{ suggestionSummary(suggestion) }}
 									</div>
 									<div class="mt-1 flex flex-wrap gap-1">
-										<span v-for="reason in suggestion.penaltyReasons" :key="`${suggestion.id}-${reason}`"
+										<span v-for="reason in suggestion.penaltyReasons"
+											:key="`${suggestion.id}-${reason}`"
 											class="text-[11px] rounded bg-gray-100 px-2 py-0.5 text-gray-600">
 											{{ reason }}
 										</span>
@@ -833,7 +877,8 @@ watch(roomScope, () => {
 					</div>
 
 					<div>
-						<label for="request-proposed-room" class="block text-sm font-medium text-gray-700 mb-1">Proposed Room</label>
+						<label for="request-proposed-room" class="block text-sm font-medium text-gray-700 mb-1">Proposed
+							Room</label>
 						<select id="request-proposed-room" v-model="form.proposedRoomId" aria-label="Proposed Room"
 							class="w-full px-3 py-2 border border-gray-300 rounded">
 							<option :value="null">Keep current</option>
@@ -844,9 +889,10 @@ watch(roomScope, () => {
 					</div>
 
 					<div>
-						<label for="request-proposed-timeslot" class="block text-sm font-medium text-gray-700 mb-1">Proposed Time Slot</label>
-						<select id="request-proposed-timeslot" v-model="form.proposedTimeSlotId" aria-label="Proposed Time Slot"
-							class="w-full px-3 py-2 border border-gray-300 rounded">
+						<label for="request-proposed-timeslot"
+							class="block text-sm font-medium text-gray-700 mb-1">Proposed Time Slot</label>
+						<select id="request-proposed-timeslot" v-model="form.proposedTimeSlotId"
+							aria-label="Proposed Time Slot" class="w-full px-3 py-2 border border-gray-300 rounded">
 							<option :value="null">Keep current</option>
 							<option v-for="slot in timeSlots" :key="slot.id" :value="slot.id">
 								{{ timeslotsService.formatTimeSlot(slot) }}
@@ -855,7 +901,8 @@ watch(roomScope, () => {
 					</div>
 
 					<div>
-						<label for="request-notes" class="block text-sm font-medium text-gray-700 mb-1">Additional details
+						<label for="request-notes" class="block text-sm font-medium text-gray-700 mb-1">Additional
+							details
 							(optional)</label>
 						<textarea id="request-notes" v-model="form.notes" rows="3"
 							class="w-full px-3 py-2 border border-gray-300 rounded"></textarea>

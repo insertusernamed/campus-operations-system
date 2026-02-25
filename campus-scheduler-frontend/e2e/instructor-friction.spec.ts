@@ -36,8 +36,8 @@ const buildings = [
 ]
 
 const roomFeatureOptions = [
-	{ value: 'projector', label: 'Projector', category: 'Presentation and AV' },
-	{ value: 'microphone', label: 'Microphone', category: 'Presentation and AV' },
+	{ value: 'projector', label: 'Projector', category: 'Presentation and AV', matchKeywords: ['projector'] },
+	{ value: 'microphone', label: 'Microphone', category: 'Presentation and AV', matchKeywords: ['microphone', 'mic'] },
 ]
 
 const rooms = [

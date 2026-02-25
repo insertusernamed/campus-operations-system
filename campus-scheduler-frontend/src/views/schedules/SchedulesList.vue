@@ -19,6 +19,7 @@ import {
 	instructorInsightsService,
 	type InstructorFrictionIssue,
 } from '@/services/instructorInsights'
+import { formatFrictionType, frictionSeverityClass } from '@/utils/friction'
 
 type ViewMode = 'table' | 'calendar'
 type CalendarRangeMode = 'day' | 'week'
@@ -199,28 +200,6 @@ async function fetchFrictions() {
 	}
 }
 
-function frictionSeverityClass(value: InstructorFrictionIssue['severity']): string {
-	switch (value) {
-		case 'HIGH':
-			return 'bg-red-100 text-red-700'
-		case 'MEDIUM':
-			return 'bg-amber-100 text-amber-700'
-		default:
-			return 'bg-blue-100 text-blue-700'
-	}
-}
-
-function formatFrictionType(value: InstructorFrictionIssue['type']): string {
-	const labels: Record<InstructorFrictionIssue['type'], string> = {
-		LARGE_GAP: 'Long break',
-		TIGHT_BUILDING_HOP: 'Short travel time',
-		OUTSIDE_PREFERRED_WINDOW: 'Outside your preferred hours',
-		ROOM_FEATURE_MISMATCH: 'Missing room setup',
-		NON_PREFERRED_BUILDING: 'Different building',
-	}
-	return labels[value]
-}
-
 function handleEventClick(scheduleId: number) {
 	selectedScheduleId.value = scheduleId
 	if (role.value === 'instructor') {
@@ -361,13 +340,15 @@ function handleExportClassForSemester() {
 			</div>
 		</div>
 
-		<div v-if="INSTRUCTOR_FRICTION_MVP && role === 'instructor'" class="mb-6 rounded border border-gray-200 bg-white">
+		<div v-if="INSTRUCTOR_FRICTION_MVP && role === 'instructor'"
+			class="mb-6 rounded border border-gray-200 bg-white">
 			<div class="flex items-center justify-between border-b border-gray-200 p-4">
 				<div>
 					<h2 class="text-sm font-semibold text-gray-900">Schedule Issues</h2>
 					<p class="mt-0.5 text-xs text-gray-500">Found for {{ insightsSemester || 'current semester' }}.</p>
 				</div>
-				<button class="text-sm font-medium text-blue-700 hover:underline" @click="fetchFrictions">Refresh</button>
+				<button class="text-sm font-medium text-blue-700 hover:underline"
+					@click="fetchFrictions">Refresh</button>
 			</div>
 
 			<div v-if="frictionsLoading" class="p-4 space-y-2">
@@ -379,7 +360,8 @@ function handleExportClassForSemester() {
 				<li v-for="issue in frictions.slice(0, 8)" :key="issue.id" class="p-4 flex items-start gap-4">
 					<div class="flex-1 min-w-0">
 						<div class="flex flex-wrap items-center gap-2">
-							<span class="text-xs px-2 py-0.5 rounded font-medium" :class="frictionSeverityClass(issue.severity)">
+							<span class="text-xs px-2 py-0.5 rounded font-medium"
+								:class="frictionSeverityClass(issue.severity)">
 								{{ issue.severity }}
 							</span>
 							<span class="text-xs text-gray-500">{{ formatFrictionType(issue.type) }}</span>

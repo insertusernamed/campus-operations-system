@@ -845,9 +845,9 @@ export async function installA11yMockApi(
 
 		if (pathname === '/instructor-preferences/room-feature-options' && method === 'GET') {
 			await asJson(route, [
-				{ value: 'projector', label: 'Projector', category: 'Presentation and AV' },
-				{ value: 'microphone', label: 'Microphone', category: 'Presentation and AV' },
-				{ value: 'whiteboard', label: 'Whiteboard', category: 'Teaching setup' },
+				{ value: 'projector', label: 'Projector', category: 'Presentation and AV', matchKeywords: ['projector'] },
+				{ value: 'microphone', label: 'Microphone', category: 'Presentation and AV', matchKeywords: ['microphone', 'mic'] },
+				{ value: 'whiteboard', label: 'Whiteboard', category: 'Teaching setup', matchKeywords: ['whiteboard'] },
 			])
 			return
 		}

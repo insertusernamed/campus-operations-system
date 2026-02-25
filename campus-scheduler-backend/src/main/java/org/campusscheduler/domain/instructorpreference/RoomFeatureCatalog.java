@@ -1,6 +1,7 @@
 package org.campusscheduler.domain.instructorpreference;
 
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -178,7 +179,6 @@ public final class RoomFeatureCatalog {
 
         String normalizedRoomFeatures = normalize(roomFeatures);
         return definition.matchKeywords().stream()
-                .map(RoomFeatureCatalog::normalize)
                 .anyMatch(keyword -> !keyword.isEmpty() && normalizedRoomFeatures.contains(keyword));
     }
 
@@ -236,10 +236,19 @@ public final class RoomFeatureCatalog {
             String category,
             List<String> aliases,
             List<String> matchKeywords) {
+        LinkedHashSet<String> normalizedKeywords = new LinkedHashSet<>();
+        for (String keyword : matchKeywords) {
+            String normalized = normalize(keyword);
+            if (!normalized.isEmpty()) {
+                normalizedKeywords.add(normalized);
+            }
+        }
+        List<String> normalizedKeywordList = List.copyOf(normalizedKeywords);
+
         return new RoomFeatureDefinition(
-                new RoomFeatureOptionResponse(value, label, category),
+                new RoomFeatureOptionResponse(value, label, category, normalizedKeywordList),
                 aliases,
-                matchKeywords);
+                normalizedKeywordList);
     }
 
     private record RoomFeatureDefinition(

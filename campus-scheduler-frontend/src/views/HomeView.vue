@@ -471,7 +471,7 @@
 									<span v-if="request.decisionNote" class="mx-1">|</span>
 									<span v-if="request.decisionNote" class="text-gray-500 truncate">{{
 										request.decisionNote
-										}}</span>
+									}}</span>
 								</li>
 							</ul>
 						</div>
@@ -556,20 +556,23 @@
 							</div>
 							<p class="text-xs text-gray-500 mb-2">Select the setup your class needs.</p>
 
-							<div v-if="roomFeatureOptionsLoading" class="text-sm text-gray-500">Loading room options...</div>
+							<div v-if="roomFeatureOptionsLoading" class="text-sm text-gray-500">Loading room options...
+							</div>
 							<div v-else-if="roomFeatureOptionsError" class="text-sm text-red-700">
 								Could not load room must-have options right now.
 							</div>
 							<div v-else class="border border-gray-200 rounded p-3">
 								<div class="space-y-3">
 									<div v-for="group in roomFeatureGroups" :key="group.category" class="space-y-2">
-										<p class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ group.category }}</p>
+										<p class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{
+											group.category }}</p>
 										<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
 											<label v-for="option in group.options" :key="option.value"
 												:for="`pref-feature-${toFeatureId(option.value)}`"
 												class="flex items-start gap-2 text-sm text-gray-700">
 												<input :id="`pref-feature-${toFeatureId(option.value)}`" type="checkbox"
-													:value="option.value" v-model="teachingPrefsForm.requiredRoomFeatures" />
+													:value="option.value"
+													v-model="teachingPrefsForm.requiredRoomFeatures" />
 												<span>{{ option.label }}</span>
 											</label>
 										</div>
@@ -625,6 +628,7 @@ import {
 	type InstructorFrictionIssue,
 } from '@/services/instructorInsights'
 import { INSTRUCTOR_FRICTION_MVP } from '@/config/features'
+import { formatFrictionType, frictionSeverityClass } from '@/utils/friction'
 
 type Kpi = {
 	label: string
@@ -900,28 +904,6 @@ function formatReason(value: string): string {
 
 function formatTimeSlotLabel(slot: TimeSlot): string {
 	return timeslotsService.formatTimeSlot(slot)
-}
-
-function frictionSeverityClass(value: InstructorFrictionIssue['severity']): string {
-	switch (value) {
-		case 'HIGH':
-			return 'bg-red-100 text-red-700'
-		case 'MEDIUM':
-			return 'bg-amber-100 text-amber-700'
-		default:
-			return 'bg-blue-100 text-blue-700'
-	}
-}
-
-function formatFrictionType(value: InstructorFrictionIssue['type']): string {
-	const labels: Record<InstructorFrictionIssue['type'], string> = {
-		LARGE_GAP: 'Long break',
-		TIGHT_BUILDING_HOP: 'Short travel time',
-		OUTSIDE_PREFERRED_WINDOW: 'Outside your preferred hours',
-		ROOM_FEATURE_MISMATCH: 'Missing room setup',
-		NON_PREFERRED_BUILDING: 'Different building',
-	}
-	return labels[value]
 }
 
 function toFeatureId(value: string): string {

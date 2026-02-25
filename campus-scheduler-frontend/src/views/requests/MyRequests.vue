@@ -86,7 +86,8 @@ function statusClass(status: string): string {
 }
 
 function notifyStatusChanges(nextItems: ScheduleChangeRequest[]) {
-	if (Object.keys(statusByRequestId.value).length === 0) {
+	const isInitialSnapshot = Object.keys(statusByRequestId.value).length === 0
+	if (isInitialSnapshot) {
 		statusByRequestId.value = Object.fromEntries(nextItems.map(item => [item.id, item.status]))
 		return
 	}
@@ -95,6 +96,11 @@ function notifyStatusChanges(nextItems: ScheduleChangeRequest[]) {
 		const previousStatus = statusByRequestId.value[item.id]
 		if (previousStatus && previousStatus !== item.status) {
 			toast.info(`${item.schedule.course.code} request is now ${item.status.toLowerCase()}`)
+			continue
+		}
+
+		if (!previousStatus) {
+			toast.info(`${item.schedule.course.code} request was added`)
 		}
 	}
 
