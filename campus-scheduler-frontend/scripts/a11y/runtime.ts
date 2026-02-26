@@ -23,9 +23,13 @@ function main(): void {
 	const runtimeDir = path.join(options.reportDir, 'runtime')
 	const playwrightArgs = ['playwright', 'test', '-c', 'playwright.a11y.config.ts']
 	const workers = resolveWorkerCount(options.workers)
+	const fullyParallel = options.fullyParallel || workers > 1
 
-	if (options.fullyParallel) {
+	if (fullyParallel) {
 		playwrightArgs.push('--fully-parallel')
+		if (!options.fullyParallel && workers > 1) {
+			console.log('[a11y] auto-enabled fully-parallel mode')
+		}
 	}
 
 	playwrightArgs.push(`--workers=${workers}`)
