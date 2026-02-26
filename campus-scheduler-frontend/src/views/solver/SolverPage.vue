@@ -29,6 +29,7 @@ const isLoading = ref(false)
 const isGenerating = ref(false)
 const statusMessage = ref('')
 const errorMessage = ref('')
+const progressSectionRef = ref<HTMLElement | null>(null)
 const saveFlowRef = ref<HTMLElement | null>(null)
 const stats = ref<UniversityStats>({
 	buildings: 0,
@@ -81,7 +82,6 @@ const progressStatusClass = computed(() => {
 })
 const saveButtonLabel = computed(() => (readyToSave.value ? 'Save Final Schedule' : 'Save Solution'))
 
-const analyticsSectionRef = ref<HTMLElement | null>(null)
 const analytics = ref<SolverAnalytics | null>(null)
 const analyticsLoading = ref(false)
 const analyticsError = ref('')
@@ -221,6 +221,32 @@ function clearCompletionScrollTimeout() {
 	}
 }
 
+type ScrollAnchor = 'start' | 'center'
+
+function scrollWithinMainContainer(section: HTMLElement | null, block: ScrollAnchor = 'start') {
+	if (!section) return
+	const behavior: ScrollBehavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+	const mainContainer = section.closest('main')
+	if (!(mainContainer instanceof HTMLElement)) {
+		section.scrollIntoView({ behavior, block })
+		return
+	}
+
+	const mainRect = mainContainer.getBoundingClientRect()
+	const sectionRect = section.getBoundingClientRect()
+	const sectionTop = sectionRect.top - mainRect.top + mainContainer.scrollTop
+	const targetTop =
+		block === 'center'
+			? sectionTop - Math.max(0, (mainContainer.clientHeight - sectionRect.height) / 2)
+			: sectionTop
+	const maxTop = Math.max(0, mainContainer.scrollHeight - mainContainer.clientHeight)
+
+	mainContainer.scrollTo({
+		top: Math.min(Math.max(targetTop, 0), maxTop),
+		behavior,
+	})
+}
+
 async function fetchStats() {
 	try {
 		stats.value = await generatorService.getStats()
@@ -314,7 +340,7 @@ watch(isSolving, (solving, wasSolving) => {
 		completionScrollTimeout = window.setTimeout(() => {
 			completionScrollTimeout = null
 			if (!readyToSave.value && !finishedWithIssues.value) return
-			saveFlowRef.value?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+			scrollWithinMainContainer(saveFlowRef.value, 'center')
 		}, 300)
 	}
 })
@@ -377,7 +403,7 @@ async function startSolver() {
 		statusMessage.value = result.message
 		requestAnalyticsRefresh(true)
 		await nextTick()
-		analyticsSectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+		scrollWithinMainContainer(progressSectionRef.value, 'start')
 	} catch (e: unknown) {
 		errorMessage.value = e instanceof Error ? e.message : 'Failed to start solver'
 		toast.error(errorMessage.value)
@@ -631,66 +657,68 @@ const solutionQuality = computed(() => {
 			{{ errorMessage }}
 		</div>
 
-		<!-- Progress Display -->
-		<div v-if="progress" class="border p-4 mb-6">
-			<div class="mb-3 flex items-center justify-between gap-3">
-				<h2 class="font-semibold">Solver Progress</h2>
-				<span v-if="readyToSave"
-					class="inline-flex items-center bg-green-100 text-green-800 text-xs font-semibold px-2 py-1">
-					Ready to Save
-				</span>
-				<span v-else-if="finishedWithIssues"
-					class="inline-flex items-center bg-yellow-100 text-yellow-800 text-xs font-semibold px-2 py-1">
-					Stopped with Issues
-				</span>
-			</div>
-			<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-				<div class="text-center p-3 bg-gray-50">
-					<div class="text-2xl font-bold" :class="progressStatusClass">{{ progressStatusLabel }}</div>
-					<div class="text-sm text-gray-500">Status</div>
-				</div>
-				<div class="text-center p-3 bg-gray-50">
-					<div class="text-2xl font-bold">{{ progress.assignedCourses }}/{{ progress.totalCourses }}</div>
-					<div class="text-sm text-gray-500">Assigned</div>
-				</div>
-				<div class="text-center p-3 bg-gray-50">
-					<div v-tooltip="{ content: 'Critical constraint violations that must be fixed (e.g., two classes in the same room at the same time). Must be 0 for a valid schedule.', distance: 8 }"
-						class="text-2xl font-bold cursor-help"
-						:class="progress.hardViolations > 0 ? 'text-red-600' : 'text-green-600'">
-						{{ progress.hardViolations }}
+			<!-- Progress Display -->
+			<div ref="progressSectionRef" data-testid="solver-progress-section">
+				<div v-if="progress" class="border p-4 mb-6">
+					<div class="mb-3 flex items-center justify-between gap-3">
+						<h2 class="font-semibold">Solver Progress</h2>
+						<span v-if="readyToSave"
+							class="inline-flex items-center bg-green-100 text-green-800 text-xs font-semibold px-2 py-1">
+							Ready to Save
+						</span>
+						<span v-else-if="finishedWithIssues"
+							class="inline-flex items-center bg-yellow-100 text-yellow-800 text-xs font-semibold px-2 py-1">
+							Stopped with Issues
+						</span>
 					</div>
-					<div class="text-sm text-gray-500">Hard Violations</div>
-				</div>
-				<div class="text-center p-3 bg-gray-50">
-					<div v-tooltip="{ content: 'Solution quality score (format: Xhard/Ysoft). Hard score must be 0 for validity. Lower soft score = better optimization.', distance: 8 }"
-						class="text-2xl font-bold cursor-help">
-						{{ progress.score || 'N/A' }}
+					<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+						<div class="text-center p-3 bg-gray-50">
+							<div class="text-2xl font-bold" :class="progressStatusClass">{{ progressStatusLabel }}</div>
+							<div class="text-sm text-gray-500">Status</div>
+						</div>
+						<div class="text-center p-3 bg-gray-50">
+							<div class="text-2xl font-bold">{{ progress.assignedCourses }}/{{ progress.totalCourses }}</div>
+							<div class="text-sm text-gray-500">Assigned</div>
+						</div>
+						<div class="text-center p-3 bg-gray-50">
+							<div v-tooltip="{ content: 'Critical constraint violations that must be fixed (e.g., two classes in the same room at the same time). Must be 0 for a valid schedule.', distance: 8 }"
+								class="text-2xl font-bold cursor-help"
+								:class="progress.hardViolations > 0 ? 'text-red-600' : 'text-green-600'">
+								{{ progress.hardViolations }}
+							</div>
+							<div class="text-sm text-gray-500">Hard Violations</div>
+						</div>
+						<div class="text-center p-3 bg-gray-50">
+							<div v-tooltip="{ content: 'Solution quality score (format: Xhard/Ysoft). Hard score must be 0 for validity. Lower soft score = better optimization.', distance: 8 }"
+								class="text-2xl font-bold cursor-help">
+								{{ progress.score || 'N/A' }}
+							</div>
+							<div class="text-sm text-gray-500">Score</div>
+							<span v-if="solutionQuality" class="inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded"
+								:class="solutionQuality.class">
+								{{ solutionQuality.label }}
+							</span>
+						</div>
 					</div>
-					<div class="text-sm text-gray-500">Score</div>
-					<span v-if="solutionQuality" class="inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded"
-						:class="solutionQuality.class">
-						{{ solutionQuality.label }}
-					</span>
+
+					<!-- Progress Bar -->
+					<div class="h-4 bg-gray-200 overflow-hidden">
+						<div class="h-full bg-blue-600 transition-all duration-300" :style="{ width: progressPercent + '%' }">
+						</div>
+					</div>
+					<div class="text-sm text-gray-500 mt-1">{{ progressPercent }}% assigned</div>
+
+					<!-- Latest Message -->
+					<div v-if="progress.message" class="mt-3 text-sm text-gray-600 italic">
+						{{ progress.message }}
+					</div>
+				</div>
+
+				<!-- Empty State -->
+				<div v-else class="border p-8 text-center text-gray-500">
+					No solver data. Generate data and start the solver to see progress.
 				</div>
 			</div>
-
-			<!-- Progress Bar -->
-			<div class="h-4 bg-gray-200 overflow-hidden">
-				<div class="h-full bg-blue-600 transition-all duration-300" :style="{ width: progressPercent + '%' }">
-				</div>
-			</div>
-			<div class="text-sm text-gray-500 mt-1">{{ progressPercent }}% assigned</div>
-
-			<!-- Latest Message -->
-			<div v-if="progress.message" class="mt-3 text-sm text-gray-600 italic">
-				{{ progress.message }}
-			</div>
-		</div>
-
-		<!-- Empty State -->
-		<div v-else class="border p-8 text-center text-gray-500">
-			No solver data. Generate data and start the solver to see progress.
-		</div>
 
 		<div v-if="progress && (readyToSave || finishedWithIssues)" ref="saveFlowRef" class="border p-4 mb-6"
 			:class="readyToSave ? 'border-green-300 bg-green-50' : 'border-yellow-300 bg-yellow-50'">
@@ -725,14 +753,14 @@ const solutionQuality = computed(() => {
 					</button>
 				</div>
 			</div>
-		</div>
+			</div>
 
-		<!-- Live Analytics -->
-		<div ref="analyticsSectionRef" class="border p-4 mb-6">
-			<div class="flex items-center justify-between mb-3">
-				<h2 class="font-semibold">Live Solver Analytics</h2>
-				<span class="text-xs text-gray-500">
-					{{ isSolving ? 'Auto-updating (~0.75s)' : 'Synced with latest best solution' }}
+			<!-- Live Analytics -->
+			<div class="border p-4 mb-6">
+				<div class="flex items-center justify-between mb-3">
+					<h2 class="font-semibold">Live Solver Analytics</h2>
+					<span class="text-xs text-gray-500">
+						{{ isSolving ? 'Auto-updating (~0.75s)' : 'Synced with latest best solution' }}
 				</span>
 			</div>
 

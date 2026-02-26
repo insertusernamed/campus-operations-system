@@ -323,6 +323,41 @@ test.describe('Solver Page', () => {
 		await expect(stopBtn).not.toBeVisible();
 	});
 
+	test('should keep mobile scroll anchored to progress on start', async ({ page }) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+
+		const main = page.locator('main');
+		await main.getByRole('button', { name: 'Start Solver' }).click();
+		await expect(page.getByText('Solver started successfully')).toBeVisible();
+		await page.waitForTimeout(450);
+
+		const layoutMetrics = await page.evaluate(() => {
+			const mainEl = document.querySelector('main');
+			const progressSection = document.querySelector('[data-testid="solver-progress-section"]');
+			const headerEl = document.querySelector('header');
+			if (!(mainEl instanceof HTMLElement) || !(progressSection instanceof HTMLElement) || !(headerEl instanceof HTMLElement)) {
+				return null;
+			}
+
+			const mainRect = mainEl.getBoundingClientRect();
+			const progressRect = progressSection.getBoundingClientRect();
+			const headerRect = headerEl.getBoundingClientRect();
+
+			return {
+				progressTopWithinMain: progressRect.top - mainRect.top,
+				headerVisible: headerRect.bottom > 0 && headerRect.top < window.innerHeight,
+				pageScrollTop: document.scrollingElement?.scrollTop ?? 0,
+			};
+		});
+
+		expect(layoutMetrics).not.toBeNull();
+		if (!layoutMetrics) return;
+		expect(layoutMetrics.progressTopWithinMain).toBeGreaterThanOrEqual(0);
+		expect(layoutMetrics.progressTopWithinMain).toBeLessThanOrEqual(24);
+		expect(layoutMetrics.headerVisible).toBeTruthy();
+		expect(layoutMetrics.pageScrollTop).toBe(0);
+	});
+
 	test('should save solution and show view schedule link', async ({ page }) => {
 		const main = page.locator('main');
 		await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 5000 });
