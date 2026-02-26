@@ -79,7 +79,7 @@ function countBy<T extends string>(values: T[]): Record<string, number> {
 function dedupeMockGaps(items: A11yMockGap[]): A11yMockGap[] {
 	const map = new Map<string, A11yMockGap>()
 	for (const item of items) {
-		const key = `${item.method}|${item.url}|${item.reason}|${item.route}|${item.role}|${item.theme}`
+		const key = `${item.method}|${item.url}|${item.reason}|${item.route}|${item.role}|${item.theme}|${item.scenario}`
 		if (!map.has(key)) map.set(key, item)
 	}
 	return Array.from(map.values())
@@ -200,7 +200,7 @@ function toMarkdown(
 		lines.push('- None')
 	} else {
 		for (const gap of summary.mockGaps) {
-			lines.push(`- ${gap.method} ${gap.url} (${gap.reason}) [${gap.role}/${gap.theme} ${gap.route}]`)
+			lines.push(`- ${gap.method} ${gap.url} (${gap.reason}) [${gap.role}/${gap.theme}/${gap.scenario} ${gap.route}]`)
 		}
 	}
 
@@ -305,7 +305,7 @@ function main(): void {
 		printStrictReasonBlock(
 			'mock gaps',
 			summary.mockGaps.length,
-			summary.mockGaps.map(gap => `${gap.method} ${gap.url} (${gap.reason}) [${gap.role}/${gap.theme} ${gap.route}]`)
+			summary.mockGaps.map(gap => `${gap.method} ${gap.url} (${gap.reason}) [${gap.role}/${gap.theme}/${gap.scenario} ${gap.route}]`)
 		)
 	}
 

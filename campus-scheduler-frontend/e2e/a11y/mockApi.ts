@@ -1,10 +1,11 @@
 import type { Page, Route } from '@playwright/test'
-import type { A11yMockGap, A11yRole, A11yTheme } from '../../scripts/a11y/types'
+import type { A11yMockGap, A11yRole, A11yScenario, A11yTheme } from '../../scripts/a11y/types'
 
 interface MockInstallOptions {
 	route: string
 	role: A11yRole
 	theme: A11yTheme
+	scenario: A11yScenario
 }
 
 interface MockState {
@@ -408,6 +409,7 @@ function recordGap(
 		route: options.route,
 		role: options.role,
 		theme: options.theme,
+		scenario: options.scenario,
 	})
 }
 

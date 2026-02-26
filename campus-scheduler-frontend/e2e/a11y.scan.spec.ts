@@ -33,19 +33,23 @@ function readManifest(filePath: string): A11yRouteManifest {
 function buildTargets(manifest: A11yRouteManifest): A11yRouteTarget[] {
 	const roles: A11yRole[] = options.roles ?? ['admin', 'instructor']
 	const themes: A11yTheme[] = options.themes ?? ['snow-storm', 'slate']
+	const scenarios = options.scenarios
 	const routeEntries = manifest.routes.filter(entry => routeMatchesFilter(entry.route, options.routeFilters))
 
 	const targets: A11yRouteTarget[] = []
 	for (const entry of routeEntries) {
 		for (const role of roles) {
 			for (const theme of themes) {
-				targets.push({
-					route: entry.route,
-					template: entry.template,
-					role,
-					theme,
-					source: entry.source,
-				})
+				for (const scenario of scenarios) {
+					targets.push({
+						route: entry.route,
+						template: entry.template,
+						role,
+						theme,
+						scenario,
+						source: entry.source,
+					})
+				}
 			}
 		}
 	}
@@ -62,7 +66,7 @@ function sanitizeFileName(value: string): string {
 }
 
 function buildResultFilePath(target: A11yRouteTarget): string {
-	const id = `${target.role}__${target.theme}__${sanitizeFileName(target.route)}`
+	const id = `${target.role}__${target.theme}__${target.scenario}__${sanitizeFileName(target.route)}`
 	return path.join(runtimeDir, `${id}.json`)
 }
 
@@ -444,7 +448,7 @@ if (targets.length === 0) {
 }
 
 for (const target of targets) {
-	test(`a11y ${target.role} ${target.theme} ${target.route}`, async ({ page }) => {
+	test(`a11y ${target.role} ${target.theme} ${target.scenario} ${target.route}`, async ({ page }) => {
 		const runtimeErrors: string[] = []
 
 		const result: A11yScanResult = {
@@ -492,6 +496,7 @@ for (const target of targets) {
 				route: target.route,
 				role: target.role,
 				theme: target.theme,
+				scenario: target.scenario,
 			})
 
 			await page.goto(target.route, { waitUntil: 'domcontentloaded' })

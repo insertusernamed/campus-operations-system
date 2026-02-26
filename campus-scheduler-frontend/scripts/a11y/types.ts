@@ -1,5 +1,6 @@
 export type A11yRole = 'admin' | 'instructor'
 export type A11yTheme = 'snow-storm' | 'slate'
+export type A11yScenario = 'empty' | 'normal' | 'dense' | 'error'
 
 export interface A11yRouteManifestEntry {
 	template: string
@@ -19,6 +20,7 @@ export interface A11yRouteTarget {
 	template: string
 	role: A11yRole
 	theme: A11yTheme
+	scenario: A11yScenario
 	source: 'static' | 'dynamic'
 }
 
@@ -39,6 +41,7 @@ export interface A11yMockGap {
 	route: string
 	role: A11yRole
 	theme: A11yTheme
+	scenario: A11yScenario
 }
 
 export interface A11yScanResult {
@@ -68,6 +71,7 @@ export interface A11ySummary {
 export interface A11yCliOptions {
 	roles: A11yRole[] | null
 	themes: A11yTheme[] | null
+	scenarios: A11yScenario[]
 	routeFilters: string[] | null
 	formats: string[]
 	reportDir: string
