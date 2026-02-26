@@ -143,9 +143,15 @@ public class ApiExceptionHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiErrorResponse> handleUnhandled(
+    public ResponseEntity<?> handleUnhandled(
             Exception ex,
             HttpServletRequest request) {
+        String path = request.getRequestURI();
+        if (path != null && path.startsWith("/ws/")) {
+            log.debug("WebSocket transport exception at {}: {}", path, ex.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+
         log.error("Unhandled exception at {}", request.getRequestURI(), ex);
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)

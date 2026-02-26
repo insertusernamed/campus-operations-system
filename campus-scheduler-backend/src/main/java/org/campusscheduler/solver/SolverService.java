@@ -420,14 +420,17 @@ public class SolverService {
 		Map<Long, Long> scheduledByTimeSlotId = new HashMap<>();
 
 		for (ScheduleAssignment assignment : solution.getAssignments()) {
-			if (!assignment.isInitialized()) {
+			Room assignedRoom = assignment.getRoom();
+			TimeSlot assignedTimeSlot = assignment.getTimeSlot();
+			if (assignedRoom == null || assignedTimeSlot == null) {
 				continue;
 			}
-			if (assignment.getRoom() != null && assignment.getRoom().getId() != null) {
-				scheduledByRoomId.merge(assignment.getRoom().getId(), 1L, Long::sum);
+
+			if (assignedRoom.getId() != null) {
+				scheduledByRoomId.merge(assignedRoom.getId(), 1L, Long::sum);
 			}
-			if (assignment.getTimeSlot() != null && assignment.getTimeSlot().getId() != null) {
-				scheduledByTimeSlotId.merge(assignment.getTimeSlot().getId(), 1L, Long::sum);
+			if (assignedTimeSlot.getId() != null) {
+				scheduledByTimeSlotId.merge(assignedTimeSlot.getId(), 1L, Long::sum);
 			}
 		}
 
