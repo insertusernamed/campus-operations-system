@@ -1,7 +1,20 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import os from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { applyA11yEnv, parseA11yCliOptions } from './cli'
+
+function resolveWorkerCount(requestedWorkers: number | null): number {
+	if (requestedWorkers && requestedWorkers > 0) {
+		return requestedWorkers
+	}
+
+	const cpuCount = typeof os.availableParallelism === 'function'
+		? os.availableParallelism()
+		: os.cpus().length
+
+	return Math.max(1, Math.min(8, cpuCount - 1))
+}
 
 function main(): void {
 	const options = parseA11yCliOptions()
@@ -9,13 +22,15 @@ function main(): void {
 	const strictMode = options.strictMockGaps || options.strictRuntimeErrors || options.strictUncoveredRoutes
 	const runtimeDir = path.join(options.reportDir, 'runtime')
 	const playwrightArgs = ['playwright', 'test', '-c', 'playwright.a11y.config.ts']
+	const workers = resolveWorkerCount(options.workers)
 
 	if (options.fullyParallel) {
 		playwrightArgs.push('--fully-parallel')
 	}
 
-	if (options.workers) {
-		playwrightArgs.push(`--workers=${options.workers}`)
+	playwrightArgs.push(`--workers=${workers}`)
+	if (!options.workers) {
+		console.log(`[a11y] auto-selected workers=${workers}`)
 	}
 
 	fs.rmSync(runtimeDir, { recursive: true, force: true })
