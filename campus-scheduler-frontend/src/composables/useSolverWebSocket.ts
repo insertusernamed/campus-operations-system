@@ -12,6 +12,24 @@ export interface SolverProgress {
 	message: string
 }
 
+function resolveSolverWebSocketUrl(): string {
+	const explicitWsUrl = import.meta.env.VITE_WS_URL?.trim()
+	if (explicitWsUrl) {
+		return explicitWsUrl.replace(/\/+$/, '')
+	}
+
+	const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim()
+	if (apiBaseUrl) {
+		const url = new URL(apiBaseUrl, window.location.origin)
+		const basePath = url.pathname.replace(/\/+$/, '').replace(/\/api$/i, '')
+		const wsPath = basePath ? `${basePath}/ws` : '/ws'
+
+		return `${url.origin}${wsPath}`
+	}
+
+	return `${window.location.origin}/ws`
+}
+
 export function useSolverWebSocket() {
 	const progress = ref<SolverProgress | null>(null)
 	const connected = ref(false)
@@ -20,9 +38,7 @@ export function useSolverWebSocket() {
 	let client: Client | null = null
 
 	function connect() {
-		// Use environment variable or fallback to localhost
-		const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080'
-		const wsUrl = `${baseUrl}/ws`
+		const wsUrl = resolveSolverWebSocketUrl()
 
 		client = new Client({
 			webSocketFactory: () => new SockJS(wsUrl),
