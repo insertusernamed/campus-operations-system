@@ -6,6 +6,7 @@ import { applyA11yEnv, parseA11yCliOptions } from './cli'
 function main(): void {
 	const options = parseA11yCliOptions()
 	const env = applyA11yEnv(options)
+	const strictMode = options.strictMockGaps || options.strictRuntimeErrors || options.strictUncoveredRoutes
 	const runtimeDir = path.join(options.reportDir, 'runtime')
 	const playwrightArgs = ['playwright', 'test', '-c', 'playwright.a11y.config.ts']
 
@@ -32,10 +33,14 @@ function main(): void {
 
 	if (result.error) {
 		console.error('[a11y] runtime scan command failed to launch:', result.error.message)
-		process.exit(0)
+		process.exit(strictMode ? 1 : 0)
 	}
 
 	if (result.status && result.status !== 0) {
+		if (strictMode) {
+			console.error(`[a11y] runtime scan exited with code ${result.status}`)
+			process.exit(result.status)
+		}
 		console.warn(`[a11y] runtime scan exited with code ${result.status}; continuing in report-only mode`)
 	}
 
