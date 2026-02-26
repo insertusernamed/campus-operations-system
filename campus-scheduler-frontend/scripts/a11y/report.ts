@@ -85,6 +85,10 @@ function dedupeMockGaps(items: A11yMockGap[]): A11yMockGap[] {
 	return Array.from(map.values())
 }
 
+function targetLabel(result: A11yScanResult): string {
+	return `${result.target.role}/${result.target.theme}/${result.target.scenario} ${result.target.route}`
+}
+
 function buildSummary(
 	manifest: A11yRouteManifest,
 	runtimeResults: A11yScanResult[],
@@ -106,6 +110,25 @@ function buildSummary(
 	const uncoveredRoutes = manifestRoutes.filter(route => !coveredRoutes.has(route)).sort()
 
 	const mockGaps = dedupeMockGaps(runtimeResults.flatMap(item => item.mockGaps))
+	const zeroInteractionTargets = runtimeResults
+		.filter(item => item.coverage?.zeroInteractionsDiscovered)
+		.map(targetLabel)
+		.sort()
+	const budgetLimitedTargets = runtimeResults
+		.filter(item => item.coverage?.terminatedByBudget)
+		.map(item => {
+			const reasons = (item.coverage?.budgetReasons || []).join(', ')
+			return reasons ? `${targetLabel(item)} (${reasons})` : targetLabel(item)
+		})
+		.sort()
+	const runtimeErrorTargets = runtimeResults
+		.filter(item => item.runtimeErrors.length > 0)
+		.map(targetLabel)
+		.sort()
+	const mockGapTargets = runtimeResults
+		.filter(item => item.mockGaps.length > 0)
+		.map(targetLabel)
+		.sort()
 
 	return {
 		generatedAt: new Date().toISOString(),
@@ -119,6 +142,12 @@ function buildSummary(
 		affectedRoutes,
 		uncoveredRoutes,
 		mockGaps,
+		coverageQuality: {
+			zeroInteractionTargets,
+			budgetLimitedTargets,
+			runtimeErrorTargets,
+			mockGapTargets,
+		},
 	}
 }
 
@@ -213,6 +242,53 @@ function toMarkdown(
 	} else {
 		for (const error of runtimeErrors.slice(0, 100)) {
 			lines.push(`- ${error}`)
+		}
+	}
+
+	lines.push('')
+	lines.push('## Coverage Quality')
+	lines.push('')
+
+	lines.push('### Targets With Zero Interactions')
+	lines.push('')
+	if (summary.coverageQuality.zeroInteractionTargets.length === 0) {
+		lines.push('- None')
+	} else {
+		for (const item of summary.coverageQuality.zeroInteractionTargets) {
+			lines.push(`- ${item}`)
+		}
+	}
+
+	lines.push('')
+	lines.push('### Targets Limited By Budgets')
+	lines.push('')
+	if (summary.coverageQuality.budgetLimitedTargets.length === 0) {
+		lines.push('- None')
+	} else {
+		for (const item of summary.coverageQuality.budgetLimitedTargets) {
+			lines.push(`- ${item}`)
+		}
+	}
+
+	lines.push('')
+	lines.push('### Targets With Runtime Errors')
+	lines.push('')
+	if (summary.coverageQuality.runtimeErrorTargets.length === 0) {
+		lines.push('- None')
+	} else {
+		for (const item of summary.coverageQuality.runtimeErrorTargets) {
+			lines.push(`- ${item}`)
+		}
+	}
+
+	lines.push('')
+	lines.push('### Targets With Mock Gaps')
+	lines.push('')
+	if (summary.coverageQuality.mockGapTargets.length === 0) {
+		lines.push('- None')
+	} else {
+		for (const item of summary.coverageQuality.mockGapTargets) {
+			lines.push(`- ${item}`)
 		}
 	}
 
