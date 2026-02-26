@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRole, type Role } from '@/composables/useRole'
 import { useInstructors } from '@/composables/useInstructors'
 import { useTheme, type Theme } from '@/composables/useTheme'
+import { useRoute, useRouter } from 'vue-router'
 
 defineEmits<{
 	(e: 'toggle-sidebar'): void
@@ -11,6 +12,16 @@ defineEmits<{
 const { role, instructorId, setRole, setInstructorId } = useRole()
 const { instructors, loading: loadingInstructors, loadInstructors } = useInstructors()
 const { theme, setTheme } = useTheme()
+const router = useRouter()
+const route = useRoute()
+
+const ADMIN_ONLY_ROUTE_PREFIXES = ['/analytics', '/buildings', '/rooms', '/instructors', '/courses', '/timeslots', '/solver']
+const ADMIN_ONLY_ROUTES = ['/schedules/new', '/requests/admin']
+
+function isAdminOnlyPath(path: string): boolean {
+	if (ADMIN_ONLY_ROUTES.includes(path)) return true
+	return ADMIN_ONLY_ROUTE_PREFIXES.some(prefix => path === prefix || path.startsWith(`${prefix}/`))
+}
 
 const roleModel = computed({
 	get: () => role.value,
@@ -68,6 +79,17 @@ watch(
 	},
 	{ immediate: true }
 )
+
+watch(role, nextRole => {
+	if (nextRole === 'instructor' && isAdminOnlyPath(route.path)) {
+		void router.replace('/')
+		return
+	}
+
+	if (nextRole === 'admin' && route.path === '/requests/new') {
+		void router.replace('/requests/admin')
+	}
+})
 
 function handleDataRegenerated() {
 	void loadInstructors()
