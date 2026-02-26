@@ -1,6 +1,9 @@
 package org.campusscheduler.generator;
 
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Random;
 
@@ -8,8 +11,12 @@ import org.campusscheduler.domain.building.Building;
 import org.campusscheduler.domain.building.BuildingRepository;
 import org.campusscheduler.domain.course.Course;
 import org.campusscheduler.domain.course.CourseRepository;
+import org.campusscheduler.domain.changerequest.ScheduleChangeRequestRepository;
 import org.campusscheduler.domain.instructor.Instructor;
 import org.campusscheduler.domain.instructor.InstructorRepository;
+import org.campusscheduler.domain.instructorpreference.InstructorPreference;
+import org.campusscheduler.domain.instructorpreference.InstructorPreferenceRepository;
+import org.campusscheduler.domain.instructorpreference.RoomFeatureCatalog;
 import org.campusscheduler.domain.room.Room;
 import org.campusscheduler.domain.room.RoomRepository;
 import org.campusscheduler.domain.schedule.ScheduleRepository;
@@ -32,15 +39,22 @@ import lombok.extern.slf4j.Slf4j;
 public class UniversityGeneratorService {
 
     private final DataGeneratorService dataGeneratorService;
+    private final ScheduleChangeRequestRepository scheduleChangeRequestRepository;
     private final BuildingRepository buildingRepository;
     private final RoomRepository roomRepository;
     private final InstructorRepository instructorRepository;
+    private final InstructorPreferenceRepository instructorPreferenceRepository;
     private final CourseRepository courseRepository;
     private final ScheduleRepository scheduleRepository;
     private final TimeSlotRepository timeSlotRepository;
     private final EntityManager entityManager;
 
     private static final Random random = new Random();
+    private static final int[] GAP_MINUTE_OPTIONS = {60, 90, 120, 150};
+    private static final int[] TRAVEL_BUFFER_OPTIONS = {10, 15, 20, 25};
+    private static final List<String> REQUIRED_FEATURE_POOL = RoomFeatureCatalog.options().stream()
+            .map(option -> option.value())
+            .toList();
 
     private static final String[] BUILDING_NAMES = {
             "Science Building", "Engineering Hall", "Arts Center", "Business School",
@@ -240,8 +254,10 @@ public class UniversityGeneratorService {
     @Transactional
     public void clearAll() {
         log.info("Clearing all existing data...");
+        scheduleChangeRequestRepository.deleteAll();
         scheduleRepository.deleteAll();
         courseRepository.deleteAll();
+        instructorPreferenceRepository.deleteAll();
         instructorRepository.deleteAll();
         roomRepository.deleteAll();
         buildingRepository.deleteAll();
@@ -266,6 +282,7 @@ public class UniversityGeneratorService {
         List<Building> buildings = generateBuildings(config.academicBuildings());
 	        List<Room> rooms = generateRooms(buildings, config.roomsPerBuilding(), config.archetype());
         List<Instructor> instructors = generateInstructors(config.instructors());
+        generateInstructorPreferences(instructors, buildings);
         List<Course> courses = generateCourses(instructors, config.courses());
 
         int timeSlots = (int) timeSlotRepository.count();
@@ -406,6 +423,49 @@ public class UniversityGeneratorService {
 
         log.info("Generated {} instructors", instructors.size());
         return instructors;
+    }
+
+    /**
+     * Generates a baseline preference profile for each instructor.
+     * This ensures friction analysis and ranked suggestions use seeded data.
+     */
+    private void generateInstructorPreferences(List<Instructor> instructors, List<Building> buildings) {
+        List<Long> buildingIds = buildings.stream()
+                .map(Building::getId)
+                .toList();
+
+        List<InstructorPreference> preferences = new ArrayList<>();
+        for (Instructor instructor : instructors) {
+            LocalTime preferredStart = LocalTime.of(8 + random.nextInt(3), 0);
+            LocalTime preferredEnd = preferredStart.plusHours(7 + random.nextInt(3));
+
+            LinkedHashSet<Long> preferredBuildings = new LinkedHashSet<>();
+            int preferredBuildingCount = buildingIds.isEmpty() ? 0 : random.nextInt(Math.min(3, buildingIds.size() + 1));
+            for (int i = 0; i < preferredBuildingCount; i++) {
+                preferredBuildings.add(buildingIds.get(random.nextInt(buildingIds.size())));
+            }
+
+            LinkedHashSet<String> requiredFeatures = new LinkedHashSet<>();
+            int requiredFeatureCount = random.nextInt(3);
+            for (int i = 0; i < requiredFeatureCount; i++) {
+                requiredFeatures.add(REQUIRED_FEATURE_POOL.get(random.nextInt(REQUIRED_FEATURE_POOL.size())));
+            }
+
+            preferences.add(InstructorPreference.builder()
+                    .instructor(instructor)
+                    .preferredStartTime(preferredStart)
+                    .preferredEndTime(preferredEnd)
+                    .maxGapMinutes(GAP_MINUTE_OPTIONS[random.nextInt(GAP_MINUTE_OPTIONS.length)])
+                    .minTravelBufferMinutes(TRAVEL_BUFFER_OPTIONS[random.nextInt(TRAVEL_BUFFER_OPTIONS.length)])
+                    .avoidBuildingHops(random.nextDouble() < 0.75)
+                    .preferredBuildingIds(preferredBuildings)
+                    .requiredRoomFeatures(requiredFeatures)
+                    .updatedAt(LocalDateTime.now())
+                    .build());
+        }
+
+        instructorPreferenceRepository.saveAll(preferences);
+        log.info("Generated {} instructor preference profiles", preferences.size());
     }
 
     /**

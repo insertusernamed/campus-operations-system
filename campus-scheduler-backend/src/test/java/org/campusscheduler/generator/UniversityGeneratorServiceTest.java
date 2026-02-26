@@ -2,10 +2,13 @@ package org.campusscheduler.generator;
 
 import org.campusscheduler.domain.building.Building;
 import org.campusscheduler.domain.building.BuildingRepository;
+import org.campusscheduler.domain.changerequest.ScheduleChangeRequestRepository;
 import org.campusscheduler.domain.course.Course;
 import org.campusscheduler.domain.course.CourseRepository;
 import org.campusscheduler.domain.instructor.Instructor;
 import org.campusscheduler.domain.instructor.InstructorRepository;
+import org.campusscheduler.domain.instructorpreference.InstructorPreference;
+import org.campusscheduler.domain.instructorpreference.InstructorPreferenceRepository;
 import org.campusscheduler.domain.room.Room;
 import org.campusscheduler.domain.room.RoomRepository;
 import org.campusscheduler.domain.schedule.ScheduleRepository;
@@ -28,6 +31,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -42,6 +46,9 @@ class UniversityGeneratorServiceTest {
 	private DataGeneratorService dataGeneratorService;
 
 	@Mock
+	private ScheduleChangeRequestRepository scheduleChangeRequestRepository;
+
+	@Mock
 	private BuildingRepository buildingRepository;
 
 	@Mock
@@ -49,6 +56,9 @@ class UniversityGeneratorServiceTest {
 
 	@Mock
 	private InstructorRepository instructorRepository;
+
+	@Mock
+	private InstructorPreferenceRepository instructorPreferenceRepository;
 
 	@Mock
 	private CourseRepository courseRepository;
@@ -74,15 +84,20 @@ class UniversityGeneratorServiceTest {
 	@Captor
 	private ArgumentCaptor<Course> courseCaptor;
 
+	@Captor
+	private ArgumentCaptor<List<InstructorPreference>> preferenceListCaptor;
+
 	private UniversityGeneratorService service;
 
 	@BeforeEach
 	void setUp() {
 		service = new UniversityGeneratorService(
 				dataGeneratorService,
+				scheduleChangeRequestRepository,
 				buildingRepository,
 				roomRepository,
 				instructorRepository,
+				instructorPreferenceRepository,
 				courseRepository,
 				scheduleRepository,
 				timeSlotRepository,
@@ -225,6 +240,24 @@ class UniversityGeneratorServiceTest {
 			assertThat(result.courses()).isEqualTo(10);
 			assertThat(result.timeSlots()).isEqualTo(30);
 		}
+
+		@Test
+		@DisplayName("should generate preferences for each instructor")
+		void shouldGeneratePreferencesForEachInstructor() {
+			GenerationConfig config = new GenerationConfig(UniversityArchetype.COMMUNITY, 8000, 2, 2, 9, 50, 10);
+
+			service.generateUniversity(config);
+
+			verify(instructorPreferenceRepository).saveAll(preferenceListCaptor.capture());
+			assertThat(preferenceListCaptor.getValue()).hasSize(2);
+			assertThat(preferenceListCaptor.getValue())
+					.allSatisfy(preference -> {
+						assertThat(preference.getInstructor()).isNotNull();
+						assertThat(preference.getPreferredStartTime()).isNotNull();
+						assertThat(preference.getPreferredEndTime()).isNotNull();
+						assertThat(preference.getUpdatedAt()).isNotNull();
+					});
+		}
 	}
 
 	@Nested
@@ -236,11 +269,22 @@ class UniversityGeneratorServiceTest {
 		void shouldDeleteAllEntitiesInCorrectOrder() {
 			service.clearAll();
 
-			verify(scheduleRepository).deleteAll();
-			verify(courseRepository).deleteAll();
-			verify(instructorRepository).deleteAll();
-			verify(roomRepository).deleteAll();
-			verify(buildingRepository).deleteAll();
+			var inOrder = inOrder(
+					scheduleChangeRequestRepository,
+					scheduleRepository,
+					courseRepository,
+					instructorPreferenceRepository,
+					instructorRepository,
+					roomRepository,
+					buildingRepository);
+
+			inOrder.verify(scheduleChangeRequestRepository).deleteAll();
+			inOrder.verify(scheduleRepository).deleteAll();
+			inOrder.verify(courseRepository).deleteAll();
+			inOrder.verify(instructorPreferenceRepository).deleteAll();
+			inOrder.verify(instructorRepository).deleteAll();
+			inOrder.verify(roomRepository).deleteAll();
+			inOrder.verify(buildingRepository).deleteAll();
 		}
 	}
 }
