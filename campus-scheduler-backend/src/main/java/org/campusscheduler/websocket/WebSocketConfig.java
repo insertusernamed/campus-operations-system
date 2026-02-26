@@ -1,10 +1,13 @@
 package org.campusscheduler.websocket;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
+
+import java.util.List;
 
 /**
  * WebSocket configuration for real-time solver progress updates.
@@ -12,6 +15,9 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 @Configuration
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+
+	@Value("${cors.allowed-origins}")
+	private List<String> allowedOrigins;
 
 	@Override
 	public void configureMessageBroker(MessageBrokerRegistry config) {
@@ -24,12 +30,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 	@Override
 	public void registerStompEndpoints(StompEndpointRegistry registry) {
 		// WebSocket endpoint - clients connect here
-		// Origins aligned with CorsConfig.java
+		// Origins read from cors.allowed-origins property (aligned with CorsConfig.java)
 		registry.addEndpoint("/ws")
-				.setAllowedOrigins(
-						"http://localhost:5173",
-						"http://localhost:3000",
-						"http://127.0.0.1:5173")
+				.setAllowedOrigins(allowedOrigins.toArray(String[]::new))
 				.withSockJS(); // Fallback for browsers without WebSocket
 	}
 }
