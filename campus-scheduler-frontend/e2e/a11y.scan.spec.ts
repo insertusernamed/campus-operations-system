@@ -17,6 +17,9 @@ const options = parseA11yCliOptions()
 const runtimeDir = path.join(options.reportDir, 'runtime')
 const manifestPath = path.join(options.reportDir, 'manifest.json')
 const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] as const
+const MAX_INTERACTION_STEPS_PER_ROUTE = 20
+const MAX_STATE_SNAPSHOTS_PER_ROUTE = 25
+const MAX_SCAN_TIME_PER_ROUTE_MS = 12000
 const SCROLL_SCAN_MIN_DELTA = 160
 const SCROLL_SCAN_SETTLE_MS = 80
 
@@ -204,7 +207,8 @@ async function runAxeWithScrollCoverage(page: Page): Promise<AxeAnalyzeResult[]>
 	if (!target) return []
 
 	const results: AxeAnalyzeResult[] = []
-	for (const position of target.positions) {
+	const positions = target.positions.slice(0, Math.max(0, MAX_STATE_SNAPSHOTS_PER_ROUTE - 2))
+	for (const position of positions) {
 		const moved = await setScrollTargetPosition(page, target.id, position)
 		if (!moved) continue
 		await page.waitForTimeout(SCROLL_SCAN_SETTLE_MS)
@@ -222,12 +226,16 @@ async function runKeyboardFlow(page: Page): Promise<void> {
 		.locator('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])')
 		.count()
 
-	const maxTabs = Math.min(Math.max(focusableCount + 2, 8), 40)
+	const maxTabs = Math.min(Math.max(focusableCount + 2, 8), MAX_INTERACTION_STEPS_PER_ROUTE)
 
 	for (let i = 0; i < maxTabs; i++) {
 		await page.keyboard.press('Tab')
 		await page.waitForTimeout(30)
 	}
+}
+
+function hasRemainingScanTime(scanStartedAt: number): boolean {
+	return (Date.now() - scanStartedAt) < MAX_SCAN_TIME_PER_ROUTE_MS
 }
 
 async function runStateInteractions(page: Page, target: A11yRouteTarget): Promise<void> {
@@ -502,21 +510,44 @@ for (const target of targets) {
 			await page.goto(target.route, { waitUntil: 'domcontentloaded' })
 			await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined)
 			await page.waitForTimeout(200)
+			const scanStartedAt = Date.now()
 
 			const firstAxe = await runAxe(page)
-			const scrollAxe = await runAxeWithScrollCoverage(page)
 
-			await runKeyboardFlow(page)
-			await runStateInteractions(page, target)
+			const scrollAxe = hasRemainingScanTime(scanStartedAt)
+				? await runAxeWithScrollCoverage(page)
+				: []
+			if (!hasRemainingScanTime(scanStartedAt)) {
+				runtimeErrors.push(
+					`runtime: route scan time budget exceeded before scroll coverage (${MAX_SCAN_TIME_PER_ROUTE_MS}ms)`
+				)
+			}
 
-			const secondAxe = await runAxe(page)
+			if (hasRemainingScanTime(scanStartedAt)) {
+				await runKeyboardFlow(page)
+				await runStateInteractions(page, target)
+			} else {
+				runtimeErrors.push(
+					`runtime: route scan time budget exceeded before interaction pass (${MAX_SCAN_TIME_PER_ROUTE_MS}ms)`
+				)
+			}
 
-			const customChecks = await runCustomChecks(page)
+			const secondAxe = hasRemainingScanTime(scanStartedAt)
+				? await runAxe(page)
+				: null
+			const customChecks = hasRemainingScanTime(scanStartedAt)
+				? await runCustomChecks(page)
+				: []
+			if (secondAxe === null) {
+				runtimeErrors.push(
+					`runtime: route scan time budget exceeded before final checks (${MAX_SCAN_TIME_PER_ROUTE_MS}ms)`
+				)
+			}
 
 			const allViolations = dedupeViolations([
 				...axeToViolations(firstAxe),
 				...scrollAxe.flatMap(axeToViolations),
-				...axeToViolations(secondAxe),
+				...(secondAxe ? axeToViolations(secondAxe) : []),
 				...customChecks,
 			])
 
