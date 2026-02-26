@@ -73,4 +73,7 @@ export interface A11yCliOptions {
 	reportDir: string
 	workers: number | null
 	fullyParallel: boolean
+	strictMockGaps: boolean
+	strictRuntimeErrors: boolean
+	strictUncoveredRoutes: boolean
 }

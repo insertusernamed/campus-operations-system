@@ -109,6 +109,15 @@ function parseFullyParallel(args: string[]): boolean {
 	return ['1', 'true', 'yes', 'on'].includes(raw.toLowerCase())
 }
 
+function parseStrictFlag(args: string[], key: string, envKey: string): boolean {
+	if (hasArgFlag(args, key)) return true
+
+	const raw = process.env[envKey]
+	if (!raw) return false
+
+	return ['1', 'true', 'yes', 'on'].includes(raw.toLowerCase())
+}
+
 export function parseA11yCliOptions(argv: string[] = process.argv.slice(2)): A11yCliOptions {
 	return {
 		roles: parseRoles(argv),
@@ -118,6 +127,9 @@ export function parseA11yCliOptions(argv: string[] = process.argv.slice(2)): A11
 		reportDir: parseReportDir(argv),
 		workers: parseWorkers(argv),
 		fullyParallel: parseFullyParallel(argv),
+		strictMockGaps: parseStrictFlag(argv, 'strict-mock-gaps', 'A11Y_STRICT_MOCK_GAPS'),
+		strictRuntimeErrors: parseStrictFlag(argv, 'strict-runtime-errors', 'A11Y_STRICT_RUNTIME_ERRORS'),
+		strictUncoveredRoutes: parseStrictFlag(argv, 'strict-uncovered-routes', 'A11Y_STRICT_UNCOVERED_ROUTES'),
 	}
 }
 
@@ -128,6 +140,9 @@ export function applyA11yEnv(options: A11yCliOptions): NodeJS.ProcessEnv {
 	env.A11Y_FORMAT = options.formats.join(',')
 	if (options.workers) env.A11Y_WORKERS = String(options.workers)
 	if (options.fullyParallel) env.A11Y_FULLY_PARALLEL = '1'
+	if (options.strictMockGaps) env.A11Y_STRICT_MOCK_GAPS = '1'
+	if (options.strictRuntimeErrors) env.A11Y_STRICT_RUNTIME_ERRORS = '1'
+	if (options.strictUncoveredRoutes) env.A11Y_STRICT_UNCOVERED_ROUTES = '1'
 
 	if (options.roles) env.A11Y_ROLE_FILTER = options.roles.join(',')
 	if (options.themes) env.A11Y_THEME_FILTER = options.themes.join(',')
