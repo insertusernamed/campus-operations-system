@@ -1,10 +1,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { createHash } from 'node:crypto'
 import { test } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 import { parseA11yCliOptions, routeMatchesFilter } from '../scripts/a11y/cli'
 import { installA11yMockApi } from './a11y/mockApi'
 import type {
+	A11yMockGap,
 	A11yRole,
 	A11yRouteManifest,
 	A11yRouteTarget,
@@ -16,15 +18,55 @@ import type {
 const options = parseA11yCliOptions()
 const runtimeDir = path.join(options.reportDir, 'runtime')
 const manifestPath = path.join(options.reportDir, 'manifest.json')
+
 const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] as const
+
 const MAX_INTERACTION_STEPS_PER_ROUTE = 20
 const MAX_STATE_SNAPSHOTS_PER_ROUTE = 25
 const MAX_SCAN_TIME_PER_ROUTE_MS = 12000
+const MAX_INTERACTION_DEPTH = 3
+
+const SCROLL_CONTAINER_LIMIT = 3
 const SCROLL_SCAN_MIN_DELTA = 160
 const SCROLL_SCAN_SETTLE_MS = 80
 
+const NETWORK_SETTLE_TIMEOUT_MS = 1500
+const INTERACTION_SETTLE_MS = 150
+
 type AxeAnalyzeResult = Awaited<ReturnType<AxeBuilder['analyze']>>
 type Page = import('@playwright/test').Page
+
+type InteractionStep = {
+	kind: 'candidate' | 'plugin'
+	token: string
+	crumb: string
+}
+
+interface InteractionCandidate {
+	token: string
+	candidateId: string
+	action: 'click' | 'select'
+	selectValue: string | null
+	crumb: string
+}
+
+interface InteractionPlugin {
+	token: string
+	crumb: string
+	apply: (page: Page) => Promise<boolean>
+}
+
+interface StateMetadata {
+	stateId: string
+	stateBucket: string
+	interactionPath: string
+}
+
+interface ScrollCoverageTarget {
+	id: string
+	initialScrollTop: number
+	maxScrollTop: number
+}
 
 function readManifest(filePath: string): A11yRouteManifest {
 	if (!fs.existsSync(filePath)) {
@@ -73,6 +115,10 @@ function buildResultFilePath(target: A11yRouteTarget): string {
 	return path.join(runtimeDir, `${id}.json`)
 }
 
+function hashText(value: string): string {
+	return createHash('sha1').update(value).digest('hex')
+}
+
 function dedupeViolations(violations: A11yViolation[]): A11yViolation[] {
 	const map = new Map<string, A11yViolation>()
 
@@ -80,10 +126,14 @@ function dedupeViolations(violations: A11yViolation[]): A11yViolation[] {
 		const key = [
 			violation.source,
 			violation.ruleId,
-			violation.impact,
 			violation.selector,
 			violation.message,
 			violation.helpUrl || '',
+			violation.route || '',
+			violation.role || '',
+			violation.theme || '',
+			violation.scenario || '',
+			violation.stateBucket || '',
 		].join('||')
 
 		if (!map.has(key)) {
@@ -94,7 +144,24 @@ function dedupeViolations(violations: A11yViolation[]): A11yViolation[] {
 	return Array.from(map.values())
 }
 
-function axeToViolations(result: Awaited<ReturnType<AxeBuilder['analyze']>>): A11yViolation[] {
+function withViolationContext(
+	violations: A11yViolation[],
+	target: A11yRouteTarget,
+	state: StateMetadata
+): A11yViolation[] {
+	return violations.map(violation => ({
+		...violation,
+		route: target.route,
+		role: target.role,
+		theme: target.theme,
+		scenario: target.scenario,
+		stateId: state.stateId,
+		stateBucket: state.stateBucket,
+		interactionPath: state.interactionPath,
+	}))
+}
+
+function axeToViolations(result: AxeAnalyzeResult): A11yViolation[] {
 	const violations: A11yViolation[] = []
 
 	for (const violation of result.violations) {
@@ -119,19 +186,249 @@ function runAxe(page: Page): Promise<AxeAnalyzeResult> {
 		.analyze()
 }
 
-interface ScrollCoverageTarget {
-	id: string
-	initialScrollTop: number
-	positions: number[]
+async function settleAfterInteraction(page: Page, waitMs = INTERACTION_SETTLE_MS): Promise<void> {
+	await page.waitForLoadState('networkidle', { timeout: NETWORK_SETTLE_TIMEOUT_MS }).catch(() => undefined)
+	await page.waitForTimeout(waitMs)
 }
 
-async function discoverPrimaryScrollTarget(page: Page): Promise<ScrollCoverageTarget | null> {
-	return page.evaluate((minDelta) => {
+async function navigateToTarget(page: Page, target: A11yRouteTarget): Promise<void> {
+	await page.goto(target.route, { waitUntil: 'domcontentloaded' })
+	await settleAfterInteraction(page, 200)
+}
+
+function hasRemainingScanTime(scanStartedAt: number): boolean {
+	return (Date.now() - scanStartedAt) < MAX_SCAN_TIME_PER_ROUTE_MS
+}
+
+async function captureStateFingerprint(page: Page): Promise<{ fingerprint: string; stateBucket: string }> {
+	const fingerprint = await page.evaluate(() => {
 		function isVisible(element: HTMLElement): boolean {
 			const style = window.getComputedStyle(element)
 			if (style.display === 'none' || style.visibility === 'hidden') return false
-			const rect = element.getBoundingClientRect()
-			return rect.width > 0 && rect.height > 0
+			return element.getClientRects().length > 0
+		}
+
+		const headings = Array.from(document.querySelectorAll<HTMLElement>('h1, h2, h3'))
+			.filter(isVisible)
+			.map(heading => (heading.textContent || '').replace(/\s+/g, ' ').trim())
+			.filter(Boolean)
+			.slice(0, 12)
+
+		const visibleDialogCount = Array.from(
+			document.querySelectorAll<HTMLElement>('[role="dialog"], [aria-modal="true"]')
+		).filter(isVisible).length
+
+		const expandedCount = document.querySelectorAll('[aria-expanded="true"]').length
+
+		return JSON.stringify({
+			path: `${window.location.pathname}${window.location.search}`,
+			headings,
+			visibleDialogCount,
+			expandedCount,
+		})
+	})
+
+	return {
+		fingerprint,
+		stateBucket: hashText(fingerprint).slice(0, 12),
+	}
+}
+
+async function discoverInteractionCandidates(page: Page): Promise<InteractionCandidate[]> {
+	return page.evaluate(() => {
+		type Candidate = {
+			token: string
+			candidateId: string
+			action: 'click' | 'select'
+			selectValue: string | null
+			crumb: string
+		}
+
+		type SelectorDefinition = {
+			selector: string
+			key: string
+			crumbPrefix: string
+		}
+
+		const selectorDefinitions: SelectorDefinition[] = [
+			{ selector: '[aria-expanded="false"]', key: 'aria-expanded', crumbPrefix: 'accordion' },
+			{ selector: 'button', key: 'button', crumbPrefix: 'button' },
+			{ selector: '[role="tab"]', key: 'tab', crumbPrefix: 'tab' },
+			{ selector: '[role="button"]', key: 'role-button', crumbPrefix: 'role-button' },
+			{ selector: 'summary', key: 'summary', crumbPrefix: 'summary' },
+			{ selector: 'details:not([open]) > summary', key: 'details-summary', crumbPrefix: 'accordion' },
+			{ selector: 'select', key: 'select', crumbPrefix: 'select' },
+			{ selector: '[data-a11y-scan]', key: 'data-a11y-scan', crumbPrefix: 'hook' },
+		]
+
+		for (const element of Array.from(document.querySelectorAll<HTMLElement>('[data-a11y-candidate-id]'))) {
+			element.removeAttribute('data-a11y-candidate-id')
+		}
+
+		const seenElements = new Set<Element>()
+		const ordinalByKey: Record<string, number> = {}
+		const results: Candidate[] = []
+		const destructivePattern = /\b(delete|remove|reset)\b/i
+		const safeMockContext = Boolean((window as { __A11Y_SCAN_MOCK__?: boolean }).__A11Y_SCAN_MOCK__)
+		let idCounter = 0
+
+		function isVisible(element: HTMLElement): boolean {
+			const style = window.getComputedStyle(element)
+			if (style.display === 'none' || style.visibility === 'hidden') return false
+			if (element.getAttribute('aria-hidden') === 'true') return false
+			return element.getClientRects().length > 0
+		}
+
+		function getLabel(element: HTMLElement): string {
+			const ariaLabel = (element.getAttribute('aria-label') || '').trim()
+			if (ariaLabel) return ariaLabel
+
+			const text = (element.textContent || '').replace(/\s+/g, ' ').trim()
+			if (text) return text
+
+			const title = (element.getAttribute('title') || '').trim()
+			if (title) return title
+
+			const placeholder = (element.getAttribute('placeholder') || '').trim()
+			if (placeholder) return placeholder
+
+			return element.tagName.toLowerCase()
+		}
+
+		for (const definition of selectorDefinitions) {
+			const elements = Array.from(document.querySelectorAll<HTMLElement>(definition.selector))
+
+			for (const element of elements) {
+				if (seenElements.has(element)) continue
+				seenElements.add(element)
+
+				if (!isVisible(element)) continue
+				if (element.hasAttribute('disabled')) continue
+				if (element.getAttribute('aria-disabled') === 'true') continue
+
+				const label = getLabel(element)
+				if (destructivePattern.test(label) && !safeMockContext) continue
+
+				const ordinal = (ordinalByKey[definition.key] ?? 0) + 1
+				ordinalByKey[definition.key] = ordinal
+
+				let action: 'click' | 'select' = definition.key === 'select' ? 'select' : 'click'
+				let selectValue: string | null = null
+				if (action === 'select') {
+					const select = element as HTMLSelectElement
+					const options = Array.from(select.options).filter(option => !option.disabled)
+					if (options.length === 0) continue
+					selectValue = (options.find(option => option.value !== select.value) ?? options[0]).value
+				}
+
+				idCounter += 1
+				const candidateId = `a11y-scan-candidate-${idCounter}`
+				element.setAttribute('data-a11y-candidate-id', candidateId)
+
+				const labelSlug = label
+					.toLowerCase()
+					.replace(/[^a-z0-9]+/g, '-')
+					.replace(/(^-|-$)/g, '')
+					.slice(0, 48) || 'control'
+
+				results.push({
+					token: `${definition.key}:${ordinal}:${labelSlug}`,
+					candidateId,
+					action,
+					selectValue,
+					crumb: `${definition.crumbPrefix}:${ordinal}`,
+				})
+			}
+		}
+
+		return results
+	})
+}
+
+async function applyInteractionCandidate(page: Page, candidate: InteractionCandidate): Promise<boolean> {
+	const locator = page.locator(`[data-a11y-candidate-id="${candidate.candidateId}"]`).first()
+	if (await locator.count() === 0) return false
+
+	if (candidate.action === 'select') {
+		if (!candidate.selectValue) return false
+		const selected = await locator.selectOption(candidate.selectValue, { timeout: 1500 })
+			.then(value => value.length > 0)
+			.catch(() => false)
+		if (!selected) return false
+	} else {
+		const clicked = await locator.click({ timeout: 1500 }).then(() => true).catch(() => false)
+		if (!clicked) return false
+	}
+
+	await settleAfterInteraction(page)
+	return true
+}
+
+function buildRouteInteractionPlugins(target: A11yRouteTarget): InteractionPlugin[] {
+	const plugins: InteractionPlugin[] = []
+
+	if (target.role === 'admin' && target.route === '/schedules') {
+		plugins.push({
+			token: 'plugin:admin-schedule-details',
+			crumb: 'plugin:schedule-details',
+			apply: async (page: Page) => {
+				const densityButtons = page.locator('.density-button')
+				if (await densityButtons.count() === 0) return false
+
+				await densityButtons.first().click().catch(() => undefined)
+				await settleAfterInteraction(page)
+
+				const modalHeading = page.getByRole('heading', { name: 'Schedule Details' })
+				const isModalVisible = await modalHeading.isVisible().catch(() => false)
+				if (!isModalVisible) {
+					await densityButtons.first().click().catch(() => undefined)
+					await settleAfterInteraction(page)
+				}
+
+				return await modalHeading.isVisible().catch(() => false)
+			},
+		})
+	}
+
+	return plugins
+}
+
+function serializePath(path: InteractionStep[]): string {
+	if (path.length === 0) return 'baseline'
+	return path.map(step => `${step.kind}:${step.token}`).join(' > ')
+}
+
+async function replayInteractionPath(
+	page: Page,
+	path: InteractionStep[],
+	plugins: InteractionPlugin[]
+): Promise<boolean> {
+	for (const step of path) {
+		if (step.kind === 'plugin') {
+			const plugin = plugins.find(item => item.token === step.token)
+			if (!plugin) return false
+			const applied = await plugin.apply(page)
+			if (!applied) return false
+			continue
+		}
+
+		const candidates = await discoverInteractionCandidates(page)
+		const candidate = candidates.find(item => item.token === step.token)
+		if (!candidate) return false
+
+		const applied = await applyInteractionCandidate(page, candidate)
+		if (!applied) return false
+	}
+
+	return true
+}
+
+async function discoverScrollCoverageTargets(page: Page, limit = SCROLL_CONTAINER_LIMIT): Promise<ScrollCoverageTarget[]> {
+	return page.evaluate(({ minDelta, maxTargets }) => {
+		function isVisible(element: HTMLElement): boolean {
+			const style = window.getComputedStyle(element)
+			if (style.display === 'none' || style.visibility === 'hidden') return false
+			return element.getClientRects().length > 0
 		}
 
 		function isScrollable(element: HTMLElement): boolean {
@@ -146,8 +443,14 @@ async function discoverPrimaryScrollTarget(page: Page): Promise<ScrollCoverageTa
 		const seen = new Set<HTMLElement>()
 		const candidates: HTMLElement[] = []
 
+		const scrollingElement = document.scrollingElement
+		if (scrollingElement instanceof HTMLElement) {
+			seen.add(scrollingElement)
+			candidates.push(scrollingElement)
+		}
+
 		const main = document.querySelector<HTMLElement>('main')
-		if (main) {
+		if (main && !seen.has(main)) {
 			seen.add(main)
 			candidates.push(main)
 		}
@@ -164,28 +467,30 @@ async function discoverPrimaryScrollTarget(page: Page): Promise<ScrollCoverageTa
 			candidates.push(element)
 		}
 
-		const scrollable = candidates
+		const scrollTargets = candidates
 			.filter(element => isVisible(element) && isScrollable(element))
-			.sort((a, b) => (b.scrollHeight - b.clientHeight) - (a.scrollHeight - a.clientHeight))[0]
+			.map((element, index) => {
+				const maxScrollTop = Math.max(0, element.scrollHeight - element.clientHeight)
+				const id = `a11y-scroll-target-${index + 1}`
+				element.setAttribute('data-a11y-scroll-target', id)
+				return {
+					id,
+					initialScrollTop: element.scrollTop,
+					maxScrollTop,
+					depth: maxScrollTop,
+				}
+			})
+			.filter(item => item.maxScrollTop >= minDelta)
+			.sort((a, b) => b.depth - a.depth)
+			.slice(0, maxTargets)
+			.map(item => ({
+				id: item.id,
+				initialScrollTop: item.initialScrollTop,
+				maxScrollTop: item.maxScrollTop,
+			}))
 
-		if (!scrollable) return null
-
-		const maxScrollTop = Math.max(0, scrollable.scrollHeight - scrollable.clientHeight)
-		if (maxScrollTop < minDelta) return null
-
-		const id = scrollable.getAttribute('data-a11y-scroll-target') || `a11y-scroll-${Math.random().toString(36).slice(2, 8)}`
-		scrollable.setAttribute('data-a11y-scroll-target', id)
-
-		const midpoint = Math.round(maxScrollTop / 2)
-		const positions = Array.from(new Set([midpoint, maxScrollTop].filter(value => value > 0)))
-		if (positions.length === 0) return null
-
-		return {
-			id,
-			initialScrollTop: scrollable.scrollTop,
-			positions,
-		}
-	}, SCROLL_SCAN_MIN_DELTA)
+		return scrollTargets
+	}, { minDelta: SCROLL_SCAN_MIN_DELTA, maxTargets: limit })
 }
 
 async function setScrollTargetPosition(page: Page, targetId: string, scrollTop: number): Promise<boolean> {
@@ -202,23 +507,36 @@ async function setScrollTargetPosition(page: Page, targetId: string, scrollTop: 
 	})
 }
 
-async function runAxeWithScrollCoverage(page: Page): Promise<AxeAnalyzeResult[]> {
-	const target = await discoverPrimaryScrollTarget(page)
-	if (!target) return []
+async function maybeClickLoadMoreButton(page: Page): Promise<boolean> {
+	const hasCandidate = await page.evaluate(() => {
+		for (const marker of Array.from(document.querySelectorAll<HTMLElement>('[data-a11y-load-more]'))) {
+			marker.removeAttribute('data-a11y-load-more')
+		}
 
-	const results: AxeAnalyzeResult[] = []
-	const positions = target.positions.slice(0, Math.max(0, MAX_STATE_SNAPSHOTS_PER_ROUTE - 2))
-	for (const position of positions) {
-		const moved = await setScrollTargetPosition(page, target.id, position)
-		if (!moved) continue
-		await page.waitForTimeout(SCROLL_SCAN_SETTLE_MS)
-		results.push(await runAxe(page))
-	}
+		function isVisible(element: HTMLElement): boolean {
+			const style = window.getComputedStyle(element)
+			if (style.display === 'none' || style.visibility === 'hidden') return false
+			return element.getClientRects().length > 0
+		}
 
-	await setScrollTargetPosition(page, target.id, target.initialScrollTop)
-	await page.waitForTimeout(SCROLL_SCAN_SETTLE_MS)
+		const candidate = Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
+			.find(button => isVisible(button) && /\b(more|next|load)\b/i.test((button.textContent || '').trim()))
 
-	return results
+		if (!candidate) return false
+		candidate.setAttribute('data-a11y-load-more', '1')
+		return true
+	})
+
+	if (!hasCandidate) return false
+
+	const clicked = await page.locator('[data-a11y-load-more="1"]').first().click({ timeout: 1500 })
+		.then(() => true)
+		.catch(() => false)
+
+	if (!clicked) return false
+
+	await settleAfterInteraction(page)
+	return true
 }
 
 async function runKeyboardFlow(page: Page): Promise<void> {
@@ -231,28 +549,6 @@ async function runKeyboardFlow(page: Page): Promise<void> {
 	for (let i = 0; i < maxTabs; i++) {
 		await page.keyboard.press('Tab')
 		await page.waitForTimeout(30)
-	}
-}
-
-function hasRemainingScanTime(scanStartedAt: number): boolean {
-	return (Date.now() - scanStartedAt) < MAX_SCAN_TIME_PER_ROUTE_MS
-}
-
-async function runStateInteractions(page: Page, target: A11yRouteTarget): Promise<void> {
-	// Exercise the admin schedule-details modal so dynamic UI states are scanned too.
-	if (target.role === 'admin' && target.route === '/schedules') {
-		const densityButtons = page.locator('.density-button')
-		if (await densityButtons.count() === 0) return
-
-		await densityButtons.first().click().catch(() => undefined)
-		await page.waitForTimeout(150)
-
-		const modalHeading = page.getByRole('heading', { name: 'Schedule Details' })
-		const isModalVisible = await modalHeading.isVisible().catch(() => false)
-		if (!isModalVisible) {
-			await densityButtons.first().click().catch(() => undefined)
-			await page.waitForTimeout(150)
-		}
 	}
 }
 
@@ -440,6 +736,245 @@ async function runCustomChecks(page: Page): Promise<A11yViolation[]> {
 	})
 }
 
+async function runStateScan(
+	page: Page,
+	target: A11yRouteTarget,
+	state: StateMetadata,
+	includeCustomChecks: boolean
+): Promise<A11yViolation[]> {
+	const axeResult = await runAxe(page)
+	const axeViolations = withViolationContext(axeToViolations(axeResult), target, state)
+
+	if (!includeCustomChecks) {
+		return axeViolations
+	}
+
+	const customViolations = withViolationContext(await runCustomChecks(page), target, state)
+	return [...axeViolations, ...customViolations]
+}
+
+function makeCoverageTemplate(): A11yScanResult['coverage'] {
+	return {
+		discoveredInteractions: 0,
+		interactionAttempts: 0,
+		statesScanned: 0,
+		terminatedByBudget: false,
+		budgetReasons: [],
+		zeroInteractionsDiscovered: true,
+	}
+}
+
+async function initializeTargetSession(
+	page: Page,
+	target: A11yRouteTarget
+): Promise<{ mockGaps: A11yMockGap[] }> {
+	await page.addInitScript(({ role, theme }) => {
+		localStorage.setItem('campus-operations-system-role', role)
+		localStorage.setItem('campus-operations-system-theme', theme)
+
+		const applyTheme = () => {
+			if (document.documentElement) {
+				document.documentElement.setAttribute('data-theme', theme)
+			}
+		}
+		applyTheme()
+		if (!document.documentElement) {
+			document.addEventListener('DOMContentLoaded', applyTheme, { once: true })
+		}
+
+		if (role === 'instructor') {
+			localStorage.setItem('campus-operations-system-instructor-id', '10')
+		} else {
+			localStorage.removeItem('campus-operations-system-instructor-id')
+		}
+
+		;(window as { __A11Y_SCAN_MOCK__?: boolean }).__A11Y_SCAN_MOCK__ = true
+	}, {
+		role: target.role,
+		theme: target.theme,
+	})
+
+	return installA11yMockApi(page, {
+		route: target.route,
+		role: target.role,
+		theme: target.theme,
+		scenario: target.scenario,
+	})
+}
+
+async function scanInteractiveStates(
+	page: Page,
+	target: A11yRouteTarget,
+	runtimeErrors: string[]
+): Promise<{ violations: A11yViolation[]; coverage: A11yScanResult['coverage'] }> {
+	const coverage = makeCoverageTemplate()
+	const violations: A11yViolation[] = []
+
+	const scanStartedAt = Date.now()
+	const seenFingerprints = new Set<string>()
+	const seenPaths = new Set<string>()
+	const plugins = buildRouteInteractionPlugins(target)
+	const queue: InteractionStep[][] = [[]]
+
+	seenPaths.add('baseline')
+	for (const plugin of plugins) {
+		const path: InteractionStep[] = [{ kind: 'plugin', token: plugin.token, crumb: plugin.crumb }]
+		queue.push(path)
+		seenPaths.add(serializePath(path))
+	}
+
+	const budgetReasons = new Set<string>()
+	let stateCounter = 0
+
+	const noteBudgetReason = (reason: string): void => {
+		coverage.terminatedByBudget = true
+		budgetReasons.add(reason)
+	}
+
+	const canScanMore = (): boolean => {
+		if (!hasRemainingScanTime(scanStartedAt)) {
+			noteBudgetReason(`max scan time reached (${MAX_SCAN_TIME_PER_ROUTE_MS}ms)`)
+			return false
+		}
+		if (coverage.statesScanned >= MAX_STATE_SNAPSHOTS_PER_ROUTE) {
+			noteBudgetReason(`max state snapshots reached (${MAX_STATE_SNAPSHOTS_PER_ROUTE})`)
+			return false
+		}
+		return true
+	}
+
+	const captureAndScanState = async (
+		interactionPath: string,
+		includeCustomChecks: boolean
+	): Promise<void> => {
+		if (!canScanMore()) return
+
+		const fingerprint = await captureStateFingerprint(page)
+		if (seenFingerprints.has(fingerprint.fingerprint)) {
+			return
+		}
+		seenFingerprints.add(fingerprint.fingerprint)
+
+		stateCounter += 1
+		coverage.statesScanned += 1
+
+		const state: StateMetadata = {
+			stateId: `state-${stateCounter}`,
+			stateBucket: fingerprint.stateBucket,
+			interactionPath,
+		}
+
+		violations.push(...await runStateScan(page, target, state, includeCustomChecks))
+	}
+
+	while (queue.length > 0) {
+		if (!canScanMore()) break
+
+		const path = queue.shift() as InteractionStep[]
+		if (path.length > 0) {
+			coverage.interactionAttempts += 1
+			if (coverage.interactionAttempts > MAX_INTERACTION_STEPS_PER_ROUTE) {
+				noteBudgetReason(`max interaction steps reached (${MAX_INTERACTION_STEPS_PER_ROUTE})`)
+				break
+			}
+		}
+
+		await navigateToTarget(page, target)
+		const replayed = await replayInteractionPath(page, path, plugins)
+		if (!replayed) continue
+
+		const interactionPath = path.length === 0 ? 'baseline' : path.map(step => step.crumb).join(' > ')
+		await captureAndScanState(interactionPath, true)
+
+		if (!options.enableInteractionCrawl) {
+			continue
+		}
+
+		if (path.length >= MAX_INTERACTION_DEPTH) {
+			continue
+		}
+
+		if (!canScanMore()) break
+
+		const candidates = await discoverInteractionCandidates(page)
+		coverage.discoveredInteractions += candidates.length
+
+		for (const candidate of candidates) {
+			const nextPath: InteractionStep[] = [
+				...path,
+				{ kind: 'candidate', token: candidate.token, crumb: candidate.crumb },
+			]
+			const key = serializePath(nextPath)
+			if (seenPaths.has(key)) continue
+			seenPaths.add(key)
+			queue.push(nextPath)
+		}
+	}
+
+	if (options.enableInteractionCrawl && canScanMore()) {
+		await navigateToTarget(page, target)
+		const scrollTargets = await discoverScrollCoverageTargets(page)
+
+		for (let index = 0; index < scrollTargets.length; index++) {
+			if (!canScanMore()) break
+
+			const scrollTarget = scrollTargets[index] as ScrollCoverageTarget
+			const checkpoints = Array.from(new Set([
+				0,
+				Math.round(scrollTarget.maxScrollTop / 2),
+				scrollTarget.maxScrollTop,
+			]))
+
+			for (const checkpoint of checkpoints) {
+				if (!canScanMore()) break
+
+				const moved = await setScrollTargetPosition(page, scrollTarget.id, checkpoint)
+				if (!moved) continue
+				await page.waitForTimeout(SCROLL_SCAN_SETTLE_MS)
+
+				const label = checkpoint <= 0
+					? 'top'
+					: checkpoint >= scrollTarget.maxScrollTop
+						? 'bottom'
+						: 'middle'
+				await captureAndScanState(`scroll:${index + 1}:${label}`, false)
+			}
+
+			if (canScanMore()) {
+				const clickedLoadMore = await maybeClickLoadMoreButton(page)
+				if (clickedLoadMore) {
+					await captureAndScanState(`scroll:${index + 1}:load-more`, false)
+				}
+			}
+
+			await setScrollTargetPosition(page, scrollTarget.id, scrollTarget.initialScrollTop)
+			await page.waitForTimeout(SCROLL_SCAN_SETTLE_MS)
+		}
+
+		if (canScanMore()) {
+			await navigateToTarget(page, target)
+			await runKeyboardFlow(page)
+			await captureAndScanState('keyboard:tab-flow', false)
+		}
+
+		if (canScanMore()) {
+			await captureAndScanState('final:post-interaction', true)
+		}
+	}
+
+	coverage.budgetReasons = Array.from(budgetReasons)
+	coverage.zeroInteractionsDiscovered = coverage.discoveredInteractions === 0
+
+	if (coverage.terminatedByBudget) {
+		runtimeErrors.push(`runtime: scan budget reached (${coverage.budgetReasons.join('; ')})`)
+	}
+
+	return {
+		violations: dedupeViolations(violations),
+		coverage,
+	}
+}
+
 async function writeResult(result: A11yScanResult): Promise<void> {
 	fs.mkdirSync(runtimeDir, { recursive: true })
 	const filePath = buildResultFilePath(result.target)
@@ -467,6 +1002,7 @@ for (const target of targets) {
 			violations: [],
 			mockGaps: [],
 			runtimeErrors,
+			coverage: makeCoverageTemplate(),
 		}
 
 		page.on('console', message => {
@@ -476,86 +1012,17 @@ for (const target of targets) {
 		})
 
 		try {
-			await page.addInitScript(({ role, theme }) => {
-				localStorage.setItem('campus-operations-system-role', role)
-				localStorage.setItem('campus-operations-system-theme', theme)
+			const { mockGaps } = await initializeTargetSession(page, target)
+			await navigateToTarget(page, target)
 
-				const applyTheme = () => {
-					if (document.documentElement) {
-						document.documentElement.setAttribute('data-theme', theme)
-					}
-				}
-				applyTheme()
-				if (!document.documentElement) {
-					document.addEventListener('DOMContentLoaded', applyTheme, { once: true })
-				}
-
-				if (role === 'instructor') {
-					localStorage.setItem('campus-operations-system-instructor-id', '10')
-				} else {
-					localStorage.removeItem('campus-operations-system-instructor-id')
-				}
-			}, {
-				role: target.role,
-				theme: target.theme,
-			})
-
-			const { mockGaps } = await installA11yMockApi(page, {
-				route: target.route,
-				role: target.role,
-				theme: target.theme,
-				scenario: target.scenario,
-			})
-
-			await page.goto(target.route, { waitUntil: 'domcontentloaded' })
-			await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined)
-			await page.waitForTimeout(200)
-			const scanStartedAt = Date.now()
-
-			const firstAxe = await runAxe(page)
-
-			const scrollAxe = hasRemainingScanTime(scanStartedAt)
-				? await runAxeWithScrollCoverage(page)
-				: []
-			if (!hasRemainingScanTime(scanStartedAt)) {
-				runtimeErrors.push(
-					`runtime: route scan time budget exceeded before scroll coverage (${MAX_SCAN_TIME_PER_ROUTE_MS}ms)`
-				)
-			}
-
-			if (hasRemainingScanTime(scanStartedAt)) {
-				await runKeyboardFlow(page)
-				await runStateInteractions(page, target)
-			} else {
-				runtimeErrors.push(
-					`runtime: route scan time budget exceeded before interaction pass (${MAX_SCAN_TIME_PER_ROUTE_MS}ms)`
-				)
-			}
-
-			const secondAxe = hasRemainingScanTime(scanStartedAt)
-				? await runAxe(page)
-				: null
-			const customChecks = hasRemainingScanTime(scanStartedAt)
-				? await runCustomChecks(page)
-				: []
-			if (secondAxe === null) {
-				runtimeErrors.push(
-					`runtime: route scan time budget exceeded before final checks (${MAX_SCAN_TIME_PER_ROUTE_MS}ms)`
-				)
-			}
-
-			const allViolations = dedupeViolations([
-				...axeToViolations(firstAxe),
-				...scrollAxe.flatMap(axeToViolations),
-				...(secondAxe ? axeToViolations(secondAxe) : []),
-				...customChecks,
-			])
+			const scanOutput = await scanInteractiveStates(page, target, runtimeErrors)
 
 			result.scannedAt = new Date().toISOString()
 			result.documentTitle = await page.title()
 			result.finalUrl = page.url()
-			result.violations = allViolations
+			result.violations = scanOutput.violations
 			result.mockGaps = mockGaps
+			result.coverage = scanOutput.coverage
 		} catch (error) {
 			const message = error instanceof Error ? error.stack || error.message : String(error)
 			runtimeErrors.push(`runtime: ${message}`)

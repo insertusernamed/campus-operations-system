@@ -140,6 +140,7 @@ export function parseA11yCliOptions(argv: string[] = process.argv.slice(2)): A11
 		reportDir: parseReportDir(argv),
 		workers: parseWorkers(argv),
 		fullyParallel: parseFullyParallel(argv),
+		enableInteractionCrawl: parseStrictFlag(argv, 'enable-interaction-crawl', 'A11Y_ENABLE_INTERACTION_CRAWL'),
 		strictMockGaps: parseStrictFlag(argv, 'strict-mock-gaps', 'A11Y_STRICT_MOCK_GAPS'),
 		strictRuntimeErrors: parseStrictFlag(argv, 'strict-runtime-errors', 'A11Y_STRICT_RUNTIME_ERRORS'),
 		strictUncoveredRoutes: parseStrictFlag(argv, 'strict-uncovered-routes', 'A11Y_STRICT_UNCOVERED_ROUTES'),
@@ -153,6 +154,7 @@ export function applyA11yEnv(options: A11yCliOptions): NodeJS.ProcessEnv {
 	env.A11Y_FORMAT = options.formats.join(',')
 	if (options.workers) env.A11Y_WORKERS = String(options.workers)
 	if (options.fullyParallel) env.A11Y_FULLY_PARALLEL = '1'
+	if (options.enableInteractionCrawl) env.A11Y_ENABLE_INTERACTION_CRAWL = '1'
 	if (options.strictMockGaps) env.A11Y_STRICT_MOCK_GAPS = '1'
 	if (options.strictRuntimeErrors) env.A11Y_STRICT_RUNTIME_ERRORS = '1'
 	if (options.strictUncoveredRoutes) env.A11Y_STRICT_UNCOVERED_ROUTES = '1'
