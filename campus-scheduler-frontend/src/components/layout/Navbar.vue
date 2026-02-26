@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRole, type Role } from '@/composables/useRole'
 import { useInstructors } from '@/composables/useInstructors'
 import { useTheme, type Theme } from '@/composables/useTheme'
@@ -25,23 +25,64 @@ const themeModel = computed({
 const instructorModel = computed({
 	get: () => instructorId.value ?? '',
 	set: value => {
-		const parsed = Number(value)
-		setInstructorId(Number.isNaN(parsed) ? null : parsed)
+		const raw = String(value).trim()
+		if (!raw) {
+			setInstructorId(null)
+			return
+		}
+		const parsed = Number(raw)
+		setInstructorId(Number.isInteger(parsed) && parsed > 0 ? parsed : null)
 	},
 })
 
-watch([role, instructors], () => {
-	if (role.value === 'instructor' && !instructorId.value) {
-		if (instructors.value.length > 0 && instructors.value[0]) {
-			setInstructorId(instructors.value[0].id)
+function hasValidInstructorSelection(selectedId: number | null): boolean {
+	if (selectedId === null) return false
+	return instructors.value.some(instructor => instructor.id === selectedId)
+}
+
+watch(
+	role,
+	nextRole => {
+		if (nextRole !== 'instructor') return
+		if (instructors.value.length > 0 || loadingInstructors.value) return
+		void loadInstructors()
+	},
+	{ immediate: true }
+)
+
+watch(
+	[role, instructors, instructorId],
+	([nextRole, nextInstructors, nextInstructorId]) => {
+		if (nextRole !== 'instructor') return
+		if (nextInstructors.length === 0) {
+			if (nextInstructorId !== null) {
+				setInstructorId(null)
+			}
+			return
 		}
-	}
-})
+		if (hasValidInstructorSelection(nextInstructorId)) return
+		const fallbackInstructor = nextInstructors[0]
+		if (fallbackInstructor) {
+			setInstructorId(fallbackInstructor.id)
+		}
+	},
+	{ immediate: true }
+)
+
+function handleDataRegenerated() {
+	void loadInstructors()
+}
 
 onMounted(() => {
-	loadInstructors()
+	if (instructors.value.length === 0 && !loadingInstructors.value) {
+		void loadInstructors()
+	}
 	// Listen for data regeneration events
-	window.addEventListener('data-regenerated', loadInstructors)
+	window.addEventListener('data-regenerated', handleDataRegenerated)
+})
+
+onUnmounted(() => {
+	window.removeEventListener('data-regenerated', handleDataRegenerated)
 })
 </script>
 

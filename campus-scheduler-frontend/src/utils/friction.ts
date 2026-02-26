@@ -3,11 +3,11 @@ import type { FrictionSeverity, FrictionType } from '@/services/instructorInsigh
 export function frictionSeverityClass(value: FrictionSeverity): string {
 	switch (value) {
 		case 'HIGH':
-			return 'bg-red-100 text-red-700'
+			return 'bg-red-100 text-red-700 slate:bg-red-200 slate:text-gray-900'
 		case 'MEDIUM':
-			return 'bg-amber-100 text-amber-700'
+			return 'bg-amber-100 text-amber-700 slate:bg-amber-200 slate:text-gray-900'
 		default:
-			return 'bg-blue-100 text-blue-700'
+			return 'bg-blue-100 text-blue-700 slate:bg-blue-200 slate:text-gray-900'
 	}
 }
 

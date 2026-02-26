@@ -14,27 +14,47 @@ function normalizeRole(raw: string | null): Role {
 	return 'admin'
 }
 
+function normalizeInstructorId(raw: string | null): number | null {
+	if (raw === null) return null
+	const parsed = Number(raw)
+	if (!Number.isInteger(parsed) || parsed <= 0) {
+		return null
+	}
+	return parsed
+}
+
 const rawStoredRole = localStorage.getItem(ROLE_KEY)
 const storedRole = normalizeRole(rawStoredRole)
 // If the stored role is no longer valid, rewrite it so the UI doesn't get stuck.
 if (rawStoredRole !== storedRole) {
 	localStorage.setItem(ROLE_KEY, storedRole)
 }
-const storedInstructorId = localStorage.getItem(INSTRUCTOR_KEY)
+const rawStoredInstructorId = localStorage.getItem(INSTRUCTOR_KEY)
+const storedInstructorId = normalizeInstructorId(rawStoredInstructorId)
+if (storedInstructorId === null) {
+	localStorage.removeItem(INSTRUCTOR_KEY)
+} else if (rawStoredInstructorId !== String(storedInstructorId)) {
+	localStorage.setItem(INSTRUCTOR_KEY, String(storedInstructorId))
+}
 
 const role = ref<Role>(storedRole)
-const instructorId = ref<number | null>(storedInstructorId ? Number(storedInstructorId) : null)
+const instructorId = ref<number | null>(storedInstructorId)
 
 watch(role, value => {
 	localStorage.setItem(ROLE_KEY, value)
 })
 
 watch(instructorId, value => {
-	if (value === null || Number.isNaN(value)) {
+	const normalized = value !== null && Number.isInteger(value) && value > 0 ? value : null
+	if (normalized !== value) {
+		instructorId.value = normalized
+		return
+	}
+	if (normalized === null) {
 		localStorage.removeItem(INSTRUCTOR_KEY)
 		return
 	}
-	localStorage.setItem(INSTRUCTOR_KEY, String(value))
+	localStorage.setItem(INSTRUCTOR_KEY, String(normalized))
 })
 
 export function useRole() {
@@ -43,7 +63,8 @@ export function useRole() {
 	}
 
 	function setInstructorId(id: number | null) {
-		instructorId.value = id
+		const normalized = id !== null && Number.isInteger(id) && id > 0 ? id : null
+		instructorId.value = normalized
 	}
 
 	return {

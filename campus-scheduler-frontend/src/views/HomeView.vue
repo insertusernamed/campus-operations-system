@@ -270,7 +270,7 @@
 					<div class="flex items-center justify-between gap-4 border-b border-gray-200 p-4">
 						<div>
 							<h2 class="text-sm font-semibold text-gray-900">Schedule Issues</h2>
-							<p class="mt-0.5 text-xs text-gray-500">
+							<p class="mt-0.5 text-xs text-gray-500 slate:text-gray-600">
 								Found for {{ activeInstructorSemester || 'current semester' }}.
 							</p>
 						</div>
@@ -299,7 +299,8 @@
 										:class="frictionSeverityClass(issue.severity)">
 										{{ issue.severity }}
 									</span>
-									<span class="text-xs text-gray-500">{{ formatFrictionType(issue.type) }}</span>
+									<span class="text-xs text-gray-500 slate:text-gray-600">{{
+										formatFrictionType(issue.type) }}</span>
 								</div>
 								<p class="mt-2 text-sm text-gray-700">{{ issue.message }}</p>
 							</div>
