@@ -1,5 +1,6 @@
 export type A11yRole = 'admin' | 'instructor'
 export type A11yTheme = 'snow-storm' | 'slate'
+export type A11yScenario = 'empty' | 'normal' | 'dense' | 'error'
 
 export interface A11yRouteManifestEntry {
 	template: string
@@ -19,6 +20,7 @@ export interface A11yRouteTarget {
 	template: string
 	role: A11yRole
 	theme: A11yTheme
+	scenario: A11yScenario
 	source: 'static' | 'dynamic'
 }
 
@@ -30,6 +32,13 @@ export interface A11yViolation {
 	helpUrl?: string
 	source: 'axe' | 'custom' | 'eslint'
 	context?: string
+	route?: string
+	role?: A11yRole
+	theme?: A11yTheme
+	scenario?: A11yScenario
+	stateId?: string
+	stateBucket?: string
+	interactionPath?: string
 }
 
 export interface A11yMockGap {
@@ -39,6 +48,7 @@ export interface A11yMockGap {
 	route: string
 	role: A11yRole
 	theme: A11yTheme
+	scenario: A11yScenario
 }
 
 export interface A11yScanResult {
@@ -49,6 +59,14 @@ export interface A11yScanResult {
 	violations: A11yViolation[]
 	mockGaps: A11yMockGap[]
 	runtimeErrors: string[]
+	coverage: {
+		discoveredInteractions: number
+		interactionAttempts: number
+		statesScanned: number
+		terminatedByBudget: boolean
+		budgetReasons: string[]
+		zeroInteractionsDiscovered: boolean
+	}
 }
 
 export interface A11ySummary {
@@ -63,14 +81,25 @@ export interface A11ySummary {
 	affectedRoutes: string[]
 	uncoveredRoutes: string[]
 	mockGaps: A11yMockGap[]
+	coverageQuality: {
+		zeroInteractionTargets: string[]
+		budgetLimitedTargets: string[]
+		runtimeErrorTargets: string[]
+		mockGapTargets: string[]
+	}
 }
 
 export interface A11yCliOptions {
 	roles: A11yRole[] | null
 	themes: A11yTheme[] | null
+	scenarios: A11yScenario[]
 	routeFilters: string[] | null
 	formats: string[]
 	reportDir: string
 	workers: number | null
 	fullyParallel: boolean
+	enableInteractionCrawl: boolean
+	strictMockGaps: boolean
+	strictRuntimeErrors: boolean
+	strictUncoveredRoutes: boolean
 }

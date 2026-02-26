@@ -1,10 +1,11 @@
 import type { Page, Route } from '@playwright/test'
-import type { A11yMockGap, A11yRole, A11yTheme } from '../../scripts/a11y/types'
+import type { A11yMockGap, A11yRole, A11yScenario, A11yTheme } from '../../scripts/a11y/types'
 
 interface MockInstallOptions {
 	route: string
 	role: A11yRole
 	theme: A11yTheme
+	scenario: A11yScenario
 }
 
 interface MockState {
@@ -138,7 +139,7 @@ const semesterDefinitions = [
 	},
 ]
 
-function createState(): MockState {
+function createNormalState(): MockState {
 	const buildings = [
 		{ id: 1, code: 'ENG', name: 'Engineering Building', address: '123 Tech Lane' },
 		{ id: 2, code: 'SCI', name: 'Science Center', address: '456 Lab Road' },
@@ -292,6 +293,312 @@ function createState(): MockState {
 	}
 }
 
+function createEmptyState(): MockState {
+	const building = {
+		id: 1,
+		code: 'ENG',
+		name: 'Engineering Building',
+		address: '123 Tech Lane',
+	}
+
+	const room = {
+		id: 1,
+		buildingId: 1,
+		buildingCode: 'ENG',
+		buildingName: 'Engineering Building',
+		roomNumber: '100',
+		capacity: 20,
+		type: 'CLASSROOM',
+		features: null,
+	}
+
+	const instructor = {
+		id: 10,
+		firstName: 'Ada',
+		lastName: 'Lovelace',
+		email: 'ada@campus.edu',
+		department: 'Computer Science',
+		officeNumber: 'CS-201',
+	}
+
+	const course = {
+		id: 20,
+		code: 'CS100',
+		name: 'Foundations of Computing',
+		description: null,
+		credits: 3,
+		enrollmentCapacity: 20,
+		department: 'Computer Science',
+		instructor: {
+			id: instructor.id,
+			firstName: instructor.firstName,
+			lastName: instructor.lastName,
+			email: instructor.email,
+		},
+	}
+
+	const timeslot = {
+		id: 1,
+		dayOfWeek: 'MONDAY',
+		startTime: '09:00',
+		endTime: '10:00',
+		label: 'Period 1',
+	}
+
+	return {
+		buildings: [building],
+		rooms: [room],
+		instructors: [instructor],
+		courses: [course],
+		timeslots: [timeslot],
+		schedules: [],
+		changeRequests: [],
+	}
+}
+
+function createDenseState(): MockState {
+	const state = createNormalState()
+
+	const extraBuildings = [
+		{ id: 3, code: 'ART', name: 'Arts Pavilion', address: '50 Studio Drive' },
+		{ id: 4, code: 'LIB', name: 'Library Annex', address: '12 Archive Way' },
+	]
+	state.buildings.push(...extraBuildings)
+
+	const extraRooms = [
+		{
+			id: 3,
+			buildingId: 3,
+			buildingCode: 'ART',
+			buildingName: 'Arts Pavilion',
+			roomNumber: 'A-310',
+			capacity: 60,
+			type: 'LECTURE_HALL',
+			features: 'Projector, Microphone, Assistive Listening',
+		},
+		{
+			id: 4,
+			buildingId: 4,
+			buildingCode: 'LIB',
+			buildingName: 'Library Annex',
+			roomNumber: 'L-120',
+			capacity: 24,
+			type: 'SEMINAR',
+			features: 'Whiteboard, Video Conferencing',
+		},
+		{
+			id: 5,
+			buildingId: 1,
+			buildingCode: 'ENG',
+			buildingName: 'Engineering Building',
+			roomNumber: 'E-220',
+			capacity: 48,
+			type: 'LAB',
+			features: 'Computers, Projector',
+		},
+	]
+	state.rooms.push(...extraRooms)
+
+	const extraInstructors = [
+		{
+			id: 12,
+			firstName: 'Grace',
+			lastName: 'Hopper',
+			email: 'grace@campus.edu',
+			department: 'Computer Science',
+			officeNumber: 'CS-203',
+		},
+		{
+			id: 13,
+			firstName: 'Katherine',
+			lastName: 'Johnson',
+			email: 'katherine@campus.edu',
+			department: 'Mathematics',
+			officeNumber: 'MATH-110',
+		},
+		{
+			id: 14,
+			firstName: 'Margaret',
+			lastName: 'Hamilton',
+			email: 'margaret@campus.edu',
+			department: 'Computer Science',
+			officeNumber: 'CS-204',
+		},
+	]
+	state.instructors.push(...extraInstructors)
+
+	const extraCourses = [
+		{
+			id: 22,
+			code: 'CS310',
+			name: 'Operating Systems and Concurrent Workloads',
+			description: 'Dense-profile seed course to exercise long-list rendering paths.',
+			credits: 4,
+			enrollmentCapacity: 55,
+			department: 'Computer Science',
+			instructor: {
+				id: 12,
+				firstName: 'Grace',
+				lastName: 'Hopper',
+				email: 'grace@campus.edu',
+			},
+		},
+		{
+			id: 23,
+			code: 'MATH330',
+			name: 'Applied Numerical Methods',
+			description: 'Cross-department course for analytics filtering states.',
+			credits: 3,
+			enrollmentCapacity: 45,
+			department: 'Mathematics',
+			instructor: {
+				id: 13,
+				firstName: 'Katherine',
+				lastName: 'Johnson',
+				email: 'katherine@campus.edu',
+			},
+		},
+		{
+			id: 24,
+			code: 'CS401',
+			name: 'Software Reliability Engineering',
+			description: 'High-enrollment elective used by dense scenario mocks.',
+			credits: 4,
+			enrollmentCapacity: 65,
+			department: 'Computer Science',
+			instructor: {
+				id: 14,
+				firstName: 'Margaret',
+				lastName: 'Hamilton',
+				email: 'margaret@campus.edu',
+			},
+		},
+	]
+	state.courses.push(...extraCourses)
+
+	const extraTimeslots = [
+		{
+			id: 4,
+			dayOfWeek: 'THURSDAY',
+			startTime: '13:00',
+			endTime: '14:30',
+			label: 'Period 4',
+		},
+		{
+			id: 5,
+			dayOfWeek: 'FRIDAY',
+			startTime: '08:00',
+			endTime: '09:30',
+			label: 'Period 5',
+		},
+		{
+			id: 6,
+			dayOfWeek: 'FRIDAY',
+			startTime: '15:00',
+			endTime: '16:30',
+			label: 'Period 6',
+		},
+	]
+	state.timeslots.push(...extraTimeslots)
+
+	const extraSchedules = [
+		{
+			id: 52,
+			semester: 'Fall 2026',
+			course: state.courses[2],
+			room: state.rooms[2],
+			timeSlot: state.timeslots[2],
+		},
+		{
+			id: 53,
+			semester: 'Fall 2026',
+			course: state.courses[3],
+			room: state.rooms[3],
+			timeSlot: state.timeslots[3],
+		},
+		{
+			id: 54,
+			semester: 'Fall 2026',
+			course: state.courses[4],
+			room: state.rooms[4],
+			timeSlot: state.timeslots[4],
+		},
+		{
+			id: 55,
+			semester: 'Fall 2026',
+			course: state.courses[0],
+			room: state.rooms[1],
+			timeSlot: state.timeslots[5],
+		},
+	]
+	state.schedules.push(...extraSchedules)
+
+	state.changeRequests.push(
+		{
+			id: 2,
+			schedule: state.schedules[1],
+			requestedByInstructor: state.instructors[1],
+			requestedByRole: 'INSTRUCTOR',
+			status: 'APPROVED',
+			reasonCategory: 'PEDAGOGICAL_CONFLICT',
+			reasonDetails: 'Need equipment setup before class',
+			proposedRoom: state.rooms[2],
+			proposedTimeSlot: state.timeslots[3],
+			originalRoomId: state.schedules[1].room.id,
+			originalTimeSlotId: state.schedules[1].timeSlot.id,
+			originalSemester: state.schedules[1].semester,
+			decisionNote: 'Approved for accessibility equipment availability.',
+			createdAt: '2026-02-10T10:00:00Z',
+			reviewedAt: '2026-02-10T13:00:00Z',
+			appliedAt: '2026-02-10T13:05:00Z',
+		},
+		{
+			id: 3,
+			schedule: state.schedules[2],
+			requestedByInstructor: state.instructors[2],
+			requestedByRole: 'INSTRUCTOR',
+			status: 'REJECTED',
+			reasonCategory: 'OTHER',
+			reasonDetails: 'Prefers a different room wing',
+			proposedRoom: state.rooms[3],
+			proposedTimeSlot: null,
+			originalRoomId: state.schedules[2].room.id,
+			originalTimeSlotId: state.schedules[2].timeSlot.id,
+			originalSemester: state.schedules[2].semester,
+			decisionNote: 'Rejected due to capacity shortfall.',
+			createdAt: '2026-02-11T08:30:00Z',
+			reviewedAt: '2026-02-11T09:00:00Z',
+			appliedAt: null,
+		},
+		{
+			id: 4,
+			schedule: state.schedules[3],
+			requestedByInstructor: state.instructors[3],
+			requestedByRole: 'INSTRUCTOR',
+			status: 'PENDING',
+			reasonCategory: 'EQUIPMENT_FAILURE',
+			reasonDetails: 'Projector is non-functional in assigned room.',
+			proposedRoom: state.rooms[2],
+			proposedTimeSlot: state.timeslots[5],
+			originalRoomId: state.schedules[3].room.id,
+			originalTimeSlotId: state.schedules[3].timeSlot.id,
+			originalSemester: state.schedules[3].semester,
+			decisionNote: null,
+			createdAt: '2026-02-12T14:10:00Z',
+			reviewedAt: null,
+			appliedAt: null,
+		}
+	)
+
+	return state
+}
+
+function createState(scenario: A11yScenario): MockState {
+	if (scenario === 'empty') return createEmptyState()
+	if (scenario === 'dense') return createDenseState()
+	return createNormalState()
+}
+
 function asJson(route: Route, payload: unknown, status = 200): Promise<void> {
 	return route.fulfill({
 		status,
@@ -304,6 +611,10 @@ function getNumericPathId(pathname: string): number | null {
 	const match = pathname.match(/\/(\d+)(?:$|\/)/)
 	if (!match?.[1]) return null
 	return Number(match[1])
+}
+
+function nextId(items: Array<{ id: number }>): number {
+	return items.length > 0 ? Math.max(...items.map(item => item.id)) + 1 : 1
 }
 
 function filterSchedulesByQuery(
@@ -394,6 +705,137 @@ function buildAnalytics(state: MockState) {
 	}
 }
 
+type MockFrictionType =
+	| 'LARGE_GAP'
+	| 'TIGHT_BUILDING_HOP'
+	| 'OUTSIDE_PREFERRED_WINDOW'
+	| 'ROOM_FEATURE_MISMATCH'
+	| 'NON_PREFERRED_BUILDING'
+
+type MockFrictionSeverity = 'LOW' | 'MEDIUM' | 'HIGH'
+
+type MockRecommendedIssue =
+	| 'GAP_TOO_LARGE_BEFORE'
+	| 'GAP_TOO_LARGE_AFTER'
+	| 'TIME_OF_DAY_PREFERENCE'
+	| 'BACK_TO_BACK_TRAVEL'
+	| 'ROOM_EQUIPMENT_MISMATCH'
+	| 'OTHER'
+
+interface MockFrictionIssue {
+	id: string
+	type: MockFrictionType
+	severity: MockFrictionSeverity
+	scheduleId: number
+	message: string
+	recommendedIssue: MockRecommendedIssue
+}
+
+function buildFrictionIssues(state: MockState, scenario: A11yScenario): MockFrictionIssue[] {
+	if (scenario === 'empty' || state.schedules.length === 0) {
+		return []
+	}
+
+	const scheduleAt = (index: number) => state.schedules[index] ?? state.schedules[0]
+
+	const issues: MockFrictionIssue[] = [
+		{
+			id: 'friction-low-gap',
+			type: 'LARGE_GAP',
+			severity: 'LOW',
+			scheduleId: scheduleAt(0).id,
+			message: 'There is a large gap before this class compared to your preferred pacing.',
+			recommendedIssue: 'GAP_TOO_LARGE_BEFORE',
+		},
+		{
+			id: 'friction-medium-hop',
+			type: 'TIGHT_BUILDING_HOP',
+			severity: 'MEDIUM',
+			scheduleId: scheduleAt(1).id,
+			message: 'Travel time between adjacent classes is tight for this room transition.',
+			recommendedIssue: 'BACK_TO_BACK_TRAVEL',
+		},
+	]
+
+	if (scenario !== 'dense') {
+		return issues
+	}
+
+	issues.push(
+		{
+			id: 'friction-medium-window',
+			type: 'OUTSIDE_PREFERRED_WINDOW',
+			severity: 'MEDIUM',
+			scheduleId: scheduleAt(2).id,
+			message: 'Class starts outside your preferred teaching window.',
+			recommendedIssue: 'TIME_OF_DAY_PREFERENCE',
+		},
+		{
+			id: 'friction-low-building',
+			type: 'NON_PREFERRED_BUILDING',
+			severity: 'LOW',
+			scheduleId: scheduleAt(3).id,
+			message: 'Assigned building is outside your preferred building list.',
+			recommendedIssue: 'OTHER',
+		},
+		{
+			id: 'friction-high-room',
+			type: 'ROOM_FEATURE_MISMATCH',
+			severity: 'HIGH',
+			scheduleId: scheduleAt(4).id,
+			message: 'Assigned room is missing one or more required instructional features.',
+			recommendedIssue: 'ROOM_EQUIPMENT_MISMATCH',
+		}
+	)
+
+	return issues
+}
+
+function getErrorScenarioResponse(
+	scenario: A11yScenario,
+	pathname: string,
+	method: string
+): { status: number; payload: unknown } | null {
+	if (scenario !== 'error') {
+		return null
+	}
+
+	if (pathname === '/instructor-insights/frictions' && method === 'GET') {
+		return {
+			status: 500,
+			payload: {
+				error: 'INSIGHTS_UNAVAILABLE',
+				message: 'Instructor insights are temporarily unavailable in error scenario mode.',
+			},
+		}
+	}
+
+	if (pathname === '/analytics/summary' && method === 'GET') {
+		return {
+			status: 500,
+			payload: {
+				error: 'ANALYTICS_SUMMARY_FAILURE',
+				message: 'Analytics summary failed in error scenario mode.',
+			},
+		}
+	}
+
+	if (pathname === '/change-requests/validate' && method === 'POST') {
+		return {
+			status: 422,
+			payload: {
+				error: 'VALIDATION_FAILED',
+				message: 'Unable to validate this change request in error scenario mode.',
+				fieldErrors: {
+					proposedTimeSlotId: 'Selected time slot is unavailable.',
+				},
+			},
+		}
+	}
+
+	return null
+}
+
 function recordGap(
 	mockGaps: A11yMockGap[],
 	options: MockInstallOptions,
@@ -408,6 +850,7 @@ function recordGap(
 		route: options.route,
 		role: options.role,
 		theme: options.theme,
+		scenario: options.scenario,
 	})
 }
 
@@ -415,7 +858,7 @@ export async function installA11yMockApi(
 	page: Page,
 	options: MockInstallOptions
 ): Promise<{ mockGaps: A11yMockGap[] }> {
-	const state = createState()
+	const state = createState(options.scenario)
 	const mockGaps: A11yMockGap[] = []
 
 	await page.route('**/ws/info**', async route => {
@@ -433,6 +876,12 @@ export async function installA11yMockApi(
 		const method = request.method().toUpperCase()
 		const pathname = url.pathname.replace(/^\/api/, '') || '/'
 		const analytics = buildAnalytics(state)
+		const scenarioError = getErrorScenarioResponse(options.scenario, pathname, method)
+
+		if (scenarioError) {
+			await asJson(route, scenarioError.payload, scenarioError.status)
+			return
+		}
 
 		if (pathname === '/buildings' && method === 'GET') {
 			await asJson(route, state.buildings)
@@ -442,7 +891,7 @@ export async function installA11yMockApi(
 		if (pathname === '/buildings' && method === 'POST') {
 			const payload = request.postDataJSON() as Partial<MockState['buildings'][number]> | null
 			const next = {
-				id: Math.max(...state.buildings.map(item => item.id)) + 1,
+				id: nextId(state.buildings),
 				code: payload?.code || 'NEW',
 				name: payload?.name || 'New Building',
 				address: payload?.address || null,
@@ -491,7 +940,7 @@ export async function installA11yMockApi(
 			const building = state.buildings.find(item => item.id === buildingId)
 			const payload = request.postDataJSON() as Record<string, unknown>
 			const next = {
-				id: Math.max(...state.rooms.map(item => item.id)) + 1,
+				id: nextId(state.rooms),
 				roomNumber: String(payload.roomNumber || '999'),
 				capacity: Number(payload.capacity || 10),
 				type: String(payload.type || 'CLASSROOM'),
@@ -544,7 +993,7 @@ export async function installA11yMockApi(
 		if (pathname === '/instructors' && method === 'POST') {
 			const payload = request.postDataJSON() as Record<string, unknown>
 			const next = {
-				id: Math.max(...state.instructors.map(item => item.id)) + 1,
+				id: nextId(state.instructors),
 				firstName: String(payload.firstName || 'New'),
 				lastName: String(payload.lastName || 'Instructor'),
 				email: String(payload.email || 'new@campus.edu'),
@@ -600,7 +1049,7 @@ export async function installA11yMockApi(
 		if (pathname === '/courses' && method === 'POST') {
 			const payload = request.postDataJSON() as Record<string, unknown>
 			const next = {
-				id: Math.max(...state.courses.map(item => item.id)) + 1,
+				id: nextId(state.courses),
 				code: String(payload.code || 'NEW101'),
 				name: String(payload.name || 'New Course'),
 				description: (payload.description as string | undefined) ?? null,
@@ -689,7 +1138,7 @@ export async function installA11yMockApi(
 		if (pathname === '/timeslots' && method === 'POST') {
 			const payload = request.postDataJSON() as Record<string, unknown>
 			const next = {
-				id: Math.max(...state.timeslots.map(item => item.id)) + 1,
+				id: nextId(state.timeslots),
 				dayOfWeek: String(payload.dayOfWeek || 'MONDAY'),
 				startTime: String(payload.startTime || '08:00'),
 				endTime: String(payload.endTime || '09:00'),
@@ -738,7 +1187,7 @@ export async function installA11yMockApi(
 			const room = state.rooms.find(item => item.id === Number(payload.roomId || 0)) ?? state.rooms[0]
 			const timeSlot = state.timeslots.find(item => item.id === Number(payload.timeSlotId || 0)) ?? state.timeslots[0]
 			const next = {
-				id: Math.max(...state.schedules.map(item => item.id)) + 1,
+				id: nextId(state.schedules),
 				course,
 				room,
 				timeSlot,
@@ -788,7 +1237,7 @@ export async function installA11yMockApi(
 			const proposedTimeSlot = state.timeslots.find(item => item.id === Number(payload.proposedTimeSlotId || 0)) ?? null
 
 			const next = {
-				id: Math.max(...state.changeRequests.map(item => item.id)) + 1,
+				id: nextId(state.changeRequests),
 				schedule,
 				requestedByInstructor: instructor,
 				requestedByRole: String(payload.requestedByRole || 'INSTRUCTOR') as 'INSTRUCTOR' | 'ADMIN',
@@ -892,7 +1341,7 @@ export async function installA11yMockApi(
 		}
 
 		if (pathname === '/instructor-insights/frictions' && method === 'GET') {
-			await asJson(route, [])
+			await asJson(route, buildFrictionIssues(state, options.scenario))
 			return
 		}
 

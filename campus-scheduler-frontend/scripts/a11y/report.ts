@@ -79,10 +79,14 @@ function countBy<T extends string>(values: T[]): Record<string, number> {
 function dedupeMockGaps(items: A11yMockGap[]): A11yMockGap[] {
 	const map = new Map<string, A11yMockGap>()
 	for (const item of items) {
-		const key = `${item.method}|${item.url}|${item.reason}|${item.route}|${item.role}|${item.theme}`
+		const key = `${item.method}|${item.url}|${item.reason}|${item.route}|${item.role}|${item.theme}|${item.scenario}`
 		if (!map.has(key)) map.set(key, item)
 	}
 	return Array.from(map.values())
+}
+
+function targetLabel(result: A11yScanResult): string {
+	return `${result.target.role}/${result.target.theme}/${result.target.scenario} ${result.target.route}`
 }
 
 function buildSummary(
@@ -106,6 +110,25 @@ function buildSummary(
 	const uncoveredRoutes = manifestRoutes.filter(route => !coveredRoutes.has(route)).sort()
 
 	const mockGaps = dedupeMockGaps(runtimeResults.flatMap(item => item.mockGaps))
+	const zeroInteractionTargets = runtimeResults
+		.filter(item => item.coverage?.zeroInteractionsDiscovered)
+		.map(targetLabel)
+		.sort()
+	const budgetLimitedTargets = runtimeResults
+		.filter(item => item.coverage?.terminatedByBudget)
+		.map(item => {
+			const reasons = (item.coverage?.budgetReasons || []).join(', ')
+			return reasons ? `${targetLabel(item)} (${reasons})` : targetLabel(item)
+		})
+		.sort()
+	const runtimeErrorTargets = runtimeResults
+		.filter(item => item.runtimeErrors.length > 0)
+		.map(targetLabel)
+		.sort()
+	const mockGapTargets = runtimeResults
+		.filter(item => item.mockGaps.length > 0)
+		.map(targetLabel)
+		.sort()
 
 	return {
 		generatedAt: new Date().toISOString(),
@@ -119,6 +142,12 @@ function buildSummary(
 		affectedRoutes,
 		uncoveredRoutes,
 		mockGaps,
+		coverageQuality: {
+			zeroInteractionTargets,
+			budgetLimitedTargets,
+			runtimeErrorTargets,
+			mockGapTargets,
+		},
 	}
 }
 
@@ -200,7 +229,7 @@ function toMarkdown(
 		lines.push('- None')
 	} else {
 		for (const gap of summary.mockGaps) {
-			lines.push(`- ${gap.method} ${gap.url} (${gap.reason}) [${gap.role}/${gap.theme} ${gap.route}]`)
+			lines.push(`- ${gap.method} ${gap.url} (${gap.reason}) [${gap.role}/${gap.theme}/${gap.scenario} ${gap.route}]`)
 		}
 	}
 
@@ -213,6 +242,53 @@ function toMarkdown(
 	} else {
 		for (const error of runtimeErrors.slice(0, 100)) {
 			lines.push(`- ${error}`)
+		}
+	}
+
+	lines.push('')
+	lines.push('## Coverage Quality')
+	lines.push('')
+
+	lines.push('### Targets With Zero Interactions')
+	lines.push('')
+	if (summary.coverageQuality.zeroInteractionTargets.length === 0) {
+		lines.push('- None')
+	} else {
+		for (const item of summary.coverageQuality.zeroInteractionTargets) {
+			lines.push(`- ${item}`)
+		}
+	}
+
+	lines.push('')
+	lines.push('### Targets Limited By Budgets')
+	lines.push('')
+	if (summary.coverageQuality.budgetLimitedTargets.length === 0) {
+		lines.push('- None')
+	} else {
+		for (const item of summary.coverageQuality.budgetLimitedTargets) {
+			lines.push(`- ${item}`)
+		}
+	}
+
+	lines.push('')
+	lines.push('### Targets With Runtime Errors')
+	lines.push('')
+	if (summary.coverageQuality.runtimeErrorTargets.length === 0) {
+		lines.push('- None')
+	} else {
+		for (const item of summary.coverageQuality.runtimeErrorTargets) {
+			lines.push(`- ${item}`)
+		}
+	}
+
+	lines.push('')
+	lines.push('### Targets With Mock Gaps')
+	lines.push('')
+	if (summary.coverageQuality.mockGapTargets.length === 0) {
+		lines.push('- None')
+	} else {
+		for (const item of summary.coverageQuality.mockGapTargets) {
+			lines.push(`- ${item}`)
 		}
 	}
 
@@ -244,6 +320,16 @@ function toHtml(markdownSummary: string): string {
 		'</body>',
 		'</html>',
 	].join('')
+}
+
+function printStrictReasonBlock(title: string, count: number, lines: string[]): void {
+	console.error(`[a11y][strict] ${title}: ${count}`)
+	for (const line of lines.slice(0, 20)) {
+		console.error(`  - ${line}`)
+	}
+	if (lines.length > 20) {
+		console.error(`  - ... and ${lines.length - 20} more`)
+	}
 }
 
 function main(): void {
@@ -288,8 +374,29 @@ function main(): void {
 		fs.writeFileSync(path.join(options.reportDir, 'index.html'), toHtml(markdownSummary), 'utf8')
 	}
 
+	const runtimeErrors = runtimeResults.flatMap(result => result.runtimeErrors)
+
+	if (options.strictMockGaps && summary.mockGaps.length > 0) {
+		process.exitCode = 1
+		printStrictReasonBlock(
+			'mock gaps',
+			summary.mockGaps.length,
+			summary.mockGaps.map(gap => `${gap.method} ${gap.url} (${gap.reason}) [${gap.role}/${gap.theme}/${gap.scenario} ${gap.route}]`)
+		)
+	}
+
+	if (options.strictRuntimeErrors && runtimeErrors.length > 0) {
+		process.exitCode = 1
+		printStrictReasonBlock('runtime errors', runtimeErrors.length, runtimeErrors)
+	}
+
+	if (options.strictUncoveredRoutes && summary.uncoveredRoutes.length > 0) {
+		process.exitCode = 1
+		printStrictReasonBlock('uncovered routes', summary.uncoveredRoutes.length, summary.uncoveredRoutes)
+	}
+
 	console.log(`[a11y] report generated in ${options.reportDir}`)
-	process.exit(0)
+	process.exit(process.exitCode ?? 0)
 }
 
 main()

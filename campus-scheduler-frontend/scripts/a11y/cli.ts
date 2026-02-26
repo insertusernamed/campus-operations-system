@@ -1,10 +1,11 @@
 import path from 'node:path'
-import type { A11yCliOptions, A11yRole, A11yTheme } from './types'
+import type { A11yCliOptions, A11yRole, A11yScenario, A11yTheme } from './types'
 
 const DEFAULT_REPORT_DIR = 'reports/a11y/latest'
 
 const ROLE_VALUES: A11yRole[] = ['admin', 'instructor']
 const THEME_VALUES: A11yTheme[] = ['snow-storm', 'slate']
+const SCENARIO_VALUES: A11yScenario[] = ['empty', 'normal', 'dense', 'error']
 
 function parseList(value: string): string[] {
 	return value
@@ -77,6 +78,17 @@ function parseRoutes(args: string[]): string[] | null {
 	return values.length ? values : null
 }
 
+function parseScenarios(args: string[]): A11yScenario[] {
+	const raw = [...parseArgValue(args, 'scenario'), ...readEnvList('A11Y_SCENARIO_FILTER')]
+	if (!raw.length) return ['normal']
+
+	const values = unique(raw.flatMap(parseList)).filter((value): value is A11yScenario =>
+		SCENARIO_VALUES.includes(value as A11yScenario)
+	)
+
+	return values.length ? values : ['normal']
+}
+
 function parseFormats(args: string[]): string[] {
 	const raw = [...parseArgValue(args, 'format'), ...readEnvList('A11Y_FORMAT')]
 	const values = unique(raw.flatMap(parseList).map(v => v.toLowerCase()))
@@ -109,15 +121,29 @@ function parseFullyParallel(args: string[]): boolean {
 	return ['1', 'true', 'yes', 'on'].includes(raw.toLowerCase())
 }
 
+function parseStrictFlag(args: string[], key: string, envKey: string): boolean {
+	if (hasArgFlag(args, key)) return true
+
+	const raw = process.env[envKey]
+	if (!raw) return false
+
+	return ['1', 'true', 'yes', 'on'].includes(raw.toLowerCase())
+}
+
 export function parseA11yCliOptions(argv: string[] = process.argv.slice(2)): A11yCliOptions {
 	return {
 		roles: parseRoles(argv),
 		themes: parseThemes(argv),
+		scenarios: parseScenarios(argv),
 		routeFilters: parseRoutes(argv),
 		formats: parseFormats(argv),
 		reportDir: parseReportDir(argv),
 		workers: parseWorkers(argv),
 		fullyParallel: parseFullyParallel(argv),
+		enableInteractionCrawl: parseStrictFlag(argv, 'enable-interaction-crawl', 'A11Y_ENABLE_INTERACTION_CRAWL'),
+		strictMockGaps: parseStrictFlag(argv, 'strict-mock-gaps', 'A11Y_STRICT_MOCK_GAPS'),
+		strictRuntimeErrors: parseStrictFlag(argv, 'strict-runtime-errors', 'A11Y_STRICT_RUNTIME_ERRORS'),
+		strictUncoveredRoutes: parseStrictFlag(argv, 'strict-uncovered-routes', 'A11Y_STRICT_UNCOVERED_ROUTES'),
 	}
 }
 
@@ -128,6 +154,11 @@ export function applyA11yEnv(options: A11yCliOptions): NodeJS.ProcessEnv {
 	env.A11Y_FORMAT = options.formats.join(',')
 	if (options.workers) env.A11Y_WORKERS = String(options.workers)
 	if (options.fullyParallel) env.A11Y_FULLY_PARALLEL = '1'
+	if (options.enableInteractionCrawl) env.A11Y_ENABLE_INTERACTION_CRAWL = '1'
+	if (options.strictMockGaps) env.A11Y_STRICT_MOCK_GAPS = '1'
+	if (options.strictRuntimeErrors) env.A11Y_STRICT_RUNTIME_ERRORS = '1'
+	if (options.strictUncoveredRoutes) env.A11Y_STRICT_UNCOVERED_ROUTES = '1'
+	env.A11Y_SCENARIO_FILTER = options.scenarios.join(',')
 
 	if (options.roles) env.A11Y_ROLE_FILTER = options.roles.join(',')
 	if (options.themes) env.A11Y_THEME_FILTER = options.themes.join(',')

@@ -12,7 +12,9 @@
 		"a11y:runtime": "tsx scripts/a11y/runtime.ts",
 		"a11y:lint": "tsx scripts/a11y/lint.ts",
 		"a11y:report": "tsx scripts/a11y/report.ts",
-		"a11y:scan": "tsx scripts/a11y/scan.ts"
+		"a11y:scan": "tsx scripts/a11y/scan.ts",
+		"a11y:scan:fast": "tsx scripts/a11y/scan.ts --scenario=normal --fully-parallel --strict-mock-gaps --strict-runtime-errors",
+		"a11y:scan:deep": "tsx scripts/a11y/scan.ts --scenario=empty,normal,dense,error --fully-parallel --enable-interaction-crawl --strict-mock-gaps --strict-runtime-errors --strict-uncovered-routes"
 	},
 	"dependencies": {
 		"@schedule-x/calendar": "^4.1.0",
