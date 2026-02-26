@@ -246,6 +246,16 @@ function toHtml(markdownSummary: string): string {
 	].join('')
 }
 
+function printStrictReasonBlock(title: string, count: number, lines: string[]): void {
+	console.error(`[a11y][strict] ${title}: ${count}`)
+	for (const line of lines.slice(0, 20)) {
+		console.error(`  - ${line}`)
+	}
+	if (lines.length > 20) {
+		console.error(`  - ... and ${lines.length - 20} more`)
+	}
+}
+
 function main(): void {
 	const options = parseA11yCliOptions()
 	fs.mkdirSync(options.reportDir, { recursive: true })
@@ -288,8 +298,29 @@ function main(): void {
 		fs.writeFileSync(path.join(options.reportDir, 'index.html'), toHtml(markdownSummary), 'utf8')
 	}
 
+	const runtimeErrors = runtimeResults.flatMap(result => result.runtimeErrors)
+
+	if (options.strictMockGaps && summary.mockGaps.length > 0) {
+		process.exitCode = 1
+		printStrictReasonBlock(
+			'mock gaps',
+			summary.mockGaps.length,
+			summary.mockGaps.map(gap => `${gap.method} ${gap.url} (${gap.reason}) [${gap.role}/${gap.theme} ${gap.route}]`)
+		)
+	}
+
+	if (options.strictRuntimeErrors && runtimeErrors.length > 0) {
+		process.exitCode = 1
+		printStrictReasonBlock('runtime errors', runtimeErrors.length, runtimeErrors)
+	}
+
+	if (options.strictUncoveredRoutes && summary.uncoveredRoutes.length > 0) {
+		process.exitCode = 1
+		printStrictReasonBlock('uncovered routes', summary.uncoveredRoutes.length, summary.uncoveredRoutes)
+	}
+
 	console.log(`[a11y] report generated in ${options.reportDir}`)
-	process.exit(0)
+	process.exit(process.exitCode ?? 0)
 }
 
 main()
