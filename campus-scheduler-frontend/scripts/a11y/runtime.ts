@@ -7,13 +7,22 @@ function main(): void {
 	const options = parseA11yCliOptions()
 	const env = applyA11yEnv(options)
 	const runtimeDir = path.join(options.reportDir, 'runtime')
+	const playwrightArgs = ['playwright', 'test', '-c', 'playwright.a11y.config.ts']
+
+	if (options.fullyParallel) {
+		playwrightArgs.push('--fully-parallel')
+	}
+
+	if (options.workers) {
+		playwrightArgs.push(`--workers=${options.workers}`)
+	}
 
 	fs.rmSync(runtimeDir, { recursive: true, force: true })
 	fs.mkdirSync(runtimeDir, { recursive: true })
 
 	const result = spawnSync(
 		process.platform === 'win32' ? 'npx.cmd' : 'npx',
-		['playwright', 'test', '-c', 'playwright.a11y.config.ts'],
+		playwrightArgs,
 		{
 			cwd: process.cwd(),
 			env,

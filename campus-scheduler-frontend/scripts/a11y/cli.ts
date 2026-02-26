@@ -33,6 +33,10 @@ function parseArgValue(args: string[], key: string): string[] {
 	return values
 }
 
+function hasArgFlag(args: string[], key: string): boolean {
+	return args.includes(`--${key}`)
+}
+
 function unique<T>(items: T[]): T[] {
 	return Array.from(new Set(items))
 }
@@ -86,6 +90,25 @@ function parseReportDir(args: string[]): string {
 	return path.resolve(process.cwd(), fromArg ?? fromEnv ?? DEFAULT_REPORT_DIR)
 }
 
+function parseWorkers(args: string[]): number | null {
+	const argValues = parseArgValue(args, 'workers')
+	const fromArg = argValues[argValues.length - 1]
+	const raw = fromArg ?? process.env.A11Y_WORKERS
+	if (!raw) return null
+
+	const parsed = Number.parseInt(raw, 10)
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
+function parseFullyParallel(args: string[]): boolean {
+	if (hasArgFlag(args, 'fully-parallel')) return true
+
+	const raw = process.env.A11Y_FULLY_PARALLEL
+	if (!raw) return false
+
+	return ['1', 'true', 'yes', 'on'].includes(raw.toLowerCase())
+}
+
 export function parseA11yCliOptions(argv: string[] = process.argv.slice(2)): A11yCliOptions {
 	return {
 		roles: parseRoles(argv),
@@ -93,6 +116,8 @@ export function parseA11yCliOptions(argv: string[] = process.argv.slice(2)): A11
 		routeFilters: parseRoutes(argv),
 		formats: parseFormats(argv),
 		reportDir: parseReportDir(argv),
+		workers: parseWorkers(argv),
+		fullyParallel: parseFullyParallel(argv),
 	}
 }
 
@@ -101,6 +126,8 @@ export function applyA11yEnv(options: A11yCliOptions): NodeJS.ProcessEnv {
 
 	env.A11Y_REPORT_DIR = options.reportDir
 	env.A11Y_FORMAT = options.formats.join(',')
+	if (options.workers) env.A11Y_WORKERS = String(options.workers)
+	if (options.fullyParallel) env.A11Y_FULLY_PARALLEL = '1'
 
 	if (options.roles) env.A11Y_ROLE_FILTER = options.roles.join(',')
 	if (options.themes) env.A11Y_THEME_FILTER = options.themes.join(',')

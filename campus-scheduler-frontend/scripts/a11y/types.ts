@@ -71,4 +71,6 @@ export interface A11yCliOptions {
 	routeFilters: string[] | null
 	formats: string[]
 	reportDir: string
+	workers: number | null
+	fullyParallel: boolean
 }
