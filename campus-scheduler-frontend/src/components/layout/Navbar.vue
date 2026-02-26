@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRole, type Role } from '@/composables/useRole'
 import { useInstructors } from '@/composables/useInstructors'
 import { useTheme, type Theme } from '@/composables/useTheme'
+import { useRouteTransition, type RouteTransitionName } from '@/composables/useRouteTransition'
 import { useRoute, useRouter } from 'vue-router'
 
 defineEmits<{
@@ -12,6 +13,7 @@ defineEmits<{
 const { role, instructorId, setRole, setInstructorId } = useRole()
 const { instructors, loading: loadingInstructors, loadInstructors } = useInstructors()
 const { theme, setTheme } = useTheme()
+const { routeTransition, setRouteTransition } = useRouteTransition()
 const router = useRouter()
 const route = useRoute()
 
@@ -31,6 +33,11 @@ const roleModel = computed({
 const themeModel = computed({
 	get: () => theme.value,
 	set: value => setTheme(value as Theme),
+})
+
+const transitionModel = computed({
+	get: () => routeTransition.value,
+	set: value => setRouteTransition(value as RouteTransitionName),
 })
 
 const instructorModel = computed({
@@ -145,6 +152,17 @@ onUnmounted(() => {
 					class="px-2 py-1 border border-gray-300 rounded bg-white text-gray-700 text-xs sm:text-sm">
 					<option value="snow-storm">Frost</option>
 					<option value="slate">Slate</option>
+				</select>
+			</div>
+			<div class="flex items-center gap-1.5 sm:gap-2">
+				<span class="hidden sm:inline text-xs uppercase tracking-wide text-gray-500">Transition</span>
+				<select v-model="transitionModel" aria-label="Transition"
+					class="px-2 py-1 border border-gray-300 rounded bg-white text-gray-700 text-xs sm:text-sm">
+					<option value="route-fade-up">Fade Up</option>
+					<option value="route-slide-left">Slide Left</option>
+					<option value="route-solver-focus">Solver Focus</option>
+					<option value="route-zoom-blur">Zoom Blur</option>
+					<option value="route-flip-soft">Flip Soft</option>
 				</select>
 			</div>
 			<div class="flex items-center gap-1.5 sm:gap-2">

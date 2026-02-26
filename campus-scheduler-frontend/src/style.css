@@ -3,405 +3,496 @@
 @custom-variant slate (&:where([data-theme="slate"], [data-theme="slate"] *));
 
 @theme inline {
-	--color-gray-50: var(--app-gray-50);
-	--color-gray-100: var(--app-gray-100);
-	--color-gray-200: var(--app-gray-200);
-	--color-gray-300: var(--app-gray-300);
-	--color-gray-400: var(--app-gray-400);
-	--color-gray-500: var(--app-gray-500);
-	--color-gray-600: var(--app-gray-600);
-	--color-gray-700: var(--app-gray-700);
-	--color-gray-800: var(--app-gray-800);
-	--color-gray-900: var(--app-gray-900);
-	--color-blue-50: var(--app-blue-50);
-	--color-blue-200: var(--app-blue-200);
-	--color-blue-500: var(--app-blue-500);
-	--color-blue-600: var(--app-blue-600);
-	--color-blue-700: var(--app-blue-700);
-	--color-green-50: var(--app-green-50);
-	--color-green-100: var(--app-green-100);
-	--color-green-200: var(--app-green-200);
-	--color-green-300: var(--app-green-300);
-	--color-green-600: var(--app-green-600);
-	--color-green-700: var(--app-green-700);
-	--color-green-800: var(--app-green-800);
-	--color-green-900: var(--app-green-900);
-	--color-amber-50: var(--app-amber-50);
-	--color-amber-200: var(--app-amber-200);
-	--color-amber-800: var(--app-amber-800);
-	--color-amber-900: var(--app-amber-900);
-	--color-amber-950: var(--app-amber-950);
-	--color-red-50: var(--app-red-50);
-	--color-red-100: var(--app-red-100);
-	--color-red-200: var(--app-red-200);
-	--color-red-300: var(--app-red-300);
-	--color-red-500: var(--app-red-500);
-	--color-red-600: var(--app-red-600);
-	--color-red-700: var(--app-red-700);
-	--color-red-800: var(--app-red-800);
-	--color-yellow-50: var(--app-yellow-50);
-	--color-yellow-100: var(--app-yellow-100);
-	--color-yellow-200: var(--app-yellow-200);
-	--color-yellow-300: var(--app-yellow-300);
-	--color-yellow-600: var(--app-yellow-600);
-	--color-yellow-700: var(--app-yellow-700);
-	--color-yellow-800: var(--app-yellow-800);
-	--color-yellow-900: var(--app-yellow-900);
-	--color-orange-100: var(--app-orange-100);
-	--color-orange-700: var(--app-orange-700);
+    --color-gray-50: var(--app-gray-50);
+    --color-gray-100: var(--app-gray-100);
+    --color-gray-200: var(--app-gray-200);
+    --color-gray-300: var(--app-gray-300);
+    --color-gray-400: var(--app-gray-400);
+    --color-gray-500: var(--app-gray-500);
+    --color-gray-600: var(--app-gray-600);
+    --color-gray-700: var(--app-gray-700);
+    --color-gray-800: var(--app-gray-800);
+    --color-gray-900: var(--app-gray-900);
+    --color-blue-50: var(--app-blue-50);
+    --color-blue-200: var(--app-blue-200);
+    --color-blue-500: var(--app-blue-500);
+    --color-blue-600: var(--app-blue-600);
+    --color-blue-700: var(--app-blue-700);
+    --color-green-50: var(--app-green-50);
+    --color-green-100: var(--app-green-100);
+    --color-green-200: var(--app-green-200);
+    --color-green-300: var(--app-green-300);
+    --color-green-600: var(--app-green-600);
+    --color-green-700: var(--app-green-700);
+    --color-green-800: var(--app-green-800);
+    --color-green-900: var(--app-green-900);
+    --color-amber-50: var(--app-amber-50);
+    --color-amber-200: var(--app-amber-200);
+    --color-amber-800: var(--app-amber-800);
+    --color-amber-900: var(--app-amber-900);
+    --color-amber-950: var(--app-amber-950);
+    --color-red-50: var(--app-red-50);
+    --color-red-100: var(--app-red-100);
+    --color-red-200: var(--app-red-200);
+    --color-red-300: var(--app-red-300);
+    --color-red-500: var(--app-red-500);
+    --color-red-600: var(--app-red-600);
+    --color-red-700: var(--app-red-700);
+    --color-red-800: var(--app-red-800);
+    --color-yellow-50: var(--app-yellow-50);
+    --color-yellow-100: var(--app-yellow-100);
+    --color-yellow-200: var(--app-yellow-200);
+    --color-yellow-300: var(--app-yellow-300);
+    --color-yellow-600: var(--app-yellow-600);
+    --color-yellow-700: var(--app-yellow-700);
+    --color-yellow-800: var(--app-yellow-800);
+    --color-yellow-900: var(--app-yellow-900);
+    --color-orange-100: var(--app-orange-100);
+    --color-orange-700: var(--app-orange-700);
 }
 
 :root {
-	--theme-transition-duration: 480ms;
-	--theme-transition-easing: cubic-bezier(0.22, 1, 0.36, 1);
+    --theme-transition-duration: 480ms;
+    --theme-transition-easing: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 :root,
 [data-theme="snow-storm"] {
-	/* Nord palette */
-	--nord0: #2e3440;
-	--nord1: #3b4252;
-	--nord2: #434c5e;
-	--nord3: #4c566a;
-	--nord4: #d8dee9;
-	--nord5: #e5e9f0;
-	--nord6: #eceff4;
-	--nord7: #8fbcbb;
-	--nord8: #88c0d0;
-	--nord9: #81a1c1;
-	--nord10: #5e81ac;
-	--nord11: #bf616a;
-	--nord12: #d08770;
-	--nord13: #ebcb8b;
-	--nord14: #a3be8c;
-	--nord15: #b48ead;
+    /* Nord palette */
+    --nord0: #2e3440;
+    --nord1: #3b4252;
+    --nord2: #434c5e;
+    --nord3: #4c566a;
+    --nord4: #d8dee9;
+    --nord5: #e5e9f0;
+    --nord6: #eceff4;
+    --nord7: #8fbcbb;
+    --nord8: #88c0d0;
+    --nord9: #81a1c1;
+    --nord10: #5e81ac;
+    --nord11: #bf616a;
+    --nord12: #d08770;
+    --nord13: #ebcb8b;
+    --nord14: #a3be8c;
+    --nord15: #b48ead;
 
-	/* Snow Storm (light) neutrals */
-	--app-gray-50: var(--nord6);
-	--app-gray-100: var(--nord5);
-	--app-gray-200: var(--nord4);
-	--app-gray-300: #c7ceda;
-	--app-gray-400: #a6afc0;
-	--app-gray-500: #5f6b83;
-	--app-gray-600: #556078;
-	--app-gray-700: var(--nord3);
-	--app-gray-800: var(--nord2);
-	--app-gray-900: var(--nord0);
+    /* Snow Storm (light) neutrals */
+    --app-gray-50: var(--nord6);
+    --app-gray-100: var(--nord5);
+    --app-gray-200: var(--nord4);
+    --app-gray-300: #c7ceda;
+    --app-gray-400: #a6afc0;
+    --app-gray-500: #5f6b83;
+    --app-gray-600: #556078;
+    --app-gray-700: var(--nord3);
+    --app-gray-800: var(--nord2);
+    --app-gray-900: var(--nord0);
 
-	/* Frost + Aurora accents */
-	--app-blue-50: #edf4fb;
-	--app-blue-200: #bad0e5;
-	--app-blue-500: var(--nord9);
-	--app-blue-600: #35587d;
-	--app-blue-700: #2f4f70;
-	--app-green-50: #eef5ea;
-	--app-green-100: #e2edd8;
-	--app-green-200: #cfe0bd;
-	--app-green-300: #bdd4a7;
-	--app-green-600: #4f7447;
-	--app-green-700: #76935f;
-	--app-green-800: #627e4f;
-	--app-green-900: #4f663f;
-	--app-amber-50: #faf3e8;
-	--app-amber-200: #edcd9f;
-	--app-amber-800: #9c6d43;
-	--app-amber-900: #855b36;
-	--app-amber-950: #644328;
-	--app-red-50: #f8ecee;
-	--app-red-100: #f2dfe2;
-	--app-red-200: #e4c2c6;
-	--app-red-300: #d3a2a8;
-	--app-red-500: var(--nord11);
-	--app-red-600: #aa535d;
-	--app-red-700: #93454f;
-	--app-red-800: #7b373f;
-	--app-yellow-50: #fbf7ea;
-	--app-yellow-100: #f7efdb;
-	--app-yellow-200: #f0dfb5;
-	--app-yellow-300: #e8cf91;
-	--app-yellow-600: #d2b166;
-	--app-yellow-700: #bf9f52;
-	--app-yellow-800: #a58943;
-	--app-yellow-900: #816a34;
-	--app-orange-100: #f4e1d2;
-	--app-orange-700: #b7704d;
+    /* Frost + Aurora accents */
+    --app-blue-50: #edf4fb;
+    --app-blue-200: #bad0e5;
+    --app-blue-500: var(--nord9);
+    --app-blue-600: #35587d;
+    --app-blue-700: #2f4f70;
+    --app-green-50: #eef5ea;
+    --app-green-100: #e2edd8;
+    --app-green-200: #cfe0bd;
+    --app-green-300: #bdd4a7;
+    --app-green-600: #4f7447;
+    --app-green-700: #76935f;
+    --app-green-800: #627e4f;
+    --app-green-900: #4f663f;
+    --app-amber-50: #faf3e8;
+    --app-amber-200: #edcd9f;
+    --app-amber-800: #9c6d43;
+    --app-amber-900: #855b36;
+    --app-amber-950: #644328;
+    --app-red-50: #f8ecee;
+    --app-red-100: #f2dfe2;
+    --app-red-200: #e4c2c6;
+    --app-red-300: #d3a2a8;
+    --app-red-500: var(--nord11);
+    --app-red-600: #aa535d;
+    --app-red-700: #93454f;
+    --app-red-800: #7b373f;
+    --app-yellow-50: #fbf7ea;
+    --app-yellow-100: #f7efdb;
+    --app-yellow-200: #f0dfb5;
+    --app-yellow-300: #e8cf91;
+    --app-yellow-600: #d2b166;
+    --app-yellow-700: #bf9f52;
+    --app-yellow-800: #a58943;
+    --app-yellow-900: #816a34;
+    --app-orange-100: #f4e1d2;
+    --app-orange-700: #b7704d;
 
-	/* Shared semantic tokens for custom CSS components */
-	--app-page-bg: var(--app-gray-50);
-	--app-surface: #f9fbff;
-	--color-background: var(--app-surface);
-	--color-background-mute: var(--app-gray-100);
-	--color-border: var(--app-gray-200);
-	--color-heading: var(--app-gray-900);
-	--color-text: var(--app-gray-700);
-	--color-text-mute: var(--app-gray-500);
-	--vt-c-green: var(--app-green-600);
-	--brand-logo-primary: var(--app-blue-700);
-	--brand-logo-secondary: var(--app-gray-700);
-	--app-link-color: var(--app-blue-700);
-	--chart-grid-color: #aab3c4;
-	--chart-axis-color: var(--app-gray-700);
-	--chart-bar-color: var(--app-blue-600);
-	--chart-value-text: var(--app-gray-900);
-	--chart-value-outline: var(--nord6);
-	--heatmap-empty-cell: var(--nord5);
-	--heatmap-tooltip-bg: var(--nord0);
-	--heatmap-tooltip-text: var(--nord6);
-	--schedule-arrow-color: var(--app-blue-600);
-	--schedule-badge-bg: rgba(255, 255, 255, 0.88);
-	--schedule-badge-text: var(--nord0);
-	--density-hover-brightness: 0.98;
-	--density-empty-bg: var(--app-gray-50);
-	--density-low-bg: var(--app-blue-50);
-	--density-low-border: var(--app-blue-200);
-	--density-low-text: #2f455f;
-	--density-low-subtext: #3f5d82;
-	--density-low-muted: #516f92;
-	--density-medium-bg: var(--app-amber-50);
-	--density-medium-border: var(--app-amber-200);
-	--density-medium-text: #5b472f;
-	--density-medium-subtext: #6a5237;
-	--density-medium-muted: #806346;
-	--density-medium-overlap: #8f3d2f;
-	--density-high-bg: var(--app-red-50);
-	--density-high-border: var(--app-red-200);
-	--density-high-text: #6e333b;
-	--density-high-subtext: #7b3b44;
-	--density-high-muted: #92505a;
-	color-scheme: light;
+    /* Shared semantic tokens for custom CSS components */
+    --app-page-bg: var(--app-gray-50);
+    --app-surface: #f9fbff;
+    --color-background: var(--app-surface);
+    --color-background-mute: var(--app-gray-100);
+    --color-border: var(--app-gray-200);
+    --color-heading: var(--app-gray-900);
+    --color-text: var(--app-gray-700);
+    --color-text-mute: var(--app-gray-500);
+    --vt-c-green: var(--app-green-600);
+    --brand-logo-primary: var(--app-blue-700);
+    --brand-logo-secondary: var(--app-gray-700);
+    --app-link-color: var(--app-blue-700);
+    --chart-grid-color: #aab3c4;
+    --chart-axis-color: var(--app-gray-700);
+    --chart-bar-color: var(--app-blue-600);
+    --chart-value-text: var(--app-gray-900);
+    --chart-value-outline: var(--nord6);
+    --heatmap-empty-cell: var(--nord5);
+    --heatmap-tooltip-bg: var(--nord0);
+    --heatmap-tooltip-text: var(--nord6);
+    --schedule-arrow-color: var(--app-blue-600);
+    --schedule-badge-bg: rgba(255, 255, 255, 0.88);
+    --schedule-badge-text: var(--nord0);
+    --density-hover-brightness: 0.98;
+    --density-empty-bg: var(--app-gray-50);
+    --density-low-bg: var(--app-blue-50);
+    --density-low-border: var(--app-blue-200);
+    --density-low-text: #2f455f;
+    --density-low-subtext: #3f5d82;
+    --density-low-muted: #516f92;
+    --density-medium-bg: var(--app-amber-50);
+    --density-medium-border: var(--app-amber-200);
+    --density-medium-text: #5b472f;
+    --density-medium-subtext: #6a5237;
+    --density-medium-muted: #806346;
+    --density-medium-overlap: #8f3d2f;
+    --density-high-bg: var(--app-red-50);
+    --density-high-border: var(--app-red-200);
+    --density-high-text: #6e333b;
+    --density-high-subtext: #7b3b44;
+    --density-high-muted: #92505a;
+    color-scheme: light;
 }
 
 [data-theme="slate"] {
-	/* Polar Night (dark) neutrals */
-	--app-gray-50: var(--nord0);
-	--app-gray-100: var(--nord1);
-	--app-gray-200: var(--nord2);
-	--app-gray-300: #60708a;
-	--app-gray-400: #9aa8bd;
-	--app-gray-500: #a8b6ca;
-	--app-gray-600: #b7c4d7;
-	--app-gray-700: #c6d1e2;
-	--app-gray-800: #d4ddea;
-	--app-gray-900: var(--nord6);
+    /* Polar Night (dark) neutrals */
+    --app-gray-50: var(--nord0);
+    --app-gray-100: var(--nord1);
+    --app-gray-200: var(--nord2);
+    --app-gray-300: #60708a;
+    --app-gray-400: #9aa8bd;
+    --app-gray-500: #a8b6ca;
+    --app-gray-600: #b7c4d7;
+    --app-gray-700: #c6d1e2;
+    --app-gray-800: #d4ddea;
+    --app-gray-900: var(--nord6);
 
-	/* Aurora accents tuned for dark surfaces */
-	--app-blue-50: #27384d;
-	--app-blue-200: #3b5979;
-	--app-blue-500: #93b4da;
-	--app-blue-600: #35587d;
-	--app-blue-700: #2f4f70;
-	--app-green-50: #253830;
-	--app-green-100: #2c4338;
-	--app-green-200: #395a4a;
-	--app-green-300: #466f5c;
-	--app-green-600: #4f7a63;
-	--app-green-700: #41654f;
-	--app-green-800: #365342;
-	--app-green-900: #2b4234;
-	--app-amber-50: #45392b;
-	--app-amber-200: #7f6846;
-	--app-amber-800: #8d6a3f;
-	--app-amber-900: #745734;
-	--app-amber-950: #5b4428;
-	--app-red-50: #4a3036;
-	--app-red-100: #56363d;
-	--app-red-200: #71464f;
-	--app-red-300: #8a545e;
-	--app-red-500: #bf616a;
-	--app-red-600: #9d4a54;
-	--app-red-700: #843f48;
-	--app-red-800: #6f353d;
-	--app-yellow-50: #4a432f;
-	--app-yellow-100: #574f35;
-	--app-yellow-200: #6f6343;
-	--app-yellow-300: #86774f;
-	--app-yellow-600: #8f6f36;
-	--app-yellow-700: #7a5e2e;
-	--app-yellow-800: #675027;
-	--app-yellow-900: #544121;
-	--app-orange-100: #523a2e;
-	--app-orange-700: #916243;
+    /* Aurora accents tuned for dark surfaces */
+    --app-blue-50: #27384d;
+    --app-blue-200: #3b5979;
+    --app-blue-500: #93b4da;
+    --app-blue-600: #35587d;
+    --app-blue-700: #2f4f70;
+    --app-green-50: #253830;
+    --app-green-100: #2c4338;
+    --app-green-200: #395a4a;
+    --app-green-300: #466f5c;
+    --app-green-600: #4f7a63;
+    --app-green-700: #41654f;
+    --app-green-800: #365342;
+    --app-green-900: #2b4234;
+    --app-amber-50: #45392b;
+    --app-amber-200: #7f6846;
+    --app-amber-800: #8d6a3f;
+    --app-amber-900: #745734;
+    --app-amber-950: #5b4428;
+    --app-red-50: #4a3036;
+    --app-red-100: #56363d;
+    --app-red-200: #71464f;
+    --app-red-300: #8a545e;
+    --app-red-500: #bf616a;
+    --app-red-600: #9d4a54;
+    --app-red-700: #843f48;
+    --app-red-800: #6f353d;
+    --app-yellow-50: #4a432f;
+    --app-yellow-100: #574f35;
+    --app-yellow-200: #6f6343;
+    --app-yellow-300: #86774f;
+    --app-yellow-600: #8f6f36;
+    --app-yellow-700: #7a5e2e;
+    --app-yellow-800: #675027;
+    --app-yellow-900: #544121;
+    --app-orange-100: #523a2e;
+    --app-orange-700: #916243;
 
-	--app-page-bg: var(--nord0);
-	--app-surface: var(--nord1);
-	--color-background: var(--app-surface);
-	--color-background-mute: var(--app-gray-200);
-	--color-border: var(--app-gray-300);
-	--color-heading: var(--app-gray-900);
-	--color-text: var(--app-gray-700);
-	--color-text-mute: var(--app-gray-500);
-	--brand-logo-primary: var(--nord8);
-	--brand-logo-secondary: var(--app-gray-800);
-	--app-link-color: #9cbce0;
-	--chart-grid-color: #6a7890;
-	--chart-axis-color: #c6d1e2;
-	--chart-bar-color: #81a1c1;
-	--chart-value-text: #eceff4;
-	--chart-value-outline: #2e3440;
-	--heatmap-empty-cell: #465066;
-	--heatmap-tooltip-bg: #2e3440;
-	--heatmap-tooltip-text: #eceff4;
-	--schedule-arrow-color: #88c0d0;
-	--schedule-badge-bg: rgba(46, 52, 64, 0.88);
-	--schedule-badge-text: #eceff4;
-	--density-hover-brightness: 1.07;
-	--density-empty-bg: var(--app-gray-100);
-	--density-low-bg: #324862;
-	--density-low-border: #5c81a9;
-	--density-low-text: #eaf2fe;
-	--density-low-subtext: #d8e9fd;
-	--density-low-muted: #bfd7f1;
-	--density-medium-bg: #5a4d38;
-	--density-medium-border: #9c825a;
-	--density-medium-text: #faeed7;
-	--density-medium-subtext: #f2e0ba;
-	--density-medium-muted: #e8d09e;
-	--density-medium-overlap: #ffd4bc;
-	--density-high-bg: #5a3d47;
-	--density-high-border: #a86b76;
-	--density-high-text: #fde9ed;
-	--density-high-subtext: #f7d7dd;
-	--density-high-muted: #efbcc5;
-	color-scheme: dark;
+    --app-page-bg: var(--nord0);
+    --app-surface: var(--nord1);
+    --color-background: var(--app-surface);
+    --color-background-mute: var(--app-gray-200);
+    --color-border: var(--app-gray-300);
+    --color-heading: var(--app-gray-900);
+    --color-text: var(--app-gray-700);
+    --color-text-mute: var(--app-gray-500);
+    --brand-logo-primary: var(--nord8);
+    --brand-logo-secondary: var(--app-gray-800);
+    --app-link-color: #9cbce0;
+    --chart-grid-color: #6a7890;
+    --chart-axis-color: #c6d1e2;
+    --chart-bar-color: #81a1c1;
+    --chart-value-text: #eceff4;
+    --chart-value-outline: #2e3440;
+    --heatmap-empty-cell: #465066;
+    --heatmap-tooltip-bg: #2e3440;
+    --heatmap-tooltip-text: #eceff4;
+    --schedule-arrow-color: #88c0d0;
+    --schedule-badge-bg: rgba(46, 52, 64, 0.88);
+    --schedule-badge-text: #eceff4;
+    --density-hover-brightness: 1.07;
+    --density-empty-bg: var(--app-gray-100);
+    --density-low-bg: #324862;
+    --density-low-border: #5c81a9;
+    --density-low-text: #eaf2fe;
+    --density-low-subtext: #d8e9fd;
+    --density-low-muted: #bfd7f1;
+    --density-medium-bg: #5a4d38;
+    --density-medium-border: #9c825a;
+    --density-medium-text: #faeed7;
+    --density-medium-subtext: #f2e0ba;
+    --density-medium-muted: #e8d09e;
+    --density-medium-overlap: #ffd4bc;
+    --density-high-bg: #5a3d47;
+    --density-high-border: #a86b76;
+    --density-high-text: #fde9ed;
+    --density-high-subtext: #f7d7dd;
+    --density-high-muted: #efbcc5;
+    color-scheme: dark;
 }
 
 html.theme-transitioning,
 html.theme-transitioning *,
 html.theme-transitioning *::before,
 html.theme-transitioning *::after {
-	transition-property: background-color, color, border-color, outline-color, text-decoration-color, fill, stroke,
-		box-shadow;
-	transition-duration: var(--theme-transition-duration);
-	transition-timing-function: var(--theme-transition-easing);
+    transition-property: background-color, color, border-color, outline-color, text-decoration-color, fill, stroke,
+        box-shadow;
+    transition-duration: var(--theme-transition-duration);
+    transition-timing-function: var(--theme-transition-easing);
 }
 
 @media (prefers-reduced-motion: reduce) {
 
-	html.theme-transitioning,
-	html.theme-transitioning *,
-	html.theme-transitioning *::before,
-	html.theme-transitioning *::after {
-		transition-duration: 0ms !important;
-	}
+    html.theme-transitioning,
+    html.theme-transitioning *,
+    html.theme-transitioning *::before,
+    html.theme-transitioning *::after {
+        transition-duration: 0ms !important;
+    }
 }
 
 html,
 body,
 #app {
-	height: 100%;
-	overflow: hidden;
+    height: 100%;
+    overflow: hidden;
 }
 
 body {
-	background: var(--app-page-bg);
-	color: var(--app-gray-700);
+    background: var(--app-page-bg);
+    color: var(--app-gray-700);
 }
 
 input,
 select,
 textarea,
 button:not([class*="text-"]) {
-	color: inherit;
+    color: inherit;
 }
 
 a:not([class*="text-"]) {
-	color: var(--app-link-color, var(--app-blue-700));
+    color: var(--app-link-color, var(--app-blue-700));
 }
 
 .bg-white {
-	background-color: var(--app-surface);
+    background-color: var(--app-surface);
 }
 
 .bg-blue-600 {
-	color: #fff;
+    color: #fff;
 }
 
 .bg-green-600,
 .bg-green-700 {
-	color: #fff;
+    color: #fff;
 }
 
 .bg-red-600,
 .bg-red-700 {
-	color: #fff;
+    color: #fff;
 }
 
 [data-theme="slate"] .hover\:bg-white:hover {
-	background-color: var(--app-surface);
+    background-color: var(--app-surface);
 }
 
 [data-theme="slate"] .disabled\:hover\:bg-white:disabled:hover {
-	background-color: var(--app-surface);
+    background-color: var(--app-surface);
 }
 
 [data-theme="slate"] .text-blue-600 {
-	color: #a9c7e5;
+    color: #a9c7e5;
 }
 
 [data-theme="slate"] .text-blue-700 {
-	color: #bdd5eb;
+    color: #bdd5eb;
 }
 
 [data-theme="slate"] .text-green-600 {
-	color: #9fceaf;
+    color: #9fceaf;
 }
 
 [data-theme="slate"] .text-green-700 {
-	color: #b4dbc1;
+    color: #b4dbc1;
 }
 
 [data-theme="slate"] .text-green-800 {
-	color: #cde8d6;
+    color: #cde8d6;
 }
 
 [data-theme="slate"] .text-green-900 {
-	color: #e1f4e7;
+    color: #e1f4e7;
 }
 
 [data-theme="slate"] .text-red-600 {
-	color: #f2b6be;
+    color: #f2b6be;
 }
 
 [data-theme="slate"] .text-red-700 {
-	color: #efc1c8;
+    color: #efc1c8;
 }
 
 [data-theme="slate"] .text-red-800 {
-	color: #f4d0d5;
+    color: #f4d0d5;
 }
 
 [data-theme="slate"] .text-yellow-700 {
-	color: #f0d9a6;
+    color: #f0d9a6;
 }
 
 [data-theme="slate"] .text-yellow-800 {
-	color: #f4e2bc;
+    color: #f4e2bc;
 }
 
 [data-theme="slate"] .text-yellow-900 {
-	color: #f8ecd0;
+    color: #f8ecd0;
 }
 
 [data-theme="slate"] .text-orange-700 {
-	color: #efc3a9;
+    color: #efc3a9;
 }
 
 [data-theme="slate"] .text-amber-800 {
-	color: #f3d6a8;
+    color: #f3d6a8;
 }
 
 [data-theme="slate"] .text-amber-900 {
-	color: #f7e0be;
+    color: #f7e0be;
 }
 
 :focus-visible {
-	outline: 2px solid var(--app-blue-600);
-	outline-offset: 2px;
+    outline: 2px solid var(--app-blue-600);
+    outline-offset: 2px;
 }
 
 .v-popper--theme-tooltip .v-popper__inner {
-	max-width: 280px;
-	background: var(--heatmap-tooltip-bg, var(--color-background));
-	color: var(--heatmap-tooltip-text, var(--color-heading));
-	border: 1px solid var(--color-border);
+    max-width: 280px;
+    background: var(--heatmap-tooltip-bg, var(--color-background));
+    color: var(--heatmap-tooltip-text, var(--color-heading));
+    border: 1px solid var(--color-border);
+}
+
+.route-fade-up-enter-active,
+.route-fade-up-leave-active,
+.route-slide-left-enter-active,
+.route-slide-left-leave-active,
+.route-solver-focus-enter-active,
+.route-solver-focus-leave-active,
+.route-zoom-blur-enter-active,
+.route-zoom-blur-leave-active,
+.route-flip-soft-enter-active,
+.route-flip-soft-leave-active {
+    will-change: opacity, transform, filter;
+}
+
+.route-fade-up-enter-active,
+.route-fade-up-leave-active {
+    transition: opacity 200ms ease, transform 200ms ease;
+}
+
+.route-fade-up-enter-from,
+.route-fade-up-leave-to {
+    opacity: 0;
+    transform: translateY(8px);
+}
+
+.route-slide-left-enter-active,
+.route-slide-left-leave-active {
+    transition: opacity 220ms ease, transform 220ms cubic-bezier(0.22, 1, 0.36, 1), filter 220ms ease;
+}
+
+.route-slide-left-enter-from,
+.route-slide-left-leave-to {
+    opacity: 0;
+    transform: translateX(24px);
+    filter: blur(3px);
+}
+
+.route-solver-focus-enter-active,
+.route-solver-focus-leave-active {
+    transition: opacity 280ms cubic-bezier(0.16, 1, 0.3, 1), transform 280ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.route-solver-focus-enter-from,
+.route-solver-focus-leave-to {
+    opacity: 0;
+    transform: translateY(24px);
+}
+
+.route-zoom-blur-enter-active,
+.route-zoom-blur-leave-active {
+    transition: opacity 220ms ease-out, transform 220ms ease-out, filter 220ms ease-out;
+}
+
+.route-zoom-blur-enter-from,
+.route-zoom-blur-leave-to {
+    opacity: 0;
+    transform: scale(0.93);
+    filter: blur(7px);
+}
+
+.route-flip-soft-enter-active,
+.route-flip-soft-leave-active {
+    transform-origin: center top;
+    backface-visibility: hidden;
+    transition: opacity 240ms ease, transform 240ms cubic-bezier(0.22, 1, 0.36, 1), filter 240ms ease;
+}
+
+.route-flip-soft-enter-from,
+.route-flip-soft-leave-to {
+    opacity: 0;
+    transform: perspective(900px) rotateX(7deg) translateY(8px);
+    filter: blur(2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    .route-fade-up-enter-active,
+    .route-fade-up-leave-active,
+    .route-slide-left-enter-active,
+    .route-slide-left-leave-active,
+    .route-solver-focus-enter-active,
+    .route-solver-focus-leave-active,
+    .route-zoom-blur-enter-active,
+    .route-zoom-blur-leave-active,
+    .route-flip-soft-enter-active,
+    .route-flip-soft-leave-active {
+        transition-duration: 1ms !important;
+        filter: none !important;
+        transform: none !important;
+    }
 }
