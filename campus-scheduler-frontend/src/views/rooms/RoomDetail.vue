@@ -9,18 +9,22 @@ const route = useRoute()
 const id = computed(() => Number(route.params.id))
 
 const { data: room, loading, error } = useAsyncData(
-    () => roomsService.getById(id.value)
+	() => roomsService.getById(id.value),
 )
 
 const fields = computed<DetailField[]>(() => [
-    { label: 'Building', value: room.value?.buildingName },
-    { label: 'Capacity', value: room.value?.capacity },
-    { label: 'Type', value: room.value?.type },
-    { label: 'Features', value: room.value?.features },
+	{ label: 'Building', value: room.value?.buildingName },
+	{ label: 'Capacity', value: room.value?.capacity },
+	{ label: 'Type', value: room.value?.type },
+	{ label: 'Availability', value: room.value?.availabilityStatus.replace(/_/g, ' ') },
+	{ label: 'Feature Tags', value: room.value?.featureSet.join(', ') || room.value?.features || '-' },
+	{ label: 'Accessibility Flags', value: room.value?.accessibilityFlags.join(', ') || '-' },
+	{ label: 'Last Inspection', value: room.value?.lastInspectionDate || '-' },
+	{ label: 'Operational Notes', value: room.value?.operationalNotes || '-' },
 ])
 </script>
 
 <template>
-    <DetailView :title="`Room ${room?.roomNumber || ''}`" :fields="fields" :loading="loading" :error="error"
-        back-route="/rooms" back-label="Back to Rooms" :edit-route="`/rooms/${id}/edit`" />
+	<DetailView :title="`Room ${room?.roomNumber || ''}`" :fields="fields" :loading="loading" :error="error"
+		back-route="/rooms" back-label="Back to Rooms" :edit-route="`/rooms/${id}/edit`" />
 </template>

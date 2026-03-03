@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.campusscheduler.domain.course.Course;
 import org.campusscheduler.domain.course.CourseRepository;
 import org.campusscheduler.domain.room.Room;
+import org.campusscheduler.domain.room.Room.AvailabilityStatus;
 import org.campusscheduler.domain.room.RoomRepository;
 import org.campusscheduler.domain.timeslot.TimeSlot;
 import org.campusscheduler.domain.timeslot.TimeSlotRepository;
@@ -106,6 +107,15 @@ public class ScheduleService {
         Course course = courseOpt.get();
         Room room = roomOpt.get();
         TimeSlot timeSlot = timeSlotOpt.get();
+
+        AvailabilityStatus availabilityStatus = room.getAvailabilityStatus() == null
+                ? AvailabilityStatus.AVAILABLE
+                : room.getAvailabilityStatus();
+        if (availabilityStatus != AvailabilityStatus.AVAILABLE) {
+            throw new ScheduleConflictException(
+                    "Room " + room.getRoomNumber() + " is not available for scheduling (" +
+                            availabilityStatus + ")");
+        }
 
         // Check room capacity
         if (room.getCapacity() < course.getEnrollmentCapacity()) {

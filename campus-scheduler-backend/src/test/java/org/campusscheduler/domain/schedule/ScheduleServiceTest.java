@@ -255,6 +255,26 @@ class ScheduleServiceTest {
                     .isInstanceOf(ScheduleConflictException.class)
                     .hasMessageContaining("capacity");
         }
+
+        @Test
+        @DisplayName("should throw exception when room is out of service")
+        void shouldThrowExceptionWhenRoomOutOfService() {
+            Room unavailableRoom = Room.builder()
+                    .id(2L)
+                    .roomNumber("102")
+                    .capacity(40)
+                    .type(Room.RoomType.SEMINAR)
+                    .availabilityStatus(Room.AvailabilityStatus.OUT_OF_SERVICE)
+                    .build();
+
+            when(courseRepository.findById(1L)).thenReturn(Optional.of(testCourse));
+            when(roomRepository.findById(2L)).thenReturn(Optional.of(unavailableRoom));
+            when(timeSlotRepository.findById(1L)).thenReturn(Optional.of(testTimeSlot));
+
+            assertThatThrownBy(() -> scheduleService.create(1L, 2L, 1L, "Spring 2026"))
+                    .isInstanceOf(ScheduleConflictException.class)
+                    .hasMessageContaining("not available");
+        }
     }
 
     @Nested

@@ -75,6 +75,30 @@ class SolverRoomDomainHelperTest {
                 .containsExactlyInAnyOrder(1L, 2L);
     }
 
+    @Test
+    @DisplayName("should exclude unavailable rooms from allowed domain")
+    void shouldExcludeUnavailableRooms() {
+        Course course = Course.builder()
+                .id(1L)
+                .department("Computer Science")
+                .enrollmentCapacity(30)
+                .build();
+
+        Room available = room(1L, "101", 40, Room.RoomType.CLASSROOM, "ENG");
+        Room maintenance = room(2L, "102", 40, Room.RoomType.CLASSROOM, "ENG");
+        maintenance.setAvailabilityStatus(Room.AvailabilityStatus.MAINTENANCE);
+        Room outOfService = room(3L, "103", 40, Room.RoomType.CLASSROOM, "ENG");
+        outOfService.setAvailabilityStatus(Room.AvailabilityStatus.OUT_OF_SERVICE);
+
+        SolverRoomDomainHelper.RoomDomain domain = SolverRoomDomainHelper.buildRoomDomain(
+                course,
+                List.of(available, maintenance, outOfService));
+
+        assertThat(domain.allowedRooms())
+                .extracting(Room::getId)
+                .containsExactly(1L);
+    }
+
     private static Room room(Long id, String number, int capacity, Room.RoomType type, String buildingCode) {
         Room room = Room.builder()
                 .id(id)

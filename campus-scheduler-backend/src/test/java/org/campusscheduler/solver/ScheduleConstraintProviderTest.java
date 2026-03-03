@@ -132,6 +132,41 @@ class ScheduleConstraintProviderTest {
     }
 
     @Nested
+    @DisplayName("Room Availability Constraint")
+    class RoomAvailability {
+
+        @Test
+        @DisplayName("should penalize assignment using unavailable room")
+        void shouldPenalizeUnavailableRoom() {
+            Room unavailableRoom = Room.builder()
+                    .id(9L)
+                    .roomNumber("MAINT-1")
+                    .capacity(50)
+                    .type(Room.RoomType.CLASSROOM)
+                    .availabilityStatus(Room.AvailabilityStatus.MAINTENANCE)
+                    .build();
+
+            ScheduleAssignment assignment = ScheduleAssignment.builder()
+                    .id(1L).course(course1).room(unavailableRoom).timeSlot(slot1).semester("Fall 2026").build();
+
+            constraintVerifier.verifyThat(ScheduleConstraintProvider::roomAvailability)
+                    .given(assignment)
+                    .penalizesBy(1);
+        }
+
+        @Test
+        @DisplayName("should not penalize assignment using available room")
+        void shouldNotPenalizeAvailableRoom() {
+            ScheduleAssignment assignment = ScheduleAssignment.builder()
+                    .id(1L).course(course1).room(room1).timeSlot(slot1).semester("Fall 2026").build();
+
+            constraintVerifier.verifyThat(ScheduleConstraintProvider::roomAvailability)
+                    .given(assignment)
+                    .penalizesBy(0);
+        }
+    }
+
+    @Nested
     @DisplayName("Instructor Conflict Constraint")
     class InstructorConflict {
 

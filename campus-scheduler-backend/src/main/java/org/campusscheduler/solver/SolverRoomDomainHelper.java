@@ -34,6 +34,13 @@ public final class SolverRoomDomainHelper {
             return new RoomDomain(Set.of(), List.of());
         }
 
+        List<Room> schedulableRooms = allRooms.stream()
+                .filter(SolverRoomDomainHelper::isSchedulableRoom)
+                .toList();
+        if (schedulableRooms.isEmpty()) {
+            schedulableRooms = allRooms;
+        }
+
         int enrollment = course != null && course.getEnrollmentCapacity() != null
                 ? course.getEnrollmentCapacity()
                 : 0;
@@ -41,12 +48,12 @@ public final class SolverRoomDomainHelper {
         boolean lectureHallPreferred = isLectureHallPreferred(course);
         Set<String> preferredBuildingCodes = preferredBuildingCodes(course);
 
-        List<Room> baseCandidates = allRooms.stream()
+        List<Room> baseCandidates = schedulableRooms.stream()
                 .filter(room -> room.getCapacity() != null && room.getCapacity() >= enrollment)
                 .toList();
 
         if (baseCandidates.isEmpty()) {
-            baseCandidates = new ArrayList<>(allRooms);
+            baseCandidates = new ArrayList<>(schedulableRooms);
         }
 
         if (labPreferred) {
@@ -70,19 +77,26 @@ public final class SolverRoomDomainHelper {
                 .sorted(comparator)
                 .toList();
 
-        int dynamicCap = Math.max(MIN_ALLOWED_ROOMS, Math.min(MAX_ALLOWED_ROOMS, allRooms.size() / 2));
+        int dynamicCap = Math.max(MIN_ALLOWED_ROOMS, Math.min(MAX_ALLOWED_ROOMS, schedulableRooms.size() / 2));
         int candidateLimit = Math.min(dynamicCap, rankedRooms.size());
         List<Room> allowedRooms = candidateLimit > 0
                 ? rankedRooms.subList(0, candidateLimit)
                 : rankedRooms;
 
         if (allowedRooms.isEmpty()) {
-            allowedRooms = List.copyOf(allRooms);
+            allowedRooms = List.copyOf(schedulableRooms);
         } else {
             allowedRooms = List.copyOf(allowedRooms);
         }
 
         return new RoomDomain(preferredBuildingCodes, allowedRooms);
+    }
+
+    private static boolean isSchedulableRoom(Room room) {
+        if (room == null) {
+            return false;
+        }
+        return room.getAvailabilityStatus() == null || room.getAvailabilityStatus() == Room.AvailabilityStatus.AVAILABLE;
     }
 
     private static Set<String> preferredBuildingCodes(Course course) {

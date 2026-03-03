@@ -5,8 +5,11 @@ import org.campusscheduler.domain.building.BuildingRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Service layer for Room business logic.
@@ -77,6 +80,7 @@ public class RoomService {
      */
     @Transactional
     public Optional<Room> create(Room room, Long buildingId) {
+        applyOperationalDefaults(room);
         return buildingRepository.findById(buildingId)
                 .map(building -> {
                     room.setBuilding(building);
@@ -93,12 +97,18 @@ public class RoomService {
      */
     @Transactional
     public Optional<Room> update(Long id, Room updated) {
+        applyOperationalDefaults(updated);
         return roomRepository.findById(id)
                 .map(existing -> {
                     existing.setRoomNumber(updated.getRoomNumber());
                     existing.setCapacity(updated.getCapacity());
                     existing.setType(updated.getType());
+                    existing.setAvailabilityStatus(updated.getAvailabilityStatus());
                     existing.setFeatures(updated.getFeatures());
+                    existing.setFeatureSet(updated.getFeatureSet());
+                    existing.setAccessibilityFlags(updated.getAccessibilityFlags());
+                    existing.setOperationalNotes(updated.getOperationalNotes());
+                    existing.setLastInspectionDate(updated.getLastInspectionDate());
                     return roomRepository.save(existing);
                 });
     }
@@ -117,5 +127,56 @@ public class RoomService {
                     return true;
                 })
                 .orElse(false);
+    }
+
+    private void applyOperationalDefaults(Room room) {
+        if (room.getAvailabilityStatus() == null) {
+            room.setAvailabilityStatus(Room.AvailabilityStatus.AVAILABLE);
+        }
+
+        room.setFeatureSet(resolveFeatureSet(room));
+        room.setAccessibilityFlags(normalizeTags(room.getAccessibilityFlags()));
+    }
+
+    private Set<String> resolveFeatureSet(Room room) {
+        Set<String> stored = normalizeTags(room.getFeatureSet());
+        if (!stored.isEmpty()) {
+            return stored;
+        }
+
+        if (room.getFeatures() == null || room.getFeatures().isBlank()) {
+            return stored;
+        }
+
+        LinkedHashSet<String> parsed = new LinkedHashSet<>();
+        for (String token : room.getFeatures().split(",")) {
+            String normalized = normalizeTag(token);
+            if (!normalized.isEmpty()) {
+                parsed.add(normalized);
+            }
+        }
+        return parsed;
+    }
+
+    private Set<String> normalizeTags(Set<String> values) {
+        if (values == null || values.isEmpty()) {
+            return new LinkedHashSet<>();
+        }
+
+        LinkedHashSet<String> normalized = new LinkedHashSet<>();
+        for (String value : values) {
+            String clean = normalizeTag(value);
+            if (!clean.isEmpty()) {
+                normalized.add(clean);
+            }
+        }
+        return normalized;
+    }
+
+    private String normalizeTag(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.trim().toLowerCase(Locale.ROOT);
     }
 }

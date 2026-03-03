@@ -32,6 +32,7 @@ public class ScheduleConstraintProvider implements ConstraintProvider {
                 // Hard constraints
                 roomConflict(factory),
                 roomCapacity(factory),
+                roomAvailability(factory),
                 instructorConflict(factory),
                 // Soft constraints
                 roomTypeMismatch(factory),
@@ -68,6 +69,18 @@ public class ScheduleConstraintProvider implements ConstraintProvider {
                         assignment -> assignment.getCourse().getEnrollmentCapacity() -
                                 assignment.getRoom().getCapacity())
                 .asConstraint("Room capacity");
+    }
+
+    /**
+     * Room must be operationally available for scheduling.
+     */
+    Constraint roomAvailability(ConstraintFactory factory) {
+        return factory.forEach(ScheduleAssignment.class)
+                .filter(assignment -> assignment.getRoom() != null &&
+                        assignment.getRoom().getAvailabilityStatus() != null &&
+                        assignment.getRoom().getAvailabilityStatus() != org.campusscheduler.domain.room.Room.AvailabilityStatus.AVAILABLE)
+                .penalize(HardSoftScore.ONE_HARD)
+                .asConstraint("Room availability");
     }
 
     /**

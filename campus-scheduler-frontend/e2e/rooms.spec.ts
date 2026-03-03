@@ -34,7 +34,7 @@ test.describe('Rooms CRUD', () => {
 	test('should list rooms', async ({ page }) => {
 		await page.goto('/rooms');
 		await expect(page.getByText('101')).toBeVisible();
-		await expect(page.getByText('Engineering')).toBeVisible();
+		await expect(page.getByRole('cell', { name: 'Engineering' })).toBeVisible();
 	});
 
 	test('should create a room', async ({ page }) => {
