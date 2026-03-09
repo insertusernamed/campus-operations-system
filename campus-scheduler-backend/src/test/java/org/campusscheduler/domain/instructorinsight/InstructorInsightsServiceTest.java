@@ -1,8 +1,12 @@
 package org.campusscheduler.domain.instructorinsight;
 
 import org.campusscheduler.domain.building.Building;
+import org.campusscheduler.domain.changerequest.ScheduleChangeRequestRepository;
 import org.campusscheduler.domain.course.Course;
+import org.campusscheduler.domain.course.CourseRepository;
 import org.campusscheduler.domain.instructor.Instructor;
+import org.campusscheduler.domain.instructor.InstructorRepository;
+import org.campusscheduler.domain.instructorpreference.InstructorPreferenceRepository;
 import org.campusscheduler.domain.instructorpreference.InstructorPreferenceSettings;
 import org.campusscheduler.domain.instructorpreference.InstructorPreferenceService;
 import org.campusscheduler.domain.room.Room;
@@ -31,6 +35,18 @@ class InstructorInsightsServiceTest {
 
     @Mock
     private InstructorPreferenceService preferenceService;
+
+    @Mock
+    private InstructorRepository instructorRepository;
+
+    @Mock
+    private CourseRepository courseRepository;
+
+    @Mock
+    private InstructorPreferenceRepository instructorPreferenceRepository;
+
+    @Mock
+    private ScheduleChangeRequestRepository changeRequestRepository;
 
     @InjectMocks
     private InstructorInsightsService insightsService;
@@ -185,6 +201,95 @@ class InstructorInsightsServiceTest {
         assertThat(response.get()).isEmpty();
     }
 
+    @Test
+    void buildsSummaryAndQueueFromOperationalMetrics() {
+        Instructor instructor = Instructor.builder()
+                .id(10L)
+                .firstName("Ada")
+                .lastName("Lovelace")
+                .email("ada@campus.edu")
+                .department("Computer Science")
+                .build();
+
+        Course assigned = Course.builder()
+                .id(101L)
+                .code("CS101")
+                .name("Intro")
+                .credits(3)
+                .enrollmentCapacity(30)
+                .department("Computer Science")
+                .instructor(instructor)
+                .build();
+
+        Course unassigned = Course.builder()
+                .id(102L)
+                .code("CS201")
+                .name("Data Structures")
+                .credits(3)
+                .enrollmentCapacity(30)
+                .department("Computer Science")
+                .instructor(null)
+                .build();
+
+        when(instructorRepository.findAll()).thenReturn(List.of(instructor));
+        when(courseRepository.findAll()).thenReturn(List.of(assigned, unassigned));
+        when(scheduleRepository.findBySemester("Fall 2026")).thenReturn(List.of());
+        when(instructorPreferenceRepository.findAll()).thenReturn(List.of());
+
+        InstructorInsightsSummaryResponse summary = insightsService.getSummary("Fall 2026");
+        List<InstructorQueueRowResponse> queue = insightsService.getQueue("Fall 2026", "coverage-risk", "Computer Science");
+
+        assertThat(summary.totalInstructors()).isEqualTo(1);
+        assertThat(summary.noCurrentAssignment()).isEqualTo(0);
+        assertThat(summary.preferenceSetupIncomplete()).isEqualTo(1);
+        assertThat(summary.departmentsWithCoverageRisk()).isEqualTo(1);
+
+        assertThat(queue).hasSize(1);
+        assertThat(queue.getFirst().status()).isEqualTo(InstructorOperationalStatus.COVERAGE_RISK);
+        assertThat(queue.getFirst().loadStatus()).isEqualTo(InstructorLoadStatus.UNDER);
+    }
+
+    @Test
+    void returnsInstructorWorkbench() {
+        Instructor instructor = Instructor.builder()
+                .id(10L)
+                .firstName("Ada")
+                .lastName("Lovelace")
+                .email("ada@campus.edu")
+                .department("Computer Science")
+                .officeNumber("SCI-201")
+                .build();
+
+        Course assigned = Course.builder()
+                .id(101L)
+                .code("CS101")
+                .name("Intro")
+                .credits(3)
+                .enrollmentCapacity(30)
+                .department("Computer Science")
+                .instructor(instructor)
+                .build();
+
+        Schedule schedule = schedule(1L, DayOfWeek.MONDAY, "09:00", "10:00", 1L, "SCI", "Projector");
+
+        when(instructorRepository.findById(10L)).thenReturn(Optional.of(instructor));
+        when(instructorRepository.findAll()).thenReturn(List.of(instructor));
+        when(courseRepository.findAll()).thenReturn(List.of(assigned));
+        when(courseRepository.findByInstructorId(10L)).thenReturn(List.of(assigned));
+        when(scheduleRepository.findBySemester("Fall 2026")).thenReturn(List.of(schedule));
+        when(scheduleRepository.findByCourseInstructorIdAndSemester(10L, "Fall 2026")).thenReturn(List.of(schedule));
+        when(scheduleRepository.findByCourseInstructorId(10L)).thenReturn(List.of(schedule));
+        when(instructorPreferenceRepository.findAll()).thenReturn(List.of());
+        when(changeRequestRepository.findByFilters(null, 10L, "Fall 2026", null)).thenReturn(List.of());
+
+        Optional<InstructorWorkbenchResponse> workbench = insightsService.getWorkbench(10L, "Fall 2026");
+
+        assertThat(workbench).isPresent();
+        assertThat(workbench.get().instructorId()).isEqualTo(10L);
+        assertThat(workbench.get().assignedCourses()).hasSize(1);
+        assertThat(workbench.get().weeklyDensity()).isNotEmpty();
+    }
+
     private static Schedule schedule(
             Long scheduleId,
             DayOfWeek day,
@@ -197,6 +302,8 @@ class InstructorInsightsServiceTest {
         Course course = Course.builder()
                 .id(100L + scheduleId)
                 .code("CS" + scheduleId)
+                .name("Course " + scheduleId)
+                .credits(3)
                 .instructor(instructor)
                 .enrollmentCapacity(30)
                 .build();
