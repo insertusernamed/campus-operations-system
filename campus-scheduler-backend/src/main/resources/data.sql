@@ -307,3 +307,128 @@ WHERE NOT EXISTS (SELECT 1 FROM time_slots t WHERE t.day_of_week = 'FRIDAY' AND 
 INSERT INTO time_slots (day_of_week, start_time, end_time, label)
 SELECT 'FRIDAY', '14:30:00', '15:45:00', 'Period 5'
 WHERE NOT EXISTS (SELECT 1 FROM time_slots t WHERE t.day_of_week = 'FRIDAY' AND t.start_time = '14:30:00' AND t.end_time = '15:45:00');
+
+-- =====================
+-- Schedules (Winter 2026)
+-- A pre-built conflict-free timetable that seeds the demo with real data.
+-- Useful for demonstrating conflict detection, the instructor workflow,
+-- and analytics without having to run the solver first.
+-- =====================
+
+-- CS101 – Intro to Programming (30 students) → SCI 101 (cap 30), Monday 9:30–10:45
+INSERT INTO schedules (course_id, room_id, time_slot_id, semester)
+SELECT c.id, r.id, ts.id, 'Winter 2026'
+FROM courses c
+JOIN rooms r ON r.room_number = '101' AND r.building_id = (SELECT id FROM buildings WHERE code = 'SCI')
+JOIN time_slots ts ON ts.day_of_week = 'MONDAY' AND ts.start_time = '09:30:00'
+WHERE c.code = 'CS101'
+  AND NOT EXISTS (SELECT 1 FROM schedules s WHERE s.course_id = c.id AND s.semester = 'Winter 2026');
+
+-- CS201 – Data Structures (25 students) → SCI 102 (cap 25, lab), Monday 13:00–14:15
+INSERT INTO schedules (course_id, room_id, time_slot_id, semester)
+SELECT c.id, r.id, ts.id, 'Winter 2026'
+FROM courses c
+JOIN rooms r ON r.room_number = '102' AND r.building_id = (SELECT id FROM buildings WHERE code = 'SCI')
+JOIN time_slots ts ON ts.day_of_week = 'MONDAY' AND ts.start_time = '13:00:00'
+WHERE c.code = 'CS201'
+  AND NOT EXISTS (SELECT 1 FROM schedules s WHERE s.course_id = c.id AND s.semester = 'Winter 2026');
+
+-- CS301 – Algorithms (25 students) → ENG 110 (cap 40), Tuesday 11:00–12:15
+INSERT INTO schedules (course_id, room_id, time_slot_id, semester)
+SELECT c.id, r.id, ts.id, 'Winter 2026'
+FROM courses c
+JOIN rooms r ON r.room_number = '110' AND r.building_id = (SELECT id FROM buildings WHERE code = 'ENG')
+JOIN time_slots ts ON ts.day_of_week = 'TUESDAY' AND ts.start_time = '11:00:00'
+WHERE c.code = 'CS301'
+  AND NOT EXISTS (SELECT 1 FROM schedules s WHERE s.course_id = c.id AND s.semester = 'Winter 2026');
+
+-- CS401 – Database Systems (30 students) → SCI 101 (cap 30), Wednesday 13:00–14:15
+-- Intentionally placed in a room with no computers so Emily can request ENG 115 in the demo.
+INSERT INTO schedules (course_id, room_id, time_slot_id, semester)
+SELECT c.id, r.id, ts.id, 'Winter 2026'
+FROM courses c
+JOIN rooms r ON r.room_number = '101' AND r.building_id = (SELECT id FROM buildings WHERE code = 'SCI')
+JOIN time_slots ts ON ts.day_of_week = 'WEDNESDAY' AND ts.start_time = '13:00:00'
+WHERE c.code = 'CS401'
+  AND NOT EXISTS (SELECT 1 FROM schedules s WHERE s.course_id = c.id AND s.semester = 'Winter 2026');
+
+-- MATH101 – Calculus I (40 students) → ENG 220 (cap 150, lecture hall), Monday 11:00–12:15
+INSERT INTO schedules (course_id, room_id, time_slot_id, semester)
+SELECT c.id, r.id, ts.id, 'Winter 2026'
+FROM courses c
+JOIN rooms r ON r.room_number = '220' AND r.building_id = (SELECT id FROM buildings WHERE code = 'ENG')
+JOIN time_slots ts ON ts.day_of_week = 'MONDAY' AND ts.start_time = '11:00:00'
+WHERE c.code = 'MATH101'
+  AND NOT EXISTS (SELECT 1 FROM schedules s WHERE s.course_id = c.id AND s.semester = 'Winter 2026');
+
+-- MATH201 – Linear Algebra (35 students) → ENG 110 (cap 40), Thursday 9:30–10:45
+INSERT INTO schedules (course_id, room_id, time_slot_id, semester)
+SELECT c.id, r.id, ts.id, 'Winter 2026'
+FROM courses c
+JOIN rooms r ON r.room_number = '110' AND r.building_id = (SELECT id FROM buildings WHERE code = 'ENG')
+JOIN time_slots ts ON ts.day_of_week = 'THURSDAY' AND ts.start_time = '09:30:00'
+WHERE c.code = 'MATH201'
+  AND NOT EXISTS (SELECT 1 FROM schedules s WHERE s.course_id = c.id AND s.semester = 'Winter 2026');
+
+-- PHYS101 – Physics I (50 students) → SCI 201 (cap 100, lecture hall), Tuesday 9:30–10:45
+INSERT INTO schedules (course_id, room_id, time_slot_id, semester)
+SELECT c.id, r.id, ts.id, 'Winter 2026'
+FROM courses c
+JOIN rooms r ON r.room_number = '201' AND r.building_id = (SELECT id FROM buildings WHERE code = 'SCI')
+JOIN time_slots ts ON ts.day_of_week = 'TUESDAY' AND ts.start_time = '09:30:00'
+WHERE c.code = 'PHYS101'
+  AND NOT EXISTS (SELECT 1 FROM schedules s WHERE s.course_id = c.id AND s.semester = 'Winter 2026');
+
+-- PHYS201 – Physics II (40 students) → SCI 201 (cap 100), Thursday 11:00–12:15
+INSERT INTO schedules (course_id, room_id, time_slot_id, semester)
+SELECT c.id, r.id, ts.id, 'Winter 2026'
+FROM courses c
+JOIN rooms r ON r.room_number = '201' AND r.building_id = (SELECT id FROM buildings WHERE code = 'SCI')
+JOIN time_slots ts ON ts.day_of_week = 'THURSDAY' AND ts.start_time = '11:00:00'
+WHERE c.code = 'PHYS201'
+  AND NOT EXISTS (SELECT 1 FROM schedules s WHERE s.course_id = c.id AND s.semester = 'Winter 2026');
+
+-- ENG101 – Engineering Fundamentals (45 students) → ENG 220 (cap 150), Wednesday 9:30–10:45
+INSERT INTO schedules (course_id, room_id, time_slot_id, semester)
+SELECT c.id, r.id, ts.id, 'Winter 2026'
+FROM courses c
+JOIN rooms r ON r.room_number = '220' AND r.building_id = (SELECT id FROM buildings WHERE code = 'ENG')
+JOIN time_slots ts ON ts.day_of_week = 'WEDNESDAY' AND ts.start_time = '09:30:00'
+WHERE c.code = 'ENG101'
+  AND NOT EXISTS (SELECT 1 FROM schedules s WHERE s.course_id = c.id AND s.semester = 'Winter 2026');
+
+-- ENG201 – Circuit Analysis (30 students) → ENG 110 (cap 40), Monday 14:30–15:45
+INSERT INTO schedules (course_id, room_id, time_slot_id, semester)
+SELECT c.id, r.id, ts.id, 'Winter 2026'
+FROM courses c
+JOIN rooms r ON r.room_number = '110' AND r.building_id = (SELECT id FROM buildings WHERE code = 'ENG')
+JOIN time_slots ts ON ts.day_of_week = 'MONDAY' AND ts.start_time = '14:30:00'
+WHERE c.code = 'ENG201'
+  AND NOT EXISTS (SELECT 1 FROM schedules s WHERE s.course_id = c.id AND s.semester = 'Winter 2026');
+
+-- BUS101 – Intro to Business (60 students) → ENG 220 (cap 150), Friday 11:00–12:15
+INSERT INTO schedules (course_id, room_id, time_slot_id, semester)
+SELECT c.id, r.id, ts.id, 'Winter 2026'
+FROM courses c
+JOIN rooms r ON r.room_number = '220' AND r.building_id = (SELECT id FROM buildings WHERE code = 'ENG')
+JOIN time_slots ts ON ts.day_of_week = 'FRIDAY' AND ts.start_time = '11:00:00'
+WHERE c.code = 'BUS101'
+  AND NOT EXISTS (SELECT 1 FROM schedules s WHERE s.course_id = c.id AND s.semester = 'Winter 2026');
+
+-- BUS301 – Marketing Strategy (40 students) → BUS 301 (cap 60), Tuesday 13:00–14:15
+INSERT INTO schedules (course_id, room_id, time_slot_id, semester)
+SELECT c.id, r.id, ts.id, 'Winter 2026'
+FROM courses c
+JOIN rooms r ON r.room_number = '301' AND r.building_id = (SELECT id FROM buildings WHERE code = 'BUS')
+JOIN time_slots ts ON ts.day_of_week = 'TUESDAY' AND ts.start_time = '13:00:00'
+WHERE c.code = 'BUS301'
+  AND NOT EXISTS (SELECT 1 FROM schedules s WHERE s.course_id = c.id AND s.semester = 'Winter 2026');
+
+-- ART101 – Drawing Fundamentals (20 students) → ART Studio1 (cap 25), Friday 9:30–10:45
+INSERT INTO schedules (course_id, room_id, time_slot_id, semester)
+SELECT c.id, r.id, ts.id, 'Winter 2026'
+FROM courses c
+JOIN rooms r ON r.room_number = 'Studio1' AND r.building_id = (SELECT id FROM buildings WHERE code = 'ART')
+JOIN time_slots ts ON ts.day_of_week = 'FRIDAY' AND ts.start_time = '09:30:00'
+WHERE c.code = 'ART101'
+  AND NOT EXISTS (SELECT 1 FROM schedules s WHERE s.course_id = c.id AND s.semester = 'Winter 2026');
