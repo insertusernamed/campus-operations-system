@@ -58,6 +58,40 @@ class StudentRepositoryTest {
     }
 
     @Test
+    @DisplayName("should find student by email")
+    void shouldFindStudentByEmail() {
+        Optional<Student> result = studentRepository.findByEmail("jordan.patel@student.university.edu");
+
+        assertThat(result).isPresent();
+        assertThat(result.get().getStudentNumber()).isEqualTo("S100002");
+    }
+
+    @Test
+    @DisplayName("should return empty when email not found")
+    void shouldReturnEmptyWhenEmailNotFound() {
+        Optional<Student> result = studentRepository.findByEmail("nobody@student.university.edu");
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("should find students by department")
+    void shouldFindStudentsByDepartment() {
+        List<Student> result = studentRepository.findByDepartment("Computer Science");
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getStudentNumber()).isEqualTo("S100001");
+    }
+
+    @Test
+    @DisplayName("should return empty when department has no students")
+    void shouldReturnEmptyWhenDepartmentHasNoStudents() {
+        List<Student> result = studentRepository.findByDepartment("Physics");
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
     @DisplayName("should find student by department and year level")
     void shouldFindStudentByDepartmentAndYearLevel() {
         List<Student> result = studentRepository.findByDepartmentAndYearLevel("Computer Science", 2);
@@ -114,5 +148,19 @@ class StudentRepositoryTest {
 
         assertThatThrownBy(() -> studentRepository.saveAndFlush(duplicateEmail))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("should report whether student number exists")
+    void shouldReportWhetherStudentNumberExists() {
+        assertThat(studentRepository.existsByStudentNumber("S100001")).isTrue();
+        assertThat(studentRepository.existsByStudentNumber("S199999")).isFalse();
+    }
+
+    @Test
+    @DisplayName("should report whether email exists")
+    void shouldReportWhetherEmailExists() {
+        assertThat(studentRepository.existsByEmail("avery.nguyen@student.university.edu")).isTrue();
+        assertThat(studentRepository.existsByEmail("nobody@student.university.edu")).isFalse();
     }
 }

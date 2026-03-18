@@ -166,6 +166,15 @@ class EnrollmentRepositoryTest {
     }
 
     @Test
+    @DisplayName("should find enrollments by student")
+    void shouldFindEnrollmentsByStudent() {
+        List<Enrollment> result = enrollmentRepository.findByStudentId(studentOne.getId());
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getSchedule().getId()).isEqualTo(springSchedule.getId());
+    }
+
+    @Test
     @DisplayName("should find enrollments by course and semester")
     void shouldFindEnrollmentsByCourseAndSemester() {
         List<Enrollment> result = enrollmentRepository.findByCourseIdAndSemester(
@@ -190,6 +199,32 @@ class EnrollmentRepositoryTest {
     }
 
     @Test
+    @DisplayName("should find enrollments by student course and semester")
+    void shouldFindEnrollmentsByStudentCourseAndSemester() {
+        List<Enrollment> result = enrollmentRepository.findByStudentIdAndCourseIdAndSemester(
+                studentOne.getId(),
+                courseOne.getId(),
+                "Spring 2026"
+        );
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getSchedule().getId()).isEqualTo(springSchedule.getId());
+    }
+
+    @Test
+    @DisplayName("should find enrollments by student schedule and semester")
+    void shouldFindEnrollmentsByStudentScheduleAndSemester() {
+        List<Enrollment> result = enrollmentRepository.findByStudentIdAndScheduleIdAndSemester(
+                studentOne.getId(),
+                springSchedule.getId(),
+                "Spring 2026"
+        );
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getCourse().getId()).isEqualTo(courseOne.getId());
+    }
+
+    @Test
     @DisplayName("should save enrollment with waitlist status")
     void shouldSaveEnrollmentWithWaitlistStatus() {
         Student transferStudent = studentRepository.save(Student.builder()
@@ -211,6 +246,30 @@ class EnrollmentRepositoryTest {
 
         assertThat(saved.getId()).isNotNull();
         assertThat(saved.getStatus()).isEqualTo(EnrollmentStatus.WAITLISTED);
+    }
+
+    @Test
+    @DisplayName("should derive course and semester from schedule")
+    void shouldDeriveCourseAndSemesterFromSchedule() {
+        Student transferStudent = studentRepository.save(Student.builder()
+                .studentNumber("S200004")
+                .firstName("Iris")
+                .lastName("Lopez")
+                .email("iris.lopez@student.university.edu")
+                .department("Computer Science")
+                .yearLevel(2)
+                .build());
+
+        Enrollment saved = enrollmentRepository.saveAndFlush(Enrollment.builder()
+                .student(transferStudent)
+                .course(courseTwo)
+                .schedule(springSchedule)
+                .semester("Fall 2026")
+                .status(EnrollmentStatus.ENROLLED)
+                .build());
+
+        assertThat(saved.getCourse().getId()).isEqualTo(courseOne.getId());
+        assertThat(saved.getSemester()).isEqualTo("Spring 2026");
     }
 
     @Test
