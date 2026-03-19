@@ -3,8 +3,11 @@ package org.campusscheduler.generator;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 import org.campusscheduler.domain.building.Building;
@@ -12,6 +15,7 @@ import org.campusscheduler.domain.building.BuildingRepository;
 import org.campusscheduler.domain.course.Course;
 import org.campusscheduler.domain.course.CourseRepository;
 import org.campusscheduler.domain.changerequest.ScheduleChangeRequestRepository;
+import org.campusscheduler.domain.enrollment.EnrollmentRepository;
 import org.campusscheduler.domain.instructor.Instructor;
 import org.campusscheduler.domain.instructor.InstructorRepository;
 import org.campusscheduler.domain.instructorpreference.InstructorPreference;
@@ -20,6 +24,8 @@ import org.campusscheduler.domain.instructorpreference.RoomFeatureCatalog;
 import org.campusscheduler.domain.room.Room;
 import org.campusscheduler.domain.room.RoomRepository;
 import org.campusscheduler.domain.schedule.ScheduleRepository;
+import org.campusscheduler.domain.student.Student;
+import org.campusscheduler.domain.student.StudentRepository;
 import org.campusscheduler.domain.timeslot.TimeSlotRepository;
 import org.campusscheduler.generator.DataGeneratorService.Contact;
 import org.springframework.stereotype.Service;
@@ -43,6 +49,8 @@ public class UniversityGeneratorService {
     private final BuildingRepository buildingRepository;
     private final RoomRepository roomRepository;
     private final InstructorRepository instructorRepository;
+    private final StudentRepository studentRepository;
+    private final EnrollmentRepository enrollmentRepository;
     private final InstructorPreferenceRepository instructorPreferenceRepository;
     private final CourseRepository courseRepository;
     private final ScheduleRepository scheduleRepository;
@@ -244,6 +252,8 @@ public class UniversityGeneratorService {
             int rooms,
             int instructors,
             int courses,
+            int students,
+            long generatedDemandCount,
             int timeSlots,
             String ratioInfo) {
     }
@@ -255,10 +265,12 @@ public class UniversityGeneratorService {
     public void clearAll() {
         log.info("Clearing all existing data...");
         scheduleChangeRequestRepository.deleteAll();
+        enrollmentRepository.deleteAll();
         scheduleRepository.deleteAll();
         courseRepository.deleteAll();
         instructorPreferenceRepository.deleteAll();
         instructorRepository.deleteAll();
+        studentRepository.deleteAll();
         roomRepository.deleteAll();
         buildingRepository.deleteAll();
         // Flush to ensure deletes are executed before inserts
@@ -280,10 +292,16 @@ public class UniversityGeneratorService {
         clearAll();
 
         List<Building> buildings = generateBuildings(config.academicBuildings());
-	        List<Room> rooms = generateRooms(buildings, config.roomsPerBuilding(), config.archetype());
+        List<Room> rooms = generateRooms(buildings, config.roomsPerBuilding(), config.archetype());
         List<Instructor> instructors = generateInstructors(config.instructors());
         generateInstructorPreferences(instructors, buildings);
         List<Course> courses = generateCourses(instructors, config.courses());
+        List<Student> students = generateStudents(config.studentPopulation(), instructors, courses);
+        long generatedDemandCount = students.stream()
+                .map(Student::getPreferredCourseIds)
+                .filter(preferences -> preferences != null)
+                .mapToLong(List::size)
+                .sum();
 
         int timeSlots = (int) timeSlotRepository.count();
 
@@ -295,8 +313,8 @@ public class UniversityGeneratorService {
                 config.archetype().getStudentsPerCourse()
         );
 
-        log.info("University generation complete: {} buildings, {} rooms, {} instructors, {} courses",
-                buildings.size(), rooms.size(), instructors.size(), courses.size());
+        log.info("University generation complete: {} buildings, {} rooms, {} instructors, {} courses, {} students",
+                buildings.size(), rooms.size(), instructors.size(), courses.size(), students.size());
         log.info(ratioInfo);
 
         return new GenerationResult(
@@ -306,6 +324,8 @@ public class UniversityGeneratorService {
                 rooms.size(),
                 instructors.size(),
                 courses.size(),
+                students.size(),
+                generatedDemandCount,
                 timeSlots,
                 ratioInfo);
     }
@@ -318,7 +338,9 @@ public class UniversityGeneratorService {
             long rooms,
             long instructors,
             long courses,
-            long schedules) {
+            long schedules,
+            long students,
+            long generatedDemandCount) {
     }
 
     /**
@@ -330,7 +352,9 @@ public class UniversityGeneratorService {
                 roomRepository.count(),
                 instructorRepository.count(),
                 courseRepository.count(),
-                scheduleRepository.count());
+                scheduleRepository.count(),
+                studentRepository.count(),
+                studentRepository.countPreferredCourseRequests());
     }
 
     /**
@@ -423,6 +447,151 @@ public class UniversityGeneratorService {
 
         log.info("Generated {} instructors", instructors.size());
         return instructors;
+    }
+
+    /**
+     * Generates students from contacts not already used by instructors.
+     */
+    private List<Student> generateStudents(int count, List<Instructor> instructors, List<Course> courses) {
+        List<String> reservedInstructorEmails = instructors.stream()
+                .map(Instructor::getEmail)
+                .toList();
+        List<Contact> availableContacts = dataGeneratorService.getRandomContactsExcluding(count, reservedInstructorEmails);
+        Map<String, List<Course>> coursesByDepartment = groupCoursesByDepartment(courses);
+
+        if (availableContacts.isEmpty()) {
+            throw new IllegalStateException("Unable to generate students because no unused contacts remain");
+        }
+        if (courses.isEmpty()) {
+            throw new IllegalStateException("Unable to generate students because no courses were generated");
+        }
+
+        List<Student> students = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            Contact contact = availableContacts.get(i % availableContacts.size());
+            String department = pickStudentDepartment(courses, i);
+            int yearLevel = generateYearLevel();
+            int targetCourseLoad = generateTargetCourseLoad(yearLevel);
+            students.add(Student.builder()
+                    .studentNumber(dataGeneratorService.generateStudentNumber(i))
+                    .firstName(contact.firstName())
+                    .lastName(contact.lastName())
+                    .email(dataGeneratorService.generateStudentEmail(contact, i))
+                    .department(department)
+                    .yearLevel(yearLevel)
+                    .targetCourseLoad(targetCourseLoad)
+                    .preferredCourseIds(generatePreferredCourseIds(courses, coursesByDepartment, department, yearLevel, targetCourseLoad))
+                    .build());
+        }
+
+        List<Student> savedStudents = studentRepository.saveAll(students);
+        log.info("Generated {} students", savedStudents.size());
+        return savedStudents;
+    }
+
+    private Map<String, List<Course>> groupCoursesByDepartment(List<Course> courses) {
+        Map<String, List<Course>> grouped = new HashMap<>();
+        for (Course course : courses) {
+            String department = course.getDepartment() != null ? course.getDepartment() : "General Studies";
+            grouped.computeIfAbsent(department, ignored -> new ArrayList<>()).add(course);
+        }
+        return grouped;
+    }
+
+    private String pickStudentDepartment(List<Course> courses, int studentIndex) {
+        return courses.get(studentIndex % courses.size()).getDepartment();
+    }
+
+    private int generateYearLevel() {
+        double roll = random.nextDouble();
+        if (roll < 0.34) {
+            return 1;
+        }
+        if (roll < 0.62) {
+            return 2;
+        }
+        if (roll < 0.84) {
+            return 3;
+        }
+        return 4;
+    }
+
+    private int generateTargetCourseLoad(int yearLevel) {
+        return switch (yearLevel) {
+            case 1 -> random.nextDouble() < 0.7 ? 5 : 4;
+            case 2 -> random.nextDouble() < 0.55 ? 5 : 4;
+            case 3 -> random.nextDouble() < 0.45 ? 4 : 3;
+            default -> random.nextDouble() < 0.65 ? 3 : 4;
+        };
+    }
+
+    private List<Long> generatePreferredCourseIds(
+            List<Course> allCourses,
+            Map<String, List<Course>> coursesByDepartment,
+            String department,
+            int yearLevel,
+            int targetCourseLoad) {
+        int basketSize = Math.min(allCourses.size(), targetCourseLoad + 2);
+        if (basketSize == 0) {
+            return List.of();
+        }
+
+        LinkedHashSet<Long> rankedCourseIds = new LinkedHashSet<>();
+        List<Course> departmentCourses = sortCoursesForStudent(coursesByDepartment.getOrDefault(department, List.of()), yearLevel);
+        List<Course> electiveCourses = sortCoursesForStudent(
+                allCourses.stream()
+                        .filter(course -> !department.equals(course.getDepartment()))
+                        .toList(),
+                yearLevel);
+
+        int inDepartmentTarget = Math.min(
+                departmentCourses.size(),
+                Math.max(targetCourseLoad, (int) Math.ceil(basketSize * 0.7)));
+
+        addPreferredCourses(rankedCourseIds, departmentCourses, inDepartmentTarget);
+        addPreferredCourses(rankedCourseIds, electiveCourses, basketSize - rankedCourseIds.size());
+
+        if (rankedCourseIds.size() < basketSize) {
+            addPreferredCourses(
+                    rankedCourseIds,
+                    sortCoursesForStudent(allCourses, yearLevel),
+                    basketSize - rankedCourseIds.size());
+        }
+
+        return new ArrayList<>(rankedCourseIds);
+    }
+
+    private List<Course> sortCoursesForStudent(List<Course> courses, int yearLevel) {
+        List<Course> rankedCourses = new ArrayList<>(courses);
+        java.util.Collections.shuffle(rankedCourses, random);
+        rankedCourses.sort(Comparator
+                .comparingInt((Course course) -> Math.abs(extractCourseLevel(course) - yearLevel))
+                .thenComparing(Course::getCode));
+        return rankedCourses;
+    }
+
+    private void addPreferredCourses(LinkedHashSet<Long> rankedCourseIds, List<Course> courses, int targetCount) {
+        int initialSize = rankedCourseIds.size();
+        for (Course course : courses) {
+            if ((rankedCourseIds.size() - initialSize) >= targetCount) {
+                return;
+            }
+            rankedCourseIds.add(course.getId());
+        }
+    }
+
+    private int extractCourseLevel(Course course) {
+        if (course.getCode() == null) {
+            return 1;
+        }
+
+        String digits = course.getCode().replaceAll("\\D+", "");
+        if (digits.isBlank()) {
+            return 1;
+        }
+
+        int firstDigit = Character.getNumericValue(digits.charAt(0));
+        return firstDigit >= 1 && firstDigit <= 8 ? firstDigit : 1;
     }
 
     /**

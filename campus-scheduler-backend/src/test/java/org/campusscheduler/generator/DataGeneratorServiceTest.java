@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -66,6 +67,43 @@ class DataGeneratorServiceTest {
             List<DataGeneratorService.Contact> requested = service.getRandomContacts(Integer.MAX_VALUE);
 
             assertThat(requested).hasSize(all.size());
+        }
+
+        @Test
+        @DisplayName("should exclude reserved emails when selecting contacts")
+        void shouldExcludeReservedEmails() {
+            List<DataGeneratorService.Contact> all = service.loadContacts();
+            Set<String> excludedEmails = Set.of(all.get(0).email(), all.get(1).email());
+
+            List<DataGeneratorService.Contact> contacts = service.getRandomContactsExcluding(25, excludedEmails);
+
+            assertThat(contacts).hasSize(25);
+            assertThat(contacts)
+                    .extracting(DataGeneratorService.Contact::email)
+                    .doesNotContainAnyElementsOf(excludedEmails);
+        }
+    }
+
+    @Nested
+    @DisplayName("student identity helpers")
+    class StudentIdentityHelpers {
+
+        @Test
+        @DisplayName("should generate student email in student-only namespace")
+        void shouldGenerateStudentEmail() {
+            DataGeneratorService.Contact contact = new DataGeneratorService.Contact("Avery", "Nguyen", "avery@example.edu");
+
+            String email = service.generateStudentEmail(contact, 12);
+
+            assertThat(email).isEqualTo("avery.nguyen.s00013@students.campusscheduler.edu");
+        }
+
+        @Test
+        @DisplayName("should generate zero-padded student number")
+        void shouldGenerateStudentNumber() {
+            String studentNumber = service.generateStudentNumber(12);
+
+            assertThat(studentNumber).isEqualTo("S00000013");
         }
     }
 

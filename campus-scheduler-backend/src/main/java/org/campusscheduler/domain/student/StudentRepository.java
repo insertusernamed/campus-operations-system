@@ -1,6 +1,7 @@
 package org.campusscheduler.domain.student;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -60,4 +61,12 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
      * @return true if it exists
      */
     boolean existsByEmail(String email);
+
+    /**
+     * Count all generated course requests across students.
+     *
+     * @return number of ranked course preference entries
+     */
+    @Query("select count(preferenceCourseId) from Student s join s.preferredCourseIds preferenceCourseId")
+    long countPreferredCourseRequests();
 }

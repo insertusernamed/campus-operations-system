@@ -119,6 +119,32 @@ class StudentRepositoryTest {
     }
 
     @Test
+    @DisplayName("should persist target course load and ranked course preferences")
+    void shouldPersistTargetCourseLoadAndPreferences() {
+        Student studentWithPreferences = Student.builder()
+                .studentNumber("S100005")
+                .firstName("Quinn")
+                .lastName("Davis")
+                .email("quinn.davis@student.university.edu")
+                .department("Computer Science")
+                .yearLevel(2)
+                .targetCourseLoad(5)
+                .preferredCourseIds(List.of(101L, 205L, 309L, 401L, 450L))
+                .build();
+
+        Student saved = studentRepository.saveAndFlush(studentWithPreferences);
+
+        assertThat(saved.getId()).isNotNull();
+        assertThat(studentRepository.findById(saved.getId()))
+                .isPresent()
+                .get()
+                .satisfies(student -> {
+                    assertThat(student.getTargetCourseLoad()).isEqualTo(5);
+                    assertThat(student.getPreferredCourseIds()).containsExactly(101L, 205L, 309L, 401L, 450L);
+                });
+    }
+
+    @Test
     @DisplayName("should enforce unique student number")
     void shouldEnforceUniqueStudentNumber() {
         Student duplicateStudentNumber = Student.builder()
@@ -162,5 +188,25 @@ class StudentRepositoryTest {
     void shouldReportWhetherEmailExists() {
         assertThat(studentRepository.existsByEmail("avery.nguyen@student.university.edu")).isTrue();
         assertThat(studentRepository.existsByEmail("nobody@student.university.edu")).isFalse();
+    }
+
+    @Test
+    @DisplayName("should count ranked course preference requests across students")
+    void shouldCountRankedCoursePreferenceRequests() {
+        Student demandStudent = Student.builder()
+                .studentNumber("S100006")
+                .firstName("Jamie")
+                .lastName("Morgan")
+                .email("jamie.morgan@student.university.edu")
+                .department("Mathematics")
+                .yearLevel(3)
+                .targetCourseLoad(4)
+                .preferredCourseIds(List.of(10L, 20L, 30L, 40L))
+                .build();
+        studentRepository.saveAndFlush(demandStudent);
+
+        long requestCount = studentRepository.countPreferredCourseRequests();
+
+        assertThat(requestCount).isEqualTo(4L);
     }
 }

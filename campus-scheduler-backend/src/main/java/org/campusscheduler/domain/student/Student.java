@@ -1,10 +1,15 @@
 package org.campusscheduler.domain.student;
 
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Max;
@@ -18,6 +23,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -67,6 +74,20 @@ public class Student {
     @Max(value = 8, message = "Year level must not exceed 8")
     @Column(nullable = false)
     private Integer yearLevel;
+
+    @Builder.Default
+    @NotNull(message = "Target course load is required")
+    @Min(value = 1, message = "Target course load must be at least 1")
+    @Max(value = 8, message = "Target course load must not exceed 8")
+    @Column(nullable = false)
+    private Integer targetCourseLoad = 4;
+
+    @Builder.Default
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "student_course_preferences", joinColumns = @JoinColumn(name = "student_id"))
+    @OrderColumn(name = "preference_rank")
+    @Column(name = "course_id", nullable = false)
+    private List<Long> preferredCourseIds = new ArrayList<>();
 
     @Override
     public boolean equals(Object o) {
