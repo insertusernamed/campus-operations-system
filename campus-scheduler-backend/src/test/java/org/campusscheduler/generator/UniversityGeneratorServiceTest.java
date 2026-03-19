@@ -273,12 +273,17 @@ class UniversityGeneratorServiceTest {
 			GenerationConfig config = new GenerationConfig(UniversityArchetype.COMMUNITY, 8, 2, 2, 9, 50, 10);
 
 			GenerationResult result = service.generateUniversity(config);
+			verify(studentRepository).saveAll(studentListCaptor.capture());
+			long expectedDemandCount = studentListCaptor.getValue().stream()
+					.map(Student::getPreferredCourseIds)
+					.mapToLong(List::size)
+					.sum();
 
 			assertThat(result.buildings()).isEqualTo(2);
 			assertThat(result.instructors()).isEqualTo(2);
 			assertThat(result.courses()).isEqualTo(10);
 			assertThat(result.students()).isEqualTo(8);
-			assertThat(result.generatedDemandCount()).isPositive();
+			assertThat(result.generatedDemandCount()).isEqualTo(expectedDemandCount);
 			assertThat(result.timeSlots()).isEqualTo(30);
 		}
 
@@ -326,6 +331,51 @@ class UniversityGeneratorServiceTest {
 						long availableDepartmentCourses = coursesPerDepartment.getOrDefault(student.getDepartment(), 0L);
 						assertThat(sameDepartmentPreferences)
 								.isGreaterThanOrEqualTo(Math.min(availableDepartmentCourses, student.getTargetCourseLoad().longValue()));
+					});
+		}
+
+		@Test
+		@DisplayName("should keep generated student identities unique even when contacts repeat")
+		void shouldKeepGeneratedStudentIdentitiesUniqueEvenWhenContactsRepeat() {
+			when(dataGeneratorService.getRandomContactsExcluding(any(Integer.class), anyCollection()))
+					.thenReturn(List.of(new Contact("Alex", "Rivera", "alex@test.edu")));
+			GenerationConfig config = new GenerationConfig(UniversityArchetype.COMMUNITY, 5, 2, 2, 9, 50, 24);
+
+			service.generateUniversity(config);
+
+			verify(studentRepository).saveAll(studentListCaptor.capture());
+			assertThat(studentListCaptor.getValue())
+					.extracting(Student::getEmail)
+					.doesNotHaveDuplicates();
+			assertThat(studentListCaptor.getValue())
+					.extracting(Student::getStudentNumber)
+					.doesNotHaveDuplicates();
+		}
+
+		@Test
+		@DisplayName("should rank in-department courses ahead of electives")
+		void shouldRankInDepartmentCoursesAheadOfElectives() {
+			GenerationConfig config = new GenerationConfig(UniversityArchetype.COMMUNITY, 6, 2, 2, 9, 50, 48);
+
+			service.generateUniversity(config);
+
+			verify(courseRepository, times(48)).save(courseCaptor.capture());
+			verify(studentRepository).saveAll(studentListCaptor.capture());
+			Map<Long, String> courseDepartments = courseCaptor.getAllValues().stream()
+					.collect(Collectors.toMap(Course::getId, Course::getDepartment, (left, right) -> left));
+			Map<String, Long> coursesPerDepartment = courseCaptor.getAllValues().stream()
+					.collect(Collectors.groupingBy(Course::getDepartment, Collectors.counting()));
+
+			assertThat(studentListCaptor.getValue())
+					.allSatisfy(student -> {
+						long inDepartmentPrefixLength = Math.min(
+								coursesPerDepartment.getOrDefault(student.getDepartment(), 0L),
+								student.getTargetCourseLoad().longValue());
+						List<Long> prefix = student.getPreferredCourseIds().stream()
+								.limit(inDepartmentPrefixLength)
+								.toList();
+						assertThat(prefix)
+								.allSatisfy(courseId -> assertThat(courseDepartments.get(courseId)).isEqualTo(student.getDepartment()));
 					});
 		}
 
