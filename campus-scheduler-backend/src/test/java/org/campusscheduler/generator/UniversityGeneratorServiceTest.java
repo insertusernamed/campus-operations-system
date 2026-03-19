@@ -30,6 +30,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -155,6 +158,8 @@ class UniversityGeneratorServiceTest {
 
 		@BeforeEach
 		void setUpMocks() {
+			AtomicLong courseIdSequence = new AtomicLong(1);
+
 			// Mock building saves to return with ID
 			when(buildingRepository.save(any(Building.class)))
 					.thenAnswer(inv -> {
@@ -183,7 +188,7 @@ class UniversityGeneratorServiceTest {
 			when(courseRepository.save(any(Course.class)))
 					.thenAnswer(inv -> {
 						Course c = inv.getArgument(0);
-						c.setId(1L);
+						c.setId(courseIdSequence.getAndIncrement());
 						return c;
 					});
 
@@ -290,6 +295,36 @@ class UniversityGeneratorServiceTest {
 			assertThat(studentListCaptor.getValue())
 					.extracting(Student::getStudentNumber)
 					.containsExactly("S00000001", "S00000002", "S00000003", "S00000004");
+			assertThat(studentListCaptor.getValue())
+					.allSatisfy(student -> {
+						assertThat(student.getTargetCourseLoad()).isBetween(3, 5);
+						assertThat(student.getPreferredCourseIds()).hasSizeGreaterThanOrEqualTo(student.getTargetCourseLoad());
+						assertThat(student.getPreferredCourseIds()).doesNotHaveDuplicates();
+					});
+		}
+
+		@Test
+		@DisplayName("should bias course preferences toward student department")
+		void shouldBiasCoursePreferencesTowardStudentDepartment() {
+			GenerationConfig config = new GenerationConfig(UniversityArchetype.COMMUNITY, 8, 2, 2, 9, 50, 48);
+
+			service.generateUniversity(config);
+
+			verify(courseRepository, times(48)).save(courseCaptor.capture());
+			verify(studentRepository).saveAll(studentListCaptor.capture());
+			Map<Long, String> courseDepartments = courseCaptor.getAllValues().stream()
+					.collect(Collectors.toMap(Course::getId, Course::getDepartment, (left, right) -> left));
+			Map<String, Long> coursesPerDepartment = courseCaptor.getAllValues().stream()
+					.collect(Collectors.groupingBy(Course::getDepartment, Collectors.counting()));
+			assertThat(studentListCaptor.getValue())
+					.allSatisfy(student -> {
+						long sameDepartmentPreferences = student.getPreferredCourseIds().stream()
+								.filter(courseId -> student.getDepartment().equals(courseDepartments.get(courseId)))
+								.count();
+						long availableDepartmentCourses = coursesPerDepartment.getOrDefault(student.getDepartment(), 0L);
+						assertThat(sameDepartmentPreferences)
+								.isGreaterThanOrEqualTo(Math.min(availableDepartmentCourses, student.getTargetCourseLoad().longValue()));
+					});
 		}
 
 		@Test

@@ -119,6 +119,32 @@ class StudentRepositoryTest {
     }
 
     @Test
+    @DisplayName("should persist target course load and ranked course preferences")
+    void shouldPersistTargetCourseLoadAndPreferences() {
+        Student studentWithPreferences = Student.builder()
+                .studentNumber("S100005")
+                .firstName("Quinn")
+                .lastName("Davis")
+                .email("quinn.davis@student.university.edu")
+                .department("Computer Science")
+                .yearLevel(2)
+                .targetCourseLoad(5)
+                .preferredCourseIds(List.of(101L, 205L, 309L, 401L, 450L))
+                .build();
+
+        Student saved = studentRepository.saveAndFlush(studentWithPreferences);
+
+        assertThat(saved.getId()).isNotNull();
+        assertThat(studentRepository.findById(saved.getId()))
+                .isPresent()
+                .get()
+                .satisfies(student -> {
+                    assertThat(student.getTargetCourseLoad()).isEqualTo(5);
+                    assertThat(student.getPreferredCourseIds()).containsExactly(101L, 205L, 309L, 401L, 450L);
+                });
+    }
+
+    @Test
     @DisplayName("should enforce unique student number")
     void shouldEnforceUniqueStudentNumber() {
         Student duplicateStudentNumber = Student.builder()
