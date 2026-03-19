@@ -5,6 +5,7 @@ import org.campusscheduler.domain.building.BuildingRepository;
 import org.campusscheduler.domain.changerequest.ScheduleChangeRequestRepository;
 import org.campusscheduler.domain.course.Course;
 import org.campusscheduler.domain.course.CourseRepository;
+import org.campusscheduler.domain.enrollment.EnrollmentRepository;
 import org.campusscheduler.domain.instructor.Instructor;
 import org.campusscheduler.domain.instructor.InstructorRepository;
 import org.campusscheduler.domain.instructorpreference.InstructorPreference;
@@ -12,6 +13,8 @@ import org.campusscheduler.domain.instructorpreference.InstructorPreferenceRepos
 import org.campusscheduler.domain.room.Room;
 import org.campusscheduler.domain.room.RoomRepository;
 import org.campusscheduler.domain.schedule.ScheduleRepository;
+import org.campusscheduler.domain.student.Student;
+import org.campusscheduler.domain.student.StudentRepository;
 import org.campusscheduler.domain.timeslot.TimeSlotRepository;
 import org.campusscheduler.generator.DataGeneratorService.Contact;
 import org.campusscheduler.generator.UniversityGeneratorService.GenerationConfig;
@@ -30,6 +33,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.times;
@@ -56,6 +60,12 @@ class UniversityGeneratorServiceTest {
 
 	@Mock
 	private InstructorRepository instructorRepository;
+
+	@Mock
+	private StudentRepository studentRepository;
+
+	@Mock
+	private EnrollmentRepository enrollmentRepository;
 
 	@Mock
 	private InstructorPreferenceRepository instructorPreferenceRepository;
@@ -85,6 +95,9 @@ class UniversityGeneratorServiceTest {
 	private ArgumentCaptor<Course> courseCaptor;
 
 	@Captor
+	private ArgumentCaptor<List<Student>> studentListCaptor;
+
+	@Captor
 	private ArgumentCaptor<List<InstructorPreference>> preferenceListCaptor;
 
 	private UniversityGeneratorService service;
@@ -97,6 +110,8 @@ class UniversityGeneratorServiceTest {
 				buildingRepository,
 				roomRepository,
 				instructorRepository,
+				studentRepository,
+				enrollmentRepository,
 				instructorPreferenceRepository,
 				courseRepository,
 				scheduleRepository,
@@ -172,11 +187,30 @@ class UniversityGeneratorServiceTest {
 						return c;
 					});
 
+			when(studentRepository.saveAll(anyCollection()))
+					.thenAnswer(inv -> inv.getArgument(0));
+
 			// Mock contacts
 			when(dataGeneratorService.getRandomContacts(50))
 					.thenReturn(List.of(
 							new Contact("John", "Doe", "john@test.edu"),
 							new Contact("Jane", "Smith", "jane@test.edu")));
+			when(dataGeneratorService.getRandomContactsExcluding(any(Integer.class), anyCollection()))
+					.thenReturn(List.of(
+							new Contact("Alex", "Rivera", "alex@test.edu"),
+							new Contact("Sam", "Chen", "sam@test.edu")));
+			when(dataGeneratorService.generateStudentNumber(any(Integer.class)))
+					.thenAnswer(inv -> "S%08d".formatted(inv.<Integer>getArgument(0) + 1));
+			when(dataGeneratorService.generateStudentEmail(any(Contact.class), any(Integer.class)))
+					.thenAnswer(inv -> {
+						Contact contact = inv.getArgument(0);
+						int sequence = inv.getArgument(1);
+						return "%s.%s.s%05d@students.campusscheduler.edu"
+								.formatted(
+										contact.firstName().toLowerCase(),
+										contact.lastName().toLowerCase(),
+										sequence + 1);
+					});
 
 			when(dataGeneratorService.generateRoomNumber(any(Integer.class)))
 					.thenReturn("101");
@@ -242,6 +276,23 @@ class UniversityGeneratorServiceTest {
 		}
 
 		@Test
+		@DisplayName("should generate students from contacts not used by instructors")
+		void shouldGenerateStudentsFromUnusedContacts() {
+			GenerationConfig config = new GenerationConfig(UniversityArchetype.COMMUNITY, 4, 2, 2, 9, 50, 10);
+
+			service.generateUniversity(config);
+
+			verify(studentRepository).saveAll(studentListCaptor.capture());
+			assertThat(studentListCaptor.getValue()).hasSize(4);
+			assertThat(studentListCaptor.getValue())
+					.extracting(Student::getEmail)
+					.allMatch(email -> email.endsWith("@students.campusscheduler.edu"));
+			assertThat(studentListCaptor.getValue())
+					.extracting(Student::getStudentNumber)
+					.containsExactly("S00000001", "S00000002", "S00000003", "S00000004");
+		}
+
+		@Test
 		@DisplayName("should generate preferences for each instructor")
 		void shouldGeneratePreferencesForEachInstructor() {
 			GenerationConfig config = new GenerationConfig(UniversityArchetype.COMMUNITY, 8000, 2, 2, 9, 50, 10);
@@ -272,17 +323,21 @@ class UniversityGeneratorServiceTest {
 			var inOrder = inOrder(
 					scheduleChangeRequestRepository,
 					scheduleRepository,
+					enrollmentRepository,
 					courseRepository,
 					instructorPreferenceRepository,
 					instructorRepository,
+					studentRepository,
 					roomRepository,
 					buildingRepository);
 
 			inOrder.verify(scheduleChangeRequestRepository).deleteAll();
 			inOrder.verify(scheduleRepository).deleteAll();
+			inOrder.verify(enrollmentRepository).deleteAll();
 			inOrder.verify(courseRepository).deleteAll();
 			inOrder.verify(instructorPreferenceRepository).deleteAll();
 			inOrder.verify(instructorRepository).deleteAll();
+			inOrder.verify(studentRepository).deleteAll();
 			inOrder.verify(roomRepository).deleteAll();
 			inOrder.verify(buildingRepository).deleteAll();
 		}

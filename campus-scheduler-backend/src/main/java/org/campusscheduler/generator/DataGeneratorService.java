@@ -5,8 +5,12 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Random;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
@@ -61,6 +65,56 @@ public class DataGeneratorService {
         List<Contact> shuffled = new ArrayList<>(all);
         java.util.Collections.shuffle(shuffled, random);
         return shuffled.subList(0, count);
+    }
+
+    /**
+     * Gets a random subset of contacts while excluding reserved identities.
+     *
+     * @param count number of contacts to return
+     * @param excludedEmails contact emails that must not be reused
+     * @return list of random contacts not present in the excluded set
+     */
+    public List<Contact> getRandomContactsExcluding(int count, Collection<String> excludedEmails) {
+        Set<String> normalizedExcludedEmails = excludedEmails == null
+                ? Set.of()
+                : excludedEmails.stream()
+                        .map(email -> email.toLowerCase(Locale.ROOT))
+                        .collect(Collectors.toSet());
+
+        List<Contact> availableContacts = loadContacts().stream()
+                .filter(contact -> !normalizedExcludedEmails.contains(contact.email().toLowerCase(Locale.ROOT)))
+                .toList();
+
+        if (count >= availableContacts.size()) {
+            return availableContacts;
+        }
+
+        List<Contact> shuffled = new ArrayList<>(availableContacts);
+        java.util.Collections.shuffle(shuffled, random);
+        return shuffled.subList(0, count);
+    }
+
+    /**
+     * Generates a student-specific email that cannot collide with instructor emails.
+     *
+     * @param contact contact used for the base identity
+     * @param sequence zero-based student sequence
+     * @return unique student email
+     */
+    public String generateStudentEmail(Contact contact, int sequence) {
+        String first = sanitizeToken(contact.firstName());
+        String last = sanitizeToken(contact.lastName());
+        return String.format("%s.%s.s%05d@students.campusscheduler.edu", first, last, sequence + 1);
+    }
+
+    /**
+     * Generates a stable student number sequence.
+     *
+     * @param sequence zero-based student sequence
+     * @return student number
+     */
+    public String generateStudentNumber(int sequence) {
+        return String.format("S%08d", sequence + 1);
     }
 
     /**
@@ -122,4 +176,10 @@ public class DataGeneratorService {
 	            default -> random.nextInt(30, 91); // CLASSROOM
 	        };
 	    }
+
+    private String sanitizeToken(String value) {
+        return value == null
+                ? "student"
+                : value.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "");
+    }
 }

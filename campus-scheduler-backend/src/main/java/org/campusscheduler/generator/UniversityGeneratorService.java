@@ -12,6 +12,7 @@ import org.campusscheduler.domain.building.BuildingRepository;
 import org.campusscheduler.domain.course.Course;
 import org.campusscheduler.domain.course.CourseRepository;
 import org.campusscheduler.domain.changerequest.ScheduleChangeRequestRepository;
+import org.campusscheduler.domain.enrollment.EnrollmentRepository;
 import org.campusscheduler.domain.instructor.Instructor;
 import org.campusscheduler.domain.instructor.InstructorRepository;
 import org.campusscheduler.domain.instructorpreference.InstructorPreference;
@@ -20,6 +21,8 @@ import org.campusscheduler.domain.instructorpreference.RoomFeatureCatalog;
 import org.campusscheduler.domain.room.Room;
 import org.campusscheduler.domain.room.RoomRepository;
 import org.campusscheduler.domain.schedule.ScheduleRepository;
+import org.campusscheduler.domain.student.Student;
+import org.campusscheduler.domain.student.StudentRepository;
 import org.campusscheduler.domain.timeslot.TimeSlotRepository;
 import org.campusscheduler.generator.DataGeneratorService.Contact;
 import org.springframework.stereotype.Service;
@@ -43,6 +46,8 @@ public class UniversityGeneratorService {
     private final BuildingRepository buildingRepository;
     private final RoomRepository roomRepository;
     private final InstructorRepository instructorRepository;
+    private final StudentRepository studentRepository;
+    private final EnrollmentRepository enrollmentRepository;
     private final InstructorPreferenceRepository instructorPreferenceRepository;
     private final CourseRepository courseRepository;
     private final ScheduleRepository scheduleRepository;
@@ -256,9 +261,11 @@ public class UniversityGeneratorService {
         log.info("Clearing all existing data...");
         scheduleChangeRequestRepository.deleteAll();
         scheduleRepository.deleteAll();
+        enrollmentRepository.deleteAll();
         courseRepository.deleteAll();
         instructorPreferenceRepository.deleteAll();
         instructorRepository.deleteAll();
+        studentRepository.deleteAll();
         roomRepository.deleteAll();
         buildingRepository.deleteAll();
         // Flush to ensure deletes are executed before inserts
@@ -280,10 +287,11 @@ public class UniversityGeneratorService {
         clearAll();
 
         List<Building> buildings = generateBuildings(config.academicBuildings());
-	        List<Room> rooms = generateRooms(buildings, config.roomsPerBuilding(), config.archetype());
+        List<Room> rooms = generateRooms(buildings, config.roomsPerBuilding(), config.archetype());
         List<Instructor> instructors = generateInstructors(config.instructors());
         generateInstructorPreferences(instructors, buildings);
         List<Course> courses = generateCourses(instructors, config.courses());
+        generateStudents(config.studentPopulation(), instructors);
 
         int timeSlots = (int) timeSlotRepository.count();
 
@@ -423,6 +431,37 @@ public class UniversityGeneratorService {
 
         log.info("Generated {} instructors", instructors.size());
         return instructors;
+    }
+
+    /**
+     * Generates students from contacts not already used by instructors.
+     */
+    private List<Student> generateStudents(int count, List<Instructor> instructors) {
+        List<String> reservedInstructorEmails = instructors.stream()
+                .map(Instructor::getEmail)
+                .toList();
+        List<Contact> availableContacts = dataGeneratorService.getRandomContactsExcluding(count, reservedInstructorEmails);
+
+        if (availableContacts.isEmpty()) {
+            throw new IllegalStateException("Unable to generate students because no unused contacts remain");
+        }
+
+        List<Student> students = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            Contact contact = availableContacts.get(i % availableContacts.size());
+            students.add(Student.builder()
+                    .studentNumber(dataGeneratorService.generateStudentNumber(i))
+                    .firstName(contact.firstName())
+                    .lastName(contact.lastName())
+                    .email(dataGeneratorService.generateStudentEmail(contact, i))
+                    .department(DEPARTMENTS[i % DEPARTMENTS.length])
+                    .yearLevel((i % 4) + 1)
+                    .build());
+        }
+
+        List<Student> savedStudents = studentRepository.saveAll(students);
+        log.info("Generated {} students", savedStudents.size());
+        return savedStudents;
     }
 
     /**
