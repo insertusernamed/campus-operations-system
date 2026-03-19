@@ -252,6 +252,8 @@ public class UniversityGeneratorService {
             int rooms,
             int instructors,
             int courses,
+            int students,
+            long generatedDemandCount,
             int timeSlots,
             String ratioInfo) {
     }
@@ -294,7 +296,12 @@ public class UniversityGeneratorService {
         List<Instructor> instructors = generateInstructors(config.instructors());
         generateInstructorPreferences(instructors, buildings);
         List<Course> courses = generateCourses(instructors, config.courses());
-        generateStudents(config.studentPopulation(), instructors, courses);
+        List<Student> students = generateStudents(config.studentPopulation(), instructors, courses);
+        long generatedDemandCount = students.stream()
+                .map(Student::getPreferredCourseIds)
+                .filter(preferences -> preferences != null)
+                .mapToLong(List::size)
+                .sum();
 
         int timeSlots = (int) timeSlotRepository.count();
 
@@ -306,8 +313,8 @@ public class UniversityGeneratorService {
                 config.archetype().getStudentsPerCourse()
         );
 
-        log.info("University generation complete: {} buildings, {} rooms, {} instructors, {} courses",
-                buildings.size(), rooms.size(), instructors.size(), courses.size());
+        log.info("University generation complete: {} buildings, {} rooms, {} instructors, {} courses, {} students",
+                buildings.size(), rooms.size(), instructors.size(), courses.size(), students.size());
         log.info(ratioInfo);
 
         return new GenerationResult(
@@ -317,6 +324,8 @@ public class UniversityGeneratorService {
                 rooms.size(),
                 instructors.size(),
                 courses.size(),
+                students.size(),
+                generatedDemandCount,
                 timeSlots,
                 ratioInfo);
     }
@@ -329,7 +338,9 @@ public class UniversityGeneratorService {
             long rooms,
             long instructors,
             long courses,
-            long schedules) {
+            long schedules,
+            long students,
+            long generatedDemandCount) {
     }
 
     /**
@@ -341,7 +352,9 @@ public class UniversityGeneratorService {
                 roomRepository.count(),
                 instructorRepository.count(),
                 courseRepository.count(),
-                scheduleRepository.count());
+                scheduleRepository.count(),
+                studentRepository.count(),
+                studentRepository.countPreferredCourseRequests());
     }
 
     /**

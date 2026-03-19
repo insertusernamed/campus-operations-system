@@ -189,4 +189,24 @@ class StudentRepositoryTest {
         assertThat(studentRepository.existsByEmail("avery.nguyen@student.university.edu")).isTrue();
         assertThat(studentRepository.existsByEmail("nobody@student.university.edu")).isFalse();
     }
+
+    @Test
+    @DisplayName("should count ranked course preference requests across students")
+    void shouldCountRankedCoursePreferenceRequests() {
+        Student demandStudent = Student.builder()
+                .studentNumber("S100006")
+                .firstName("Jamie")
+                .lastName("Morgan")
+                .email("jamie.morgan@student.university.edu")
+                .department("Mathematics")
+                .yearLevel(3)
+                .targetCourseLoad(4)
+                .preferredCourseIds(List.of(10L, 20L, 30L, 40L))
+                .build();
+        studentRepository.saveAndFlush(demandStudent);
+
+        long requestCount = studentRepository.countPreferredCourseRequests();
+
+        assertThat(requestCount).isEqualTo(4L);
+    }
 }

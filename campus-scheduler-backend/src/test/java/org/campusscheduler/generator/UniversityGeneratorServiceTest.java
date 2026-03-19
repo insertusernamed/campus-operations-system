@@ -270,13 +270,15 @@ class UniversityGeneratorServiceTest {
 		@Test
 		@DisplayName("should return accurate generation result")
 		void shouldReturnAccurateResult() {
-			GenerationConfig config = new GenerationConfig(UniversityArchetype.COMMUNITY, 8000, 2, 2, 9, 50, 10);
+			GenerationConfig config = new GenerationConfig(UniversityArchetype.COMMUNITY, 8, 2, 2, 9, 50, 10);
 
 			GenerationResult result = service.generateUniversity(config);
 
 			assertThat(result.buildings()).isEqualTo(2);
 			assertThat(result.instructors()).isEqualTo(2);
 			assertThat(result.courses()).isEqualTo(10);
+			assertThat(result.students()).isEqualTo(8);
+			assertThat(result.generatedDemandCount()).isPositive();
 			assertThat(result.timeSlots()).isEqualTo(30);
 		}
 
@@ -343,6 +345,29 @@ class UniversityGeneratorServiceTest {
 						assertThat(preference.getPreferredEndTime()).isNotNull();
 						assertThat(preference.getUpdatedAt()).isNotNull();
 					});
+		}
+	}
+
+	@Nested
+	@DisplayName("getStats")
+	class GetStats {
+
+		@Test
+		@DisplayName("should include student counts and generated demand counts")
+		void shouldIncludeStudentCountsAndGeneratedDemandCounts() {
+			when(buildingRepository.count()).thenReturn(5L);
+			when(roomRepository.count()).thenReturn(25L);
+			when(instructorRepository.count()).thenReturn(12L);
+			when(courseRepository.count()).thenReturn(48L);
+			when(scheduleRepository.count()).thenReturn(36L);
+			when(studentRepository.count()).thenReturn(300L);
+			when(studentRepository.countPreferredCourseRequests()).thenReturn(1350L);
+
+			UniversityGeneratorService.UniversityStats stats = service.getStats();
+
+			assertThat(stats.buildings()).isEqualTo(5L);
+			assertThat(stats.students()).isEqualTo(300L);
+			assertThat(stats.generatedDemandCount()).isEqualTo(1350L);
 		}
 	}
 
