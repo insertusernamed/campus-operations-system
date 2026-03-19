@@ -265,8 +265,8 @@ public class UniversityGeneratorService {
     public void clearAll() {
         log.info("Clearing all existing data...");
         scheduleChangeRequestRepository.deleteAll();
-        scheduleRepository.deleteAll();
         enrollmentRepository.deleteAll();
+        scheduleRepository.deleteAll();
         courseRepository.deleteAll();
         instructorPreferenceRepository.deleteAll();
         instructorRepository.deleteAll();

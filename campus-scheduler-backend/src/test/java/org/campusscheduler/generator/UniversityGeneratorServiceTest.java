@@ -432,8 +432,8 @@ class UniversityGeneratorServiceTest {
 
 			var inOrder = inOrder(
 					scheduleChangeRequestRepository,
-					scheduleRepository,
 					enrollmentRepository,
+					scheduleRepository,
 					courseRepository,
 					instructorPreferenceRepository,
 					instructorRepository,
@@ -442,8 +442,8 @@ class UniversityGeneratorServiceTest {
 					buildingRepository);
 
 			inOrder.verify(scheduleChangeRequestRepository).deleteAll();
-			inOrder.verify(scheduleRepository).deleteAll();
 			inOrder.verify(enrollmentRepository).deleteAll();
+			inOrder.verify(scheduleRepository).deleteAll();
 			inOrder.verify(courseRepository).deleteAll();
 			inOrder.verify(instructorPreferenceRepository).deleteAll();
 			inOrder.verify(instructorRepository).deleteAll();
