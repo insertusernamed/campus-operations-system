@@ -3,9 +3,12 @@ package org.campusscheduler.solver;
 import ai.timefold.solver.core.api.solver.SolverStatus;
 import org.campusscheduler.domain.building.Building;
 import org.campusscheduler.domain.course.CourseRepository;
+import org.campusscheduler.domain.enrollment.EnrollmentAssignmentService;
+import org.campusscheduler.domain.enrollment.EnrollmentRepository;
 import org.campusscheduler.domain.room.Room;
 import org.campusscheduler.domain.room.RoomRepository;
 import org.campusscheduler.domain.schedule.ScheduleRepository;
+import org.campusscheduler.domain.student.StudentRepository;
 import org.campusscheduler.domain.timeslot.TimeSlot;
 import org.campusscheduler.domain.timeslot.TimeSlotRepository;
 import org.junit.jupiter.api.Test;
@@ -40,6 +43,15 @@ class SolverServiceTest {
 
     @Mock
     private ScheduleRepository scheduleRepository;
+
+    @Mock
+    private EnrollmentRepository enrollmentRepository;
+
+    @Mock
+    private StudentRepository studentRepository;
+
+    @Mock
+    private EnrollmentAssignmentService enrollmentAssignmentService;
 
     @Mock
     private SimpMessagingTemplate messagingTemplate;

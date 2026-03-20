@@ -15,10 +15,15 @@ import java.util.stream.Collectors;
 
 import org.campusscheduler.domain.course.Course;
 import org.campusscheduler.domain.course.CourseRepository;
+import org.campusscheduler.domain.enrollment.Enrollment;
+import org.campusscheduler.domain.enrollment.EnrollmentAssignmentService;
+import org.campusscheduler.domain.enrollment.EnrollmentRepository;
 import org.campusscheduler.domain.room.Room;
 import org.campusscheduler.domain.room.RoomRepository;
 import org.campusscheduler.domain.schedule.Schedule;
 import org.campusscheduler.domain.schedule.ScheduleRepository;
+import org.campusscheduler.domain.student.Student;
+import org.campusscheduler.domain.student.StudentRepository;
 import org.campusscheduler.domain.timeslot.TimeSlot;
 import org.campusscheduler.domain.timeslot.TimeSlotRepository;
 import org.campusscheduler.websocket.SolverProgressEvent;
@@ -55,6 +60,9 @@ public class SolverService {
 	private final RoomRepository roomRepository;
 	private final TimeSlotRepository timeSlotRepository;
 	private final ScheduleRepository scheduleRepository;
+	private final EnrollmentRepository enrollmentRepository;
+	private final StudentRepository studentRepository;
+	private final EnrollmentAssignmentService enrollmentAssignmentService;
 	private final SimpMessagingTemplate messagingTemplate;
 
 	private final ExecutorService solverExecutor = Executors.newSingleThreadExecutor();
@@ -71,12 +79,18 @@ public class SolverService {
 			RoomRepository roomRepository,
 			TimeSlotRepository timeSlotRepository,
 			ScheduleRepository scheduleRepository,
+			EnrollmentRepository enrollmentRepository,
+			StudentRepository studentRepository,
+			EnrollmentAssignmentService enrollmentAssignmentService,
 			SimpMessagingTemplate messagingTemplate) {
 		this.solverConfig = solverConfig;
 		this.courseRepository = courseRepository;
 		this.roomRepository = roomRepository;
 		this.timeSlotRepository = timeSlotRepository;
 		this.scheduleRepository = scheduleRepository;
+		this.enrollmentRepository = enrollmentRepository;
+		this.studentRepository = studentRepository;
+		this.enrollmentAssignmentService = enrollmentAssignmentService;
 		this.messagingTemplate = messagingTemplate;
 	}
 
@@ -335,24 +349,27 @@ public class SolverService {
 		}
 
 		String semester = solution.getSemester();
+		enrollmentRepository.deleteBySemester(semester);
 		scheduleRepository.deleteBySemester(semester);
 
-		int count = 0;
-		for (ScheduleAssignment assignment : solution.getAssignments()) {
-			if (assignment.isInitialized()) {
-				Schedule schedule = Schedule.builder()
+		List<Schedule> schedulesToSave = solution.getAssignments().stream()
+				.filter(ScheduleAssignment::isInitialized)
+				.map(assignment -> Schedule.builder()
 						.course(assignment.getCourse())
 						.room(assignment.getRoom())
 						.timeSlot(assignment.getTimeSlot())
 						.semester(semester)
-						.build();
-				scheduleRepository.save(schedule);
-				count++;
-			}
-		}
+						.build())
+				.toList();
+		List<Schedule> savedSchedules = scheduleRepository.saveAll(schedulesToSave);
 
-		log.info("Saved {} schedules for semester {}", count, semester);
-		return count;
+		List<Student> students = studentRepository.findAll();
+		List<Enrollment> savedEnrollments = enrollmentRepository.saveAll(
+				enrollmentAssignmentService.assignEnrollments(students, savedSchedules, semester));
+
+		log.info("Saved {} schedules and {} enrollments for semester {}",
+				savedSchedules.size(), savedEnrollments.size(), semester);
+		return savedSchedules.size();
 	}
 
 	/**
