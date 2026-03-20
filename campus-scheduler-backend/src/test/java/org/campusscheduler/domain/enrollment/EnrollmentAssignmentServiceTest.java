@@ -148,6 +148,29 @@ class EnrollmentAssignmentServiceTest {
     }
 
     @Test
+    @DisplayName("assigns students across multiple sections of the same course before waitlisting")
+    void assignsStudentsAcrossMultipleSectionsOfTheSameCourseBeforeWaitlisting() {
+        Course cs410 = course(10L, "CS410", 3);
+        Schedule firstSection = schedule(100L, cs410, 1, SPRING_2026, DayOfWeek.MONDAY, 9, 0, 10, 0);
+        Schedule secondSection = schedule(101L, cs410, 1, SPRING_2026, DayOfWeek.TUESDAY, 9, 0, 10, 0);
+
+        List<Enrollment> enrollments = assignmentService.assignEnrollments(
+                List.of(
+                        student(1L, "S00000001", 1, List.of(cs410.getId())),
+                        student(2L, "S00000002", 1, List.of(cs410.getId())),
+                        student(3L, "S00000003", 1, List.of(cs410.getId()))),
+                List.of(firstSection, secondSection),
+                SPRING_2026);
+
+        assertThat(enrollments)
+                .extracting(enrollment -> enrollment.getSchedule().getId(), Enrollment::getStatus)
+                .containsExactly(
+                        tuple(100L, EnrollmentStatus.ENROLLED),
+                        tuple(101L, EnrollmentStatus.ENROLLED),
+                        tuple(100L, EnrollmentStatus.WAITLISTED));
+    }
+
+    @Test
     @DisplayName("skips overlapping schedules and keeps later non-conflicting preferences")
     void skipsOverlappingSchedulesAndKeepsLaterNonConflictingPreferences() {
         Course cs410 = course(10L, "CS410");
