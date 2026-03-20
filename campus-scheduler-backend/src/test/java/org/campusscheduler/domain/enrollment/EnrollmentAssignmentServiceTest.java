@@ -4,10 +4,13 @@ import org.campusscheduler.domain.course.Course;
 import org.campusscheduler.domain.room.Room;
 import org.campusscheduler.domain.schedule.Schedule;
 import org.campusscheduler.domain.student.Student;
+import org.campusscheduler.domain.timeslot.TimeSlot;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.DayOfWeek;
+import java.time.LocalTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -144,6 +147,60 @@ class EnrollmentAssignmentServiceTest {
                 .containsExactly("CS410", "CS410", "CS410", "MATH220");
     }
 
+    @Test
+    @DisplayName("skips overlapping schedules and keeps later non-conflicting preferences")
+    void skipsOverlappingSchedulesAndKeepsLaterNonConflictingPreferences() {
+        Course cs410 = course(10L, "CS410");
+        Course math220 = course(11L, "MATH220");
+        Course hist101 = course(12L, "HIST101");
+
+        Student student = student(1L, "S00000001", 2, List.of(cs410.getId(), math220.getId(), hist101.getId()));
+
+        List<Enrollment> enrollments = assignmentService.assignEnrollments(
+                List.of(student),
+                List.of(
+                        schedule(100L, cs410, 30, SPRING_2026, DayOfWeek.MONDAY, 9, 0, 10, 0),
+                        schedule(101L, math220, 30, SPRING_2026, DayOfWeek.MONDAY, 9, 30, 10, 30),
+                        schedule(102L, hist101, 30, SPRING_2026, DayOfWeek.TUESDAY, 11, 0, 12, 0)),
+                SPRING_2026);
+
+        assertThat(enrollments).hasSize(2);
+        assertThat(enrollments)
+                .extracting(enrollment -> enrollment.getCourse().getCode())
+                .containsExactly("CS410", "HIST101");
+    }
+
+    @Test
+    @DisplayName("enforces the three classes per day cap and continues to other days")
+    void enforcesTheThreeClassesPerDayCapAndContinuesToOtherDays() {
+        Course cs101 = course(10L, "CS101");
+        Course cs102 = course(11L, "CS102");
+        Course cs103 = course(12L, "CS103");
+        Course cs104 = course(13L, "CS104");
+        Course cs105 = course(14L, "CS105");
+
+        Student student = student(
+                1L,
+                "S00000001",
+                4,
+                List.of(cs101.getId(), cs102.getId(), cs103.getId(), cs104.getId(), cs105.getId()));
+
+        List<Enrollment> enrollments = assignmentService.assignEnrollments(
+                List.of(student),
+                List.of(
+                        schedule(100L, cs101, 30, SPRING_2026, DayOfWeek.MONDAY, 8, 0, 9, 0),
+                        schedule(101L, cs102, 30, SPRING_2026, DayOfWeek.MONDAY, 9, 15, 10, 15),
+                        schedule(102L, cs103, 30, SPRING_2026, DayOfWeek.MONDAY, 10, 30, 11, 30),
+                        schedule(103L, cs104, 30, SPRING_2026, DayOfWeek.MONDAY, 12, 0, 13, 0),
+                        schedule(104L, cs105, 30, SPRING_2026, DayOfWeek.TUESDAY, 9, 0, 10, 0)),
+                SPRING_2026);
+
+        assertThat(enrollments).hasSize(4);
+        assertThat(enrollments)
+                .extracting(enrollment -> enrollment.getCourse().getCode())
+                .containsExactly("CS101", "CS102", "CS103", "CS105");
+    }
+
     private Course course(Long id, String code) {
         return course(id, code, 40);
     }
@@ -160,6 +217,19 @@ class EnrollmentAssignmentServiceTest {
     }
 
     private Schedule schedule(Long id, Course course, int roomCapacity, String semester) {
+        return schedule(id, course, roomCapacity, semester, null, 0, 0, 0, 0);
+    }
+
+    private Schedule schedule(
+            Long id,
+            Course course,
+            int roomCapacity,
+            String semester,
+            DayOfWeek dayOfWeek,
+            int startHour,
+            int startMinute,
+            int endHour,
+            int endMinute) {
         return Schedule.builder()
                 .id(id)
                 .course(course)
@@ -169,6 +239,15 @@ class EnrollmentAssignmentServiceTest {
                         .capacity(roomCapacity)
                         .type(Room.RoomType.CLASSROOM)
                         .build())
+                .timeSlot(dayOfWeek == null
+                        ? null
+                        : TimeSlot.builder()
+                                .id(id + 2000)
+                                .dayOfWeek(dayOfWeek)
+                                .startTime(LocalTime.of(startHour, startMinute))
+                                .endTime(LocalTime.of(endHour, endMinute))
+                                .label(dayOfWeek + " " + startHour + ":" + String.format("%02d", startMinute))
+                                .build())
                 .semester(semester)
                 .build();
     }

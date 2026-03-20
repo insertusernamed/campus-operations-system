@@ -2,11 +2,14 @@ package org.campusscheduler.domain.enrollment;
 
 import org.campusscheduler.domain.schedule.Schedule;
 import org.campusscheduler.domain.student.Student;
+import org.campusscheduler.domain.timeslot.TimeSlot;
 import org.springframework.stereotype.Service;
 
+import java.time.DayOfWeek;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -20,6 +23,8 @@ import java.util.Set;
  */
 @Service
 public class EnrollmentAssignmentService {
+
+    static final int MAX_CLASSES_PER_DAY = 3;
 
     /**
      * Build unsaved enrollment rows for the provided semester by walking each
@@ -86,6 +91,8 @@ public class EnrollmentAssignmentService {
 
         List<Enrollment> assignments = new ArrayList<>();
         Set<Long> assignedCourseIds = new LinkedHashSet<>();
+        List<Schedule> enrolledSchedules = new ArrayList<>();
+        Map<DayOfWeek, Integer> dailyEnrolledCounts = new EnumMap<>(DayOfWeek.class);
         int enrolledCount = 0;
 
         for (Long preferredCourseId : preferredCourseIds) {
@@ -99,6 +106,10 @@ public class EnrollmentAssignmentService {
             }
 
             Schedule schedule = offering.schedule();
+            if (!canEnroll(schedule, enrolledSchedules, dailyEnrolledCounts)) {
+                continue;
+            }
+
             EnrollmentStatus status = determineStatus(preferredCourseId, offering.seatLimit(), enrolledCountsByCourseId);
 
             assignments.add(Enrollment.builder()
@@ -111,6 +122,8 @@ public class EnrollmentAssignmentService {
 
             if (status == EnrollmentStatus.ENROLLED) {
                 enrolledCount++;
+                enrolledSchedules.add(schedule);
+                incrementDailyLoad(schedule, dailyEnrolledCounts);
             }
 
             if (enrolledCount >= targetCourseLoad) {
@@ -147,6 +160,34 @@ public class EnrollmentAssignmentService {
             return courseCapacity;
         }
         return Math.min(courseCapacity, roomCapacity);
+    }
+
+    private boolean canEnroll(
+            Schedule schedule,
+            List<Schedule> enrolledSchedules,
+            Map<DayOfWeek, Integer> dailyEnrolledCounts) {
+        TimeSlot candidateTimeSlot = schedule.getTimeSlot();
+        if (candidateTimeSlot == null || candidateTimeSlot.getDayOfWeek() == null) {
+            return true;
+        }
+
+        if (dailyEnrolledCounts.getOrDefault(candidateTimeSlot.getDayOfWeek(), 0) >= MAX_CLASSES_PER_DAY) {
+            return false;
+        }
+
+        return enrolledSchedules.stream()
+                .map(Schedule::getTimeSlot)
+                .filter(Objects::nonNull)
+                .noneMatch(existing -> existing.overlapsWith(candidateTimeSlot));
+    }
+
+    private void incrementDailyLoad(Schedule schedule, Map<DayOfWeek, Integer> dailyEnrolledCounts) {
+        TimeSlot timeSlot = schedule.getTimeSlot();
+        if (timeSlot == null || timeSlot.getDayOfWeek() == null) {
+            return;
+        }
+
+        dailyEnrolledCounts.merge(timeSlot.getDayOfWeek(), 1, Integer::sum);
     }
 
     private Comparator<Student> studentComparator() {
