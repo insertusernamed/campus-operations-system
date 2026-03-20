@@ -1,6 +1,7 @@
 package org.campusscheduler.domain.enrollment;
 
 import org.campusscheduler.domain.course.Course;
+import org.campusscheduler.domain.room.Room;
 import org.campusscheduler.domain.schedule.Schedule;
 import org.campusscheduler.domain.student.Student;
 import org.junit.jupiter.api.BeforeEach;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 class EnrollmentAssignmentServiceTest {
 
@@ -34,9 +36,9 @@ class EnrollmentAssignmentServiceTest {
         List<Enrollment> enrollments = assignmentService.assignEnrollments(
                 List.of(student),
                 List.of(
-                        schedule(100L, cs410, SPRING_2026),
-                        schedule(101L, math220, SPRING_2026),
-                        schedule(102L, hist101, SPRING_2026)),
+                        schedule(100L, cs410, 30, SPRING_2026),
+                        schedule(101L, math220, 30, SPRING_2026),
+                        schedule(102L, hist101, 30, SPRING_2026)),
                 SPRING_2026);
 
         assertThat(enrollments).hasSize(2);
@@ -59,8 +61,8 @@ class EnrollmentAssignmentServiceTest {
         List<Enrollment> enrollments = assignmentService.assignEnrollments(
                 List.of(student),
                 List.of(
-                        schedule(100L, cs410, "Fall 2025"),
-                        schedule(101L, math220, SPRING_2026)),
+                        schedule(100L, cs410, 30, "Fall 2025"),
+                        schedule(101L, math220, 30, SPRING_2026)),
                 SPRING_2026);
 
         assertThat(enrollments).hasSize(1);
@@ -81,8 +83,8 @@ class EnrollmentAssignmentServiceTest {
         List<Enrollment> enrollments = assignmentService.assignEnrollments(
                 List.of(laterStudent, earlierStudent),
                 List.of(
-                        schedule(100L, cs410, SPRING_2026),
-                        schedule(101L, math220, SPRING_2026)),
+                        schedule(100L, cs410, 30, SPRING_2026),
+                        schedule(101L, math220, 30, SPRING_2026)),
                 SPRING_2026);
 
         assertThat(enrollments).hasSize(2);
@@ -94,21 +96,79 @@ class EnrollmentAssignmentServiceTest {
                 .containsExactly("MATH220", "CS410");
     }
 
+    @Test
+    @DisplayName("fills all seats exactly when demand matches computed seat limit")
+    void fillsAllSeatsExactlyWhenDemandMatchesComputedSeatLimit() {
+        Course cs410 = course(10L, "CS410", 3);
+        Schedule cs410Schedule = schedule(100L, cs410, 2, SPRING_2026);
+
+        List<Enrollment> enrollments = assignmentService.assignEnrollments(
+                List.of(
+                        student(1L, "S00000001", 1, List.of(cs410.getId())),
+                        student(2L, "S00000002", 1, List.of(cs410.getId()))),
+                List.of(cs410Schedule),
+                SPRING_2026);
+
+        assertThat(enrollments).hasSize(2);
+        assertThat(enrollments)
+                .extracting(Enrollment::getStatus)
+                .containsExactly(EnrollmentStatus.ENROLLED, EnrollmentStatus.ENROLLED);
+    }
+
+    @Test
+    @DisplayName("places overflow onto waitlist using the lower of room and course capacity")
+    void placesOverflowOntoWaitlistUsingTheLowerOfRoomAndCourseCapacity() {
+        Course cs410 = course(10L, "CS410", 4);
+        Course math220 = course(11L, "MATH220", 4);
+        Schedule cs410Schedule = schedule(100L, cs410, 2, SPRING_2026);
+        Schedule math220Schedule = schedule(101L, math220, 5, SPRING_2026);
+
+        List<Enrollment> enrollments = assignmentService.assignEnrollments(
+                List.of(
+                        student(2L, "S00000002", 1, List.of(cs410.getId())),
+                        student(1L, "S00000001", 1, List.of(cs410.getId())),
+                        student(3L, "S00000003", 2, List.of(cs410.getId(), math220.getId()))),
+                List.of(cs410Schedule, math220Schedule),
+                SPRING_2026);
+
+        assertThat(enrollments).hasSize(4);
+        assertThat(enrollments)
+                .extracting(enrollment -> enrollment.getStudent().getStudentNumber(), Enrollment::getStatus)
+                .containsExactly(
+                        tuple("S00000001", EnrollmentStatus.ENROLLED),
+                        tuple("S00000002", EnrollmentStatus.ENROLLED),
+                        tuple("S00000003", EnrollmentStatus.WAITLISTED),
+                        tuple("S00000003", EnrollmentStatus.ENROLLED));
+        assertThat(enrollments)
+                .extracting(enrollment -> enrollment.getCourse().getCode())
+                .containsExactly("CS410", "CS410", "CS410", "MATH220");
+    }
+
     private Course course(Long id, String code) {
+        return course(id, code, 40);
+    }
+
+    private Course course(Long id, String code, int enrollmentCapacity) {
         return Course.builder()
                 .id(id)
                 .code(code)
                 .name(code + " Name")
                 .credits(3)
-                .enrollmentCapacity(40)
+                .enrollmentCapacity(enrollmentCapacity)
                 .department("Computer Science")
                 .build();
     }
 
-    private Schedule schedule(Long id, Course course, String semester) {
+    private Schedule schedule(Long id, Course course, int roomCapacity, String semester) {
         return Schedule.builder()
                 .id(id)
                 .course(course)
+                .room(Room.builder()
+                        .id(id + 1000)
+                        .roomNumber("R" + id)
+                        .capacity(roomCapacity)
+                        .type(Room.RoomType.CLASSROOM)
+                        .build())
                 .semester(semester)
                 .build();
     }

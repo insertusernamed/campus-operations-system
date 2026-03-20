@@ -38,20 +38,22 @@ public class EnrollmentAssignmentService {
             return List.of();
         }
 
-        Map<Long, Schedule> schedulesByCourseId = indexSchedulesByCourseId(schedules, semester);
-        if (schedulesByCourseId.isEmpty()) {
+        Map<Long, ScheduledOffering> offeringsByCourseId = indexSchedulesByCourseId(schedules, semester);
+        if (offeringsByCourseId.isEmpty()) {
             return List.of();
         }
+
+        Map<Long, Integer> enrolledCountsByCourseId = new LinkedHashMap<>();
 
         return students.stream()
                 .filter(Objects::nonNull)
                 .sorted(studentComparator())
-                .map(student -> assignStudent(student, schedulesByCourseId, semester))
+                .map(student -> assignStudent(student, offeringsByCourseId, enrolledCountsByCourseId, semester))
                 .flatMap(List::stream)
                 .toList();
     }
 
-    private Map<Long, Schedule> indexSchedulesByCourseId(Collection<Schedule> schedules, String semester) {
+    private Map<Long, ScheduledOffering> indexSchedulesByCourseId(Collection<Schedule> schedules, String semester) {
         return schedules.stream()
                 .filter(Objects::nonNull)
                 .filter(schedule -> semester.equals(schedule.getSemester()))
@@ -59,11 +61,19 @@ public class EnrollmentAssignmentService {
                 .sorted(Comparator
                         .comparing((Schedule schedule) -> schedule.getCourse().getId())
                         .thenComparing(schedule -> schedule.getId() == null ? Long.MAX_VALUE : schedule.getId()))
-                .collect(LinkedHashMap::new, (indexed, schedule) -> indexed.putIfAbsent(schedule.getCourse().getId(), schedule),
+                .collect(
+                        LinkedHashMap::new,
+                        (indexed, schedule) -> indexed.putIfAbsent(
+                                schedule.getCourse().getId(),
+                                new ScheduledOffering(schedule, resolveSeatLimit(schedule))),
                         LinkedHashMap::putAll);
     }
 
-    private List<Enrollment> assignStudent(Student student, Map<Long, Schedule> schedulesByCourseId, String semester) {
+    private List<Enrollment> assignStudent(
+            Student student,
+            Map<Long, ScheduledOffering> offeringsByCourseId,
+            Map<Long, Integer> enrolledCountsByCourseId,
+            String semester) {
         List<Long> preferredCourseIds = student.getPreferredCourseIds();
         if (preferredCourseIds == null || preferredCourseIds.isEmpty()) {
             return List.of();
@@ -76,31 +86,67 @@ public class EnrollmentAssignmentService {
 
         List<Enrollment> assignments = new ArrayList<>();
         Set<Long> assignedCourseIds = new LinkedHashSet<>();
+        int enrolledCount = 0;
 
         for (Long preferredCourseId : preferredCourseIds) {
             if (preferredCourseId == null || !assignedCourseIds.add(preferredCourseId)) {
                 continue;
             }
 
-            Schedule schedule = schedulesByCourseId.get(preferredCourseId);
-            if (schedule == null) {
+            ScheduledOffering offering = offeringsByCourseId.get(preferredCourseId);
+            if (offering == null) {
                 continue;
             }
+
+            Schedule schedule = offering.schedule();
+            EnrollmentStatus status = determineStatus(preferredCourseId, offering.seatLimit(), enrolledCountsByCourseId);
 
             assignments.add(Enrollment.builder()
                     .student(student)
                     .course(schedule.getCourse())
                     .schedule(schedule)
                     .semester(semester)
-                    .status(EnrollmentStatus.ENROLLED)
+                    .status(status)
                     .build());
 
-            if (assignments.size() >= targetCourseLoad) {
+            if (status == EnrollmentStatus.ENROLLED) {
+                enrolledCount++;
+            }
+
+            if (enrolledCount >= targetCourseLoad) {
                 break;
             }
         }
 
         return assignments;
+    }
+
+    private EnrollmentStatus determineStatus(
+            Long courseId,
+            int seatLimit,
+            Map<Long, Integer> enrolledCountsByCourseId) {
+        int currentCount = enrolledCountsByCourseId.getOrDefault(courseId, 0);
+        if (currentCount < seatLimit) {
+            enrolledCountsByCourseId.put(courseId, currentCount + 1);
+            return EnrollmentStatus.ENROLLED;
+        }
+        return EnrollmentStatus.WAITLISTED;
+    }
+
+    private int resolveSeatLimit(Schedule schedule) {
+        Integer courseCapacity = schedule.getCourse().getEnrollmentCapacity();
+        Integer roomCapacity = schedule.getRoom() != null ? schedule.getRoom().getCapacity() : null;
+
+        if (courseCapacity == null && roomCapacity == null) {
+            return 0;
+        }
+        if (courseCapacity == null) {
+            return roomCapacity;
+        }
+        if (roomCapacity == null) {
+            return courseCapacity;
+        }
+        return Math.min(courseCapacity, roomCapacity);
     }
 
     private Comparator<Student> studentComparator() {
@@ -112,5 +158,8 @@ public class EnrollmentAssignmentService {
 
     private String normalize(String value) {
         return value == null ? "" : value;
+    }
+
+    private record ScheduledOffering(Schedule schedule, int seatLimit) {
     }
 }
