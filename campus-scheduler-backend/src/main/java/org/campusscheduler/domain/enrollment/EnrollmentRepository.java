@@ -65,4 +65,12 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
      * @return list of enrollments
      */
     List<Enrollment> findByStudentIdAndScheduleIdAndSemester(Long studentId, Long scheduleId, String semester);
+
+    /**
+     * Delete all enrollments for a semester.
+     *
+     * @param semester the semester name
+     * @return number of deleted rows
+     */
+    long deleteBySemester(String semester);
 }
