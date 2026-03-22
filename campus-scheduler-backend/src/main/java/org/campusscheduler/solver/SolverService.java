@@ -13,6 +13,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -431,6 +432,7 @@ public class SolverService {
 				.map(Course::getId)
 				.filter(Objects::nonNull)
 				.collect(Collectors.toCollection(LinkedHashSet::new));
+		AtomicLong nextDemandId = new AtomicLong(1L);
 
 		return students.stream()
 				.filter(Objects::nonNull)
@@ -438,11 +440,14 @@ public class SolverService {
 						.comparing((Student student) -> normalize(student.getStudentNumber()))
 						.thenComparing(student -> normalize(student.getEmail()))
 						.thenComparing(student -> student.getId() == null ? Long.MAX_VALUE : student.getId()))
-				.flatMap(student -> toDemandFacts(student, availableCourseIds).stream())
+				.flatMap(student -> toDemandFacts(student, availableCourseIds, nextDemandId).stream())
 				.toList();
 	}
 
-	private List<StudentCourseDemand> toDemandFacts(Student student, Set<Long> availableCourseIds) {
+	private List<StudentCourseDemand> toDemandFacts(
+			Student student,
+			Set<Long> availableCourseIds,
+			AtomicLong nextDemandId) {
 		if (student.getId() == null || student.getPreferredCourseIds() == null || student.getPreferredCourseIds().isEmpty()) {
 			return List.of();
 		}
@@ -463,6 +468,7 @@ public class SolverService {
 
 		return java.util.stream.IntStream.range(0, uniquePreferredCourseIds.size())
 				.mapToObj(index -> new StudentCourseDemand(
+						nextDemandId.getAndIncrement(),
 						student.getId(),
 						uniquePreferredCourseIds.get(index),
 						index,

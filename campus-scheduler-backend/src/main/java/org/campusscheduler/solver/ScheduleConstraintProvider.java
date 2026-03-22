@@ -26,6 +26,8 @@ import ai.timefold.solver.core.api.score.stream.Joiners;
  */
 public class ScheduleConstraintProvider implements ConstraintProvider {
 
+    private static final int MAX_STUDENT_CLASSES_PER_DAY = 3;
+
     @Override
     public Constraint[] defineConstraints(ConstraintFactory factory) {
         return new Constraint[] {
@@ -34,6 +36,8 @@ public class ScheduleConstraintProvider implements ConstraintProvider {
                 roomCapacity(factory),
                 roomAvailability(factory),
                 instructorConflict(factory),
+                studentConflict(factory),
+                studentDailyLoad(factory),
                 // Soft constraints
                 roomTypeMismatch(factory),
                 departmentBuildingAffinity(factory),
@@ -101,6 +105,48 @@ public class ScheduleConstraintProvider implements ConstraintProvider {
                         a1.getTimeSlot() != null && a2.getTimeSlot() != null)
                 .penalize(HardSoftScore.ONE_HARD)
                 .asConstraint("Instructor conflict");
+    }
+
+    /**
+     * Primary student requests must not be forced into overlapping classes.
+     */
+    Constraint studentConflict(ConstraintFactory factory) {
+        return factory.forEachUniquePair(StudentCourseDemand.class,
+                Joiners.equal(StudentCourseDemand::studentId))
+                .filter((leftDemand, rightDemand) -> leftDemand.primaryRequest()
+                        && rightDemand.primaryRequest()
+                        && leftDemand.courseId() != null
+                        && rightDemand.courseId() != null
+                        && !leftDemand.courseId().equals(rightDemand.courseId()))
+                .join(ScheduleAssignment.class,
+                        Joiners.equal((leftDemand, rightDemand) -> leftDemand.courseId(),
+                                ScheduleAssignment::getCourseId))
+                .join(ScheduleAssignment.class,
+                        Joiners.equal((leftDemand, rightDemand, leftAssignment) -> rightDemand.courseId(),
+                                ScheduleAssignment::getCourseId))
+                .filter((leftDemand, rightDemand, leftAssignment, rightAssignment) -> leftAssignment.overlapsWith(rightAssignment))
+                .penalize(HardSoftScore.ONE_HARD)
+                .asConstraint("Student conflict");
+    }
+
+    /**
+     * Primary student requests should not exceed the hard cap of three classes in
+     * one day.
+     */
+    Constraint studentDailyLoad(ConstraintFactory factory) {
+        return factory.forEach(StudentCourseDemand.class)
+                .filter(StudentCourseDemand::primaryRequest)
+                .join(ScheduleAssignment.class,
+                        Joiners.equal(StudentCourseDemand::courseId, ScheduleAssignment::getCourseId))
+                .filter((demand, assignment) -> assignment.getTimeSlot() != null
+                        && assignment.getTimeSlot().getDayOfWeek() != null)
+                .groupBy(
+                        (demand, assignment) -> new StudentDayBucket(demand.studentId(),
+                                assignment.getTimeSlot().getDayOfWeek()),
+                        ConstraintCollectors.countBi())
+                .filter((bucket, count) -> count > MAX_STUDENT_CLASSES_PER_DAY)
+                .penalize(HardSoftScore.ONE_HARD, (bucket, count) -> count - MAX_STUDENT_CLASSES_PER_DAY)
+                .asConstraint("Student daily load");
     }
 
     /**
@@ -247,5 +293,8 @@ public class ScheduleConstraintProvider implements ConstraintProvider {
 
         // No mismatch for other cases
         return false;
+    }
+
+    private record StudentDayBucket(Long studentId, DayOfWeek dayOfWeek) {
     }
 }
