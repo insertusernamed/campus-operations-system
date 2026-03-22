@@ -90,21 +90,6 @@ public class ScheduleAssignment {
         return course != null ? course.getId() : null;
     }
 
-    public int getSeatLimit() {
-        Integer courseCapacity = course != null ? course.getEnrollmentCapacity() : null;
-        Integer roomCapacity = room != null ? room.getCapacity() : null;
-        if (courseCapacity == null && roomCapacity == null) {
-            return 0;
-        }
-        if (courseCapacity == null) {
-            return roomCapacity;
-        }
-        if (roomCapacity == null) {
-            return courseCapacity;
-        }
-        return Math.min(courseCapacity, roomCapacity);
-    }
-
     public boolean overlapsWith(ScheduleAssignment other) {
         return other != null
                 && timeSlot != null
