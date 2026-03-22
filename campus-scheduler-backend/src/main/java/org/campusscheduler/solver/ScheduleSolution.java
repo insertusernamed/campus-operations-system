@@ -45,6 +45,18 @@ public class ScheduleSolution {
     private List<TimeSlot> timeSlots;
 
     /**
+     * Demand facts describing students' ranked course requests.
+     */
+    @ProblemFactCollectionProperty
+    private List<StudentCourseDemand> studentCourseDemands;
+
+    /**
+     * Aggregated demand facts by course.
+     */
+    @ProblemFactCollectionProperty
+    private List<CourseDemandSummary> courseDemandSummaries;
+
+    /**
      * The course assignments to be optimized.
      */
     @PlanningEntityCollectionProperty
