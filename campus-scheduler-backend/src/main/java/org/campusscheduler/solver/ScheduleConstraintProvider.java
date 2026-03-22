@@ -1,5 +1,6 @@
 package org.campusscheduler.solver;
 
+import java.time.Duration;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
 
@@ -39,6 +40,10 @@ public class ScheduleConstraintProvider implements ConstraintProvider {
                 studentConflict(factory),
                 studentDailyLoad(factory),
                 // Soft constraints
+                studentScheduleGaps(factory),
+                studentDaySpread(factory),
+                courseWaitlistPressure(factory),
+                highDemandSeatPlacement(factory),
                 roomTypeMismatch(factory),
                 departmentBuildingAffinity(factory),
                 roomOverutilization(factory),
@@ -147,6 +152,89 @@ public class ScheduleConstraintProvider implements ConstraintProvider {
                 .filter((bucket, count) -> count > MAX_STUDENT_CLASSES_PER_DAY)
                 .penalize(HardSoftScore.ONE_HARD, (bucket, count) -> count - MAX_STUDENT_CLASSES_PER_DAY)
                 .asConstraint("Student daily load");
+    }
+
+    /**
+     * Prefer schedules that minimize idle time between a student's likely classes on
+     * the same day.
+     */
+    Constraint studentScheduleGaps(ConstraintFactory factory) {
+        return factory.forEach(StudentCourseDemand.class)
+                .filter(StudentCourseDemand::primaryRequest)
+                .join(ScheduleAssignment.class,
+                        Joiners.equal(StudentCourseDemand::courseId, ScheduleAssignment::getCourseId))
+                .filter((demand, assignment) -> assignment.getTimeSlot() != null
+                        && assignment.getTimeSlot().getDayOfWeek() != null
+                        && assignment.getTimeSlot().getStartTime() != null
+                        && assignment.getTimeSlot().getEndTime() != null)
+                .groupBy(
+                        (demand, assignment) -> new StudentDayBucket(demand.studentId(),
+                                assignment.getTimeSlot().getDayOfWeek()),
+                        ConstraintCollectors.min(
+                                (StudentCourseDemand demand,
+                                        ScheduleAssignment assignment) -> assignment.getTimeSlot().getStartTime()),
+                        ConstraintCollectors.max(
+                                (StudentCourseDemand demand,
+                                        ScheduleAssignment assignment) -> assignment.getTimeSlot().getEndTime()),
+                        ConstraintCollectors.sumLong(
+                                (StudentCourseDemand demand,
+                                        ScheduleAssignment assignment) -> assignment.getTimeSlot().getDurationMinutes()))
+                .filter((bucket, earliestStart, latestEnd, scheduledMinutes) -> earliestStart != null
+                        && latestEnd != null
+                        && gapPenalty(earliestStart, latestEnd, scheduledMinutes) > 0)
+                .penalize(HardSoftScore.ONE_SOFT,
+                        (bucket, earliestStart, latestEnd, scheduledMinutes) -> gapPenalty(
+                                earliestStart,
+                                latestEnd,
+                                scheduledMinutes))
+                .asConstraint("Student schedule gaps");
+    }
+
+    /**
+     * Prefer to spread a student's likely classes across more days when possible.
+     */
+    Constraint studentDaySpread(ConstraintFactory factory) {
+        return factory.forEach(StudentCourseDemand.class)
+                .filter(StudentCourseDemand::primaryRequest)
+                .join(ScheduleAssignment.class,
+                        Joiners.equal(StudentCourseDemand::courseId, ScheduleAssignment::getCourseId))
+                .filter((demand, assignment) -> assignment.getTimeSlot() != null
+                        && assignment.getTimeSlot().getDayOfWeek() != null)
+                .groupBy(
+                        (demand, assignment) -> new StudentDayBucket(demand.studentId(),
+                                assignment.getTimeSlot().getDayOfWeek()),
+                        ConstraintCollectors.countBi())
+                .filter((bucket, count) -> count > 1)
+                .penalize(HardSoftScore.ONE_SOFT, (bucket, count) -> count - 1)
+                .asConstraint("Student day spread");
+    }
+
+    /**
+     * Reduce estimated waitlist pressure by aligning seat limits with likely primary
+     * demand.
+     */
+    Constraint courseWaitlistPressure(ConstraintFactory factory) {
+        return factory.forEach(CourseDemandSummary.class)
+                .join(ScheduleAssignment.class,
+                        Joiners.equal(CourseDemandSummary::courseId, ScheduleAssignment::getCourseId))
+                .filter((summary, assignment) -> summary.primaryRequestCount() > assignment.getSeatLimit())
+                .penalize(HardSoftScore.ONE_SOFT,
+                        (summary, assignment) -> summary.primaryRequestCount() - assignment.getSeatLimit())
+                .asConstraint("Course waitlist pressure");
+    }
+
+    /**
+     * Push the highest-priority demand into the largest available feasible rooms.
+     */
+    Constraint highDemandSeatPlacement(ConstraintFactory factory) {
+        return factory.forEach(CourseDemandSummary.class)
+                .filter(summary -> summary.highPriorityRequestCount() > 0)
+                .join(ScheduleAssignment.class,
+                        Joiners.equal(CourseDemandSummary::courseId, ScheduleAssignment::getCourseId))
+                .filter((summary, assignment) -> summary.highPriorityRequestCount() > assignment.getSeatLimit())
+                .penalize(HardSoftScore.ofSoft(2),
+                        (summary, assignment) -> summary.highPriorityRequestCount() - assignment.getSeatLimit())
+                .asConstraint("High-demand seat placement");
     }
 
     /**
@@ -270,6 +358,15 @@ public class ScheduleConstraintProvider implements ConstraintProvider {
             return 58;
         }
         return 46;
+    }
+
+    private int gapPenalty(LocalTime earliestStart, LocalTime latestEnd, long scheduledMinutes) {
+        long spanMinutes = Duration.between(earliestStart, latestEnd).toMinutes();
+        long gapMinutes = Math.max(0L, spanMinutes - scheduledMinutes);
+        if (gapMinutes == 0L) {
+            return 0;
+        }
+        return (int) ((gapMinutes + 29L) / 30L);
     }
 
     /**
