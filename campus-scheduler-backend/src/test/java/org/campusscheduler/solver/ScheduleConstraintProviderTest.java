@@ -201,6 +201,139 @@ class ScheduleConstraintProviderTest {
     }
 
     @Nested
+    @DisplayName("Student Conflict Constraint")
+    class StudentConflict {
+
+        @Test
+        @DisplayName("should penalize overlapping primary requests for the same student")
+        void shouldPenalizeOverlappingPrimaryRequests() {
+            TimeSlot overlappingSlot = TimeSlot.builder()
+                    .id(3L)
+                    .dayOfWeek(DayOfWeek.MONDAY)
+                    .startTime(LocalTime.of(9, 30))
+                    .endTime(LocalTime.of(10, 30))
+                    .label("Mon 9:30-10:30")
+                    .build();
+
+            ScheduleAssignment firstAssignment = ScheduleAssignment.builder()
+                    .id(1L).course(course1).room(room1).timeSlot(slot1).semester("Fall 2026").build();
+            ScheduleAssignment secondAssignment = ScheduleAssignment.builder()
+                    .id(2L).course(course2).room(room2).timeSlot(overlappingSlot).semester("Fall 2026").build();
+
+            constraintVerifier.verifyThat(ScheduleConstraintProvider::studentConflict)
+                    .given(
+                            demand(1L, 10L, course1.getId(), 0, 2, true, true),
+                            demand(2L, 10L, course2.getId(), 1, 2, true, true),
+                            firstAssignment,
+                            secondAssignment)
+                    .penalizesBy(1);
+        }
+
+        @Test
+        @DisplayName("should ignore overlap when one request is outside primary load")
+        void shouldIgnoreNonPrimaryOverlap() {
+            TimeSlot overlappingSlot = TimeSlot.builder()
+                    .id(4L)
+                    .dayOfWeek(DayOfWeek.MONDAY)
+                    .startTime(LocalTime.of(9, 30))
+                    .endTime(LocalTime.of(10, 30))
+                    .label("Mon 9:30-10:30")
+                    .build();
+
+            ScheduleAssignment firstAssignment = ScheduleAssignment.builder()
+                    .id(1L).course(course1).room(room1).timeSlot(slot1).semester("Fall 2026").build();
+            ScheduleAssignment secondAssignment = ScheduleAssignment.builder()
+                    .id(2L).course(course2).room(room2).timeSlot(overlappingSlot).semester("Fall 2026").build();
+
+            constraintVerifier.verifyThat(ScheduleConstraintProvider::studentConflict)
+                    .given(
+                            demand(1L, 10L, course1.getId(), 0, 1, true, true),
+                            demand(2L, 10L, course2.getId(), 1, 1, false, false),
+                            firstAssignment,
+                            secondAssignment)
+                    .penalizesBy(0);
+        }
+    }
+
+    @Nested
+    @DisplayName("Student Daily Load Constraint")
+    class StudentDailyLoad {
+
+        @Test
+        @DisplayName("should penalize a fourth primary class on the same day")
+        void shouldPenalizeFourthClassInDay() {
+            Course course3 = Course.builder().id(3L).code("MATH101").name("Calculus").enrollmentCapacity(35)
+                    .instructor(instructor2).department("Math").build();
+            Course course4 = Course.builder().id(4L).code("HIST210").name("History").enrollmentCapacity(35)
+                    .instructor(instructor2).department("History").build();
+
+            TimeSlot slot3 = TimeSlot.builder()
+                    .id(5L).dayOfWeek(DayOfWeek.MONDAY).startTime(LocalTime.of(11, 0))
+                    .endTime(LocalTime.of(12, 0)).label("Mon 11-12").build();
+            TimeSlot slot4 = TimeSlot.builder()
+                    .id(6L).dayOfWeek(DayOfWeek.MONDAY).startTime(LocalTime.of(13, 0))
+                    .endTime(LocalTime.of(14, 0)).label("Mon 1-2").build();
+
+            constraintVerifier.verifyThat(ScheduleConstraintProvider::studentDailyLoad)
+                    .given(
+                            demand(1L, 20L, course1.getId(), 0, 4, true, true),
+                            demand(2L, 20L, course2.getId(), 1, 4, true, true),
+                            demand(3L, 20L, course3.getId(), 2, 4, true, false),
+                            demand(4L, 20L, course4.getId(), 3, 4, true, false),
+                            ScheduleAssignment.builder()
+                                    .id(1L).course(course1).room(room1).timeSlot(slot1).semester("Fall 2026").build(),
+                            ScheduleAssignment.builder()
+                                    .id(2L).course(course2).room(room2).timeSlot(slot2).semester("Fall 2026").build(),
+                            ScheduleAssignment.builder()
+                                    .id(3L).course(course3).room(room1).timeSlot(slot3).semester("Fall 2026").build(),
+                            ScheduleAssignment.builder()
+                                    .id(4L).course(course4).room(room2).timeSlot(slot4).semester("Fall 2026").build())
+                    .penalizesBy(1);
+        }
+    }
+
+    @Nested
+    @DisplayName("Student Soft Constraints")
+    class StudentSoftConstraints {
+
+        @Test
+        @DisplayName("should penalize idle gaps between primary classes")
+        void shouldPenalizeStudentGaps() {
+            TimeSlot lateSlot = TimeSlot.builder()
+                    .id(7L)
+                    .dayOfWeek(DayOfWeek.MONDAY)
+                    .startTime(LocalTime.of(12, 0))
+                    .endTime(LocalTime.of(13, 0))
+                    .label("Mon 12-1")
+                    .build();
+
+            constraintVerifier.verifyThat(ScheduleConstraintProvider::studentScheduleGaps)
+                    .given(
+                            demand(1L, 30L, course1.getId(), 0, 2, true, true),
+                            demand(2L, 30L, course2.getId(), 1, 2, true, true),
+                            ScheduleAssignment.builder()
+                                    .id(1L).course(course1).room(room1).timeSlot(slot1).semester("Fall 2026").build(),
+                            ScheduleAssignment.builder()
+                                    .id(2L).course(course2).room(room2).timeSlot(lateSlot).semester("Fall 2026").build())
+                    .penalizesBy(4);
+        }
+
+        @Test
+        @DisplayName("should penalize multiple primary classes landing on the same day")
+        void shouldPenalizeSameDayClustering() {
+            constraintVerifier.verifyThat(ScheduleConstraintProvider::studentDaySpread)
+                    .given(
+                            demand(1L, 31L, course1.getId(), 0, 2, true, true),
+                            demand(2L, 31L, course2.getId(), 1, 2, true, true),
+                            ScheduleAssignment.builder()
+                                    .id(1L).course(course1).room(room1).timeSlot(slot1).semester("Fall 2026").build(),
+                            ScheduleAssignment.builder()
+                                    .id(2L).course(course2).room(room2).timeSlot(slot2).semester("Fall 2026").build())
+                    .penalizesBy(1);
+        }
+    }
+
+    @Nested
     @DisplayName("Room Type Mismatch Constraint")
     class RoomTypeMismatch {
 
@@ -458,4 +591,23 @@ class ScheduleConstraintProviderTest {
                     .penalizesBy(0);
         }
     }
+
+    private StudentCourseDemand demand(
+            Long id,
+            Long studentId,
+            Long courseId,
+            int preferenceRank,
+            int targetCourseLoad,
+            boolean primaryRequest,
+            boolean highPriorityRequest) {
+        return new StudentCourseDemand(
+                id,
+                studentId,
+                courseId,
+                preferenceRank,
+                targetCourseLoad,
+                primaryRequest,
+                highPriorityRequest);
+    }
+
 }

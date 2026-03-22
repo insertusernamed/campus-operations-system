@@ -4,12 +4,16 @@ import java.time.Duration;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -379,6 +383,7 @@ public class SolverService {
 		List<Course> courses = courseRepository.findAll();
 		List<Room> rooms = roomRepository.findAll();
 		List<TimeSlot> timeSlots = timeSlotRepository.findAll();
+		List<Student> students = studentRepository.findAll();
 
 		// Force initialization of lazy associations within transaction
 		courses.forEach(course -> {
@@ -391,9 +396,13 @@ public class SolverService {
 				room.getBuilding().getId();
 			}
 		});
+		students.forEach(student -> student.getPreferredCourseIds().size());
 
 		log.info("Building problem: {} courses, {} rooms, {} time slots",
 				courses.size(), rooms.size(), timeSlots.size());
+
+		List<StudentCourseDemand> studentCourseDemands = buildStudentCourseDemands(students, courses);
+		List<CourseDemandSummary> courseDemandSummaries = buildCourseDemandSummaries(studentCourseDemands);
 
 		List<ScheduleAssignment> assignments = courses.stream()
 				.map(course -> {
@@ -411,9 +420,97 @@ public class SolverService {
 		return ScheduleSolution.builder()
 				.rooms(rooms)
 				.timeSlots(timeSlots)
+				.studentCourseDemands(studentCourseDemands)
+				.courseDemandSummaries(courseDemandSummaries)
 				.assignments(assignments)
 				.semester(semester)
 				.build();
+	}
+
+	private List<StudentCourseDemand> buildStudentCourseDemands(List<Student> students, List<Course> courses) {
+		Set<Long> availableCourseIds = courses.stream()
+				.map(Course::getId)
+				.filter(Objects::nonNull)
+				.collect(Collectors.toCollection(LinkedHashSet::new));
+		AtomicLong nextDemandId = new AtomicLong(1L);
+
+		return students.stream()
+				.filter(Objects::nonNull)
+				.sorted(Comparator
+						.comparing((Student student) -> normalize(student.getStudentNumber()))
+						.thenComparing(student -> normalize(student.getEmail()))
+						.thenComparing(student -> student.getId() == null ? Long.MAX_VALUE : student.getId()))
+				.flatMap(student -> toDemandFacts(student, availableCourseIds, nextDemandId).stream())
+				.toList();
+	}
+
+	private List<StudentCourseDemand> toDemandFacts(
+			Student student,
+			Set<Long> availableCourseIds,
+			AtomicLong nextDemandId) {
+		if (student.getId() == null || student.getPreferredCourseIds() == null || student.getPreferredCourseIds().isEmpty()) {
+			return List.of();
+		}
+
+		List<Long> uniquePreferredCourseIds = student.getPreferredCourseIds().stream()
+				.filter(Objects::nonNull)
+				.filter(availableCourseIds::contains)
+				.distinct()
+				.toList();
+		if (uniquePreferredCourseIds.isEmpty()) {
+			return List.of();
+		}
+
+		int targetCourseLoad = Math.max(1,
+				Math.min(student.getTargetCourseLoad() == null ? uniquePreferredCourseIds.size() : student.getTargetCourseLoad(),
+						uniquePreferredCourseIds.size()));
+		int highPriorityCutoff = Math.min(targetCourseLoad, 2);
+
+		return java.util.stream.IntStream.range(0, uniquePreferredCourseIds.size())
+				.mapToObj(index -> new StudentCourseDemand(
+						nextDemandId.getAndIncrement(),
+						student.getId(),
+						uniquePreferredCourseIds.get(index),
+						index,
+						targetCourseLoad,
+						index < targetCourseLoad,
+						index < highPriorityCutoff))
+				.toList();
+	}
+
+	private List<CourseDemandSummary> buildCourseDemandSummaries(List<StudentCourseDemand> studentCourseDemands) {
+		Map<Long, DemandAccumulator> demandByCourseId = new LinkedHashMap<>();
+
+		for (StudentCourseDemand demand : studentCourseDemands) {
+			DemandAccumulator accumulator = demandByCourseId.computeIfAbsent(
+					demand.courseId(),
+					ignored -> new DemandAccumulator());
+			accumulator.totalRequestCount++;
+			if (demand.primaryRequest()) {
+				accumulator.primaryRequestCount++;
+			}
+			if (demand.highPriorityRequest()) {
+				accumulator.highPriorityRequestCount++;
+			}
+		}
+
+		return demandByCourseId.entrySet().stream()
+				.map(entry -> new CourseDemandSummary(
+						entry.getKey(),
+						entry.getValue().totalRequestCount,
+						entry.getValue().primaryRequestCount,
+						entry.getValue().highPriorityRequestCount))
+				.toList();
+	}
+
+	private String normalize(String value) {
+		return value == null ? "" : value;
+	}
+
+	private static final class DemandAccumulator {
+		private int totalRequestCount;
+		private int primaryRequestCount;
+		private int highPriorityRequestCount;
 	}
 
 	private boolean shouldUseSolutionAnalytics(ScheduleSolution solution, String semester) {
