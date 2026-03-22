@@ -42,8 +42,6 @@ public class ScheduleConstraintProvider implements ConstraintProvider {
                 // Soft constraints
                 studentScheduleGaps(factory),
                 studentDaySpread(factory),
-                courseWaitlistPressure(factory),
-                highDemandSeatPlacement(factory),
                 roomTypeMismatch(factory),
                 departmentBuildingAffinity(factory),
                 roomOverutilization(factory),
@@ -207,34 +205,6 @@ public class ScheduleConstraintProvider implements ConstraintProvider {
                 .filter((bucket, count) -> count > 1)
                 .penalize(HardSoftScore.ONE_SOFT, (bucket, count) -> count - 1)
                 .asConstraint("Student day spread");
-    }
-
-    /**
-     * Reduce estimated waitlist pressure by aligning seat limits with likely primary
-     * demand.
-     */
-    Constraint courseWaitlistPressure(ConstraintFactory factory) {
-        return factory.forEach(CourseDemandSummary.class)
-                .join(ScheduleAssignment.class,
-                        Joiners.equal(CourseDemandSummary::courseId, ScheduleAssignment::getCourseId))
-                .filter((summary, assignment) -> summary.primaryRequestCount() > assignment.getSeatLimit())
-                .penalize(HardSoftScore.ONE_SOFT,
-                        (summary, assignment) -> summary.primaryRequestCount() - assignment.getSeatLimit())
-                .asConstraint("Course waitlist pressure");
-    }
-
-    /**
-     * Push the highest-priority demand into the largest available feasible rooms.
-     */
-    Constraint highDemandSeatPlacement(ConstraintFactory factory) {
-        return factory.forEach(CourseDemandSummary.class)
-                .filter(summary -> summary.highPriorityRequestCount() > 0)
-                .join(ScheduleAssignment.class,
-                        Joiners.equal(CourseDemandSummary::courseId, ScheduleAssignment::getCourseId))
-                .filter((summary, assignment) -> summary.highPriorityRequestCount() > assignment.getSeatLimit())
-                .penalize(HardSoftScore.ofSoft(2),
-                        (summary, assignment) -> summary.highPriorityRequestCount() - assignment.getSeatLimit())
-                .asConstraint("High-demand seat placement");
     }
 
     /**

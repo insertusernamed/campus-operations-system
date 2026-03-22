@@ -331,28 +331,6 @@ class ScheduleConstraintProviderTest {
                                     .id(2L).course(course2).room(room2).timeSlot(slot2).semester("Fall 2026").build())
                     .penalizesBy(1);
         }
-
-        @Test
-        @DisplayName("should penalize estimated waitlist pressure")
-        void shouldPenalizeWaitlistPressure() {
-            ScheduleAssignment assignment = ScheduleAssignment.builder()
-                    .id(1L).course(course1).room(room1).timeSlot(slot1).semester("Fall 2026").build();
-
-            constraintVerifier.verifyThat(ScheduleConstraintProvider::courseWaitlistPressure)
-                    .given(courseDemandSummary(course1.getId(), 40, 35, 20), assignment)
-                    .penalizesBy(5);
-        }
-
-        @Test
-        @DisplayName("should penalize undersized rooms for high-priority demand")
-        void shouldPenalizeHighDemandSeatPlacement() {
-            ScheduleAssignment assignment = ScheduleAssignment.builder()
-                    .id(1L).course(course1).room(room1).timeSlot(slot1).semester("Fall 2026").build();
-
-            constraintVerifier.verifyThat(ScheduleConstraintProvider::highDemandSeatPlacement)
-                    .given(courseDemandSummary(course1.getId(), 40, 35, 34), assignment)
-                    .penalizesBy(4);
-        }
     }
 
     @Nested
@@ -632,11 +610,4 @@ class ScheduleConstraintProviderTest {
                 highPriorityRequest);
     }
 
-    private CourseDemandSummary courseDemandSummary(
-            Long courseId,
-            int totalRequestCount,
-            int primaryRequestCount,
-            int highPriorityRequestCount) {
-        return new CourseDemandSummary(courseId, totalRequestCount, primaryRequestCount, highPriorityRequestCount);
-    }
 }
