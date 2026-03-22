@@ -86,6 +86,32 @@ public class ScheduleAssignment {
         return room != null && timeSlot != null;
     }
 
+    public Long getCourseId() {
+        return course != null ? course.getId() : null;
+    }
+
+    public int getSeatLimit() {
+        Integer courseCapacity = course != null ? course.getEnrollmentCapacity() : null;
+        Integer roomCapacity = room != null ? room.getCapacity() : null;
+        if (courseCapacity == null && roomCapacity == null) {
+            return 0;
+        }
+        if (courseCapacity == null) {
+            return roomCapacity;
+        }
+        if (roomCapacity == null) {
+            return courseCapacity;
+        }
+        return Math.min(courseCapacity, roomCapacity);
+    }
+
+    public boolean overlapsWith(ScheduleAssignment other) {
+        return other != null
+                && timeSlot != null
+                && other.getTimeSlot() != null
+                && timeSlot.overlapsWith(other.getTimeSlot());
+    }
+
     public boolean hasPreferredBuildingCodes() {
         return preferredBuildingCodes != null && !preferredBuildingCodes.isEmpty();
     }
@@ -99,7 +125,7 @@ public class ScheduleAssignment {
 
     @Override
     public String toString() {
-        return course.getCode() + " -> " +
+        return (course != null ? course.getCode() : "?") + " -> " +
                 (room != null ? room.getRoomNumber() : "?") + " @ " +
                 (timeSlot != null ? timeSlot.getLabel() : "?");
     }
