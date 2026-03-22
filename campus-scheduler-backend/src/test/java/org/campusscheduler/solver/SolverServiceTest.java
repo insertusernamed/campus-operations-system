@@ -2,12 +2,14 @@ package org.campusscheduler.solver;
 
 import ai.timefold.solver.core.api.solver.SolverStatus;
 import org.campusscheduler.domain.building.Building;
+import org.campusscheduler.domain.course.Course;
 import org.campusscheduler.domain.course.CourseRepository;
 import org.campusscheduler.domain.enrollment.EnrollmentAssignmentService;
 import org.campusscheduler.domain.enrollment.EnrollmentRepository;
 import org.campusscheduler.domain.room.Room;
 import org.campusscheduler.domain.room.RoomRepository;
 import org.campusscheduler.domain.schedule.ScheduleRepository;
+import org.campusscheduler.domain.student.Student;
 import org.campusscheduler.domain.student.StudentRepository;
 import org.campusscheduler.domain.timeslot.TimeSlot;
 import org.campusscheduler.domain.timeslot.TimeSlotRepository;
@@ -25,6 +27,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class SolverServiceTest {
@@ -99,6 +102,48 @@ class SolverServiceTest {
         assertThat(response.totalScheduledSlots()).isEqualTo(1L);
         assertThat(response.peakHours()).hasSize(1);
         assertThat(response.peakHours().getFirst().bookingCount()).isEqualTo(1L);
+    }
+
+    @Test
+    void buildProblemIncludesDerivedStudentDemandFacts() {
+        Course course = Course.builder()
+                .id(1L)
+                .code("CS101")
+                .name("Intro CS")
+                .credits(3)
+                .enrollmentCapacity(30)
+                .department("Computer Science")
+                .build();
+        Student student = Student.builder()
+                .id(10L)
+                .studentNumber("S00000001")
+                .firstName("Mia")
+                .lastName("Lopez")
+                .email("mia.lopez@student.test.edu")
+                .department("Computer Science")
+                .yearLevel(2)
+                .targetCourseLoad(1)
+                .preferredCourseIds(List.of(course.getId(), 999L, course.getId()))
+                .build();
+
+        when(courseRepository.findAll()).thenReturn(List.of(course));
+        when(roomRepository.findAll()).thenReturn(List.of());
+        when(timeSlotRepository.findAll()).thenReturn(List.of());
+        when(studentRepository.findAll()).thenReturn(List.of(student));
+
+        ScheduleSolution solution = ReflectionTestUtils.invokeMethod(solverService, "buildProblem", "Fall 2026");
+
+        assertThat(solution).isNotNull();
+        assertThat(solution.getStudentCourseDemands())
+                .singleElement()
+                .satisfies(demand -> {
+                    assertThat(demand.studentId()).isEqualTo(10L);
+                    assertThat(demand.courseId()).isEqualTo(1L);
+                    assertThat(demand.primaryRequest()).isTrue();
+                    assertThat(demand.highPriorityRequest()).isTrue();
+                });
+        assertThat(solution.getCourseDemandSummaries())
+                .containsExactly(new CourseDemandSummary(1L, 1, 1, 1));
     }
 
     @SuppressWarnings("unchecked")
