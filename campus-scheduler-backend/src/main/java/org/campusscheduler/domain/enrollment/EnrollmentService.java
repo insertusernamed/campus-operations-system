@@ -164,7 +164,10 @@ public class EnrollmentService {
         if (enrollment.getStudent() != null) {
             enrollment.getStudent().getId();
             enrollment.getStudent().getStudentNumber();
-            enrollment.getStudent().getPreferredCourseIds().size();
+            List<Long> preferredCourseIds = enrollment.getStudent().getPreferredCourseIds();
+            if (preferredCourseIds != null) {
+                preferredCourseIds.size();
+            }
         }
 
         if (enrollment.getCourse() != null) {

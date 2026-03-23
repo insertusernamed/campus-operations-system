@@ -25,6 +25,7 @@ import org.campusscheduler.domain.enrollment.EnrollmentRepository;
 import org.campusscheduler.domain.room.Room;
 import org.campusscheduler.domain.room.RoomRepository;
 import org.campusscheduler.domain.schedule.Schedule;
+import org.campusscheduler.domain.schedule.ScheduleSeatLimitResolver;
 import org.campusscheduler.domain.schedule.ScheduleRepository;
 import org.campusscheduler.domain.student.Student;
 import org.campusscheduler.domain.student.StudentRepository;
@@ -802,7 +803,9 @@ public class SolverService {
 		long gapCount = 0;
 		for (List<Enrollment> dayEnrollments : byStudentDay.values()) {
 			List<Enrollment> sorted = dayEnrollments.stream()
-					.sorted(Comparator.comparing(enrollment -> enrollment.getSchedule().getTimeSlot().getStartTime()))
+					.sorted(Comparator.comparing(
+							enrollment -> enrollment.getSchedule().getTimeSlot().getStartTime(),
+							Comparator.nullsLast(Comparator.naturalOrder())))
 					.toList();
 			for (int index = 1; index < sorted.size(); index++) {
 				LocalTime previousEnd = sorted.get(index - 1).getSchedule().getTimeSlot().getEndTime();
@@ -843,22 +846,7 @@ public class SolverService {
 	}
 
 	private int resolveSeatLimit(Schedule schedule) {
-		if (schedule == null) {
-			return 0;
-		}
-		Integer courseCapacity = schedule.getCourse() != null ? schedule.getCourse().getEnrollmentCapacity() : null;
-		Integer roomCapacity = schedule.getRoom() != null ? schedule.getRoom().getCapacity() : null;
-
-		if (courseCapacity == null && roomCapacity == null) {
-			return 0;
-		}
-		if (courseCapacity == null) {
-			return roomCapacity;
-		}
-		if (roomCapacity == null) {
-			return courseCapacity;
-		}
-		return Math.min(courseCapacity, roomCapacity);
+		return ScheduleSeatLimitResolver.resolve(schedule);
 	}
 
 	private record StudentAnalyticsMetrics(

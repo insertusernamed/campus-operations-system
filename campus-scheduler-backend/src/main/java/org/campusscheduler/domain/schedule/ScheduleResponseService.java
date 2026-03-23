@@ -86,32 +86,12 @@ public class ScheduleResponseService {
     }
 
     private ScheduleSeatSummary buildSummary(Schedule schedule, int filledSeats, int waitlistCount) {
-        int seatLimit = resolveSeatLimit(schedule);
+        int seatLimit = ScheduleSeatLimitResolver.resolve(schedule);
         return new ScheduleSeatSummary(
                 filledSeats,
                 seatLimit,
                 Math.max(seatLimit - filledSeats, 0),
                 waitlistCount);
-    }
-
-    private int resolveSeatLimit(Schedule schedule) {
-        if (schedule == null) {
-            return 0;
-        }
-
-        Integer courseCapacity = schedule.getCourse() != null ? schedule.getCourse().getEnrollmentCapacity() : null;
-        Integer roomCapacity = schedule.getRoom() != null ? schedule.getRoom().getCapacity() : null;
-
-        if (courseCapacity == null && roomCapacity == null) {
-            return 0;
-        }
-        if (courseCapacity == null) {
-            return roomCapacity;
-        }
-        if (roomCapacity == null) {
-            return courseCapacity;
-        }
-        return Math.min(courseCapacity, roomCapacity);
     }
 
     private static final class SeatCounts {

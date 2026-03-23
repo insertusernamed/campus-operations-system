@@ -1,6 +1,7 @@
 package org.campusscheduler.domain.enrollment;
 
 import org.campusscheduler.domain.schedule.Schedule;
+import org.campusscheduler.domain.schedule.ScheduleSeatLimitResolver;
 import org.campusscheduler.domain.student.Student;
 import org.campusscheduler.domain.timeslot.TimeSlot;
 import org.springframework.stereotype.Service;
@@ -74,7 +75,7 @@ public class EnrollmentAssignmentService {
         for (Schedule schedule : sortedSchedules) {
             long offeringId = schedule.getId() != null ? schedule.getId() : syntheticOfferingId--;
             indexed.computeIfAbsent(schedule.getCourse().getId(), ignored -> new ArrayList<>())
-                    .add(new ScheduledOffering(offeringId, schedule, resolveSeatLimit(schedule)));
+                    .add(new ScheduledOffering(offeringId, schedule, ScheduleSeatLimitResolver.resolve(schedule)));
         }
 
         return indexed;
@@ -180,22 +181,6 @@ public class EnrollmentAssignmentService {
 
     private void reserveSeat(Long offeringId, Map<Long, Integer> enrolledCountsByOfferingId) {
         enrolledCountsByOfferingId.merge(offeringId, 1, Integer::sum);
-    }
-
-    private int resolveSeatLimit(Schedule schedule) {
-        Integer courseCapacity = schedule.getCourse().getEnrollmentCapacity();
-        Integer roomCapacity = schedule.getRoom() != null ? schedule.getRoom().getCapacity() : null;
-
-        if (courseCapacity == null && roomCapacity == null) {
-            return 0;
-        }
-        if (courseCapacity == null) {
-            return roomCapacity;
-        }
-        if (roomCapacity == null) {
-            return courseCapacity;
-        }
-        return Math.min(courseCapacity, roomCapacity);
     }
 
     private boolean canEnroll(
