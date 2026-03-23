@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -23,7 +24,10 @@ public class StudentService {
      * @return list of all students
      */
     public List<Student> findAll() {
-        return studentRepository.findAll();
+        return studentRepository.findAll().stream()
+                .filter(Objects::nonNull)
+                .peek(this::initialize)
+                .toList();
     }
 
     /**
@@ -33,7 +37,11 @@ public class StudentService {
      * @return optional containing the student if found
      */
     public Optional<Student> findById(Long id) {
-        return studentRepository.findById(id);
+        return studentRepository.findById(id)
+                .map(student -> {
+                    initialize(student);
+                    return student;
+                });
     }
 
     /**
@@ -43,6 +51,16 @@ public class StudentService {
      * @return optional containing the student if found
      */
     public Optional<Student> findByStudentNumber(String studentNumber) {
-        return studentRepository.findByStudentNumber(studentNumber);
+        return studentRepository.findByStudentNumber(studentNumber)
+                .map(student -> {
+                    initialize(student);
+                    return student;
+                });
+    }
+
+    private void initialize(Student student) {
+        if (student.getPreferredCourseIds() != null) {
+            student.getPreferredCourseIds().size();
+        }
     }
 }

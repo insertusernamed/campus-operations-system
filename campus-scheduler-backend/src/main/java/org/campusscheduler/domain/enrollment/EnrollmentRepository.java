@@ -3,6 +3,7 @@ package org.campusscheduler.domain.enrollment;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -10,6 +11,38 @@ import java.util.List;
  */
 @Repository
 public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
+
+    /**
+     * Find all enrollments in a semester.
+     *
+     * @param semester the semester name
+     * @return list of enrollments
+     */
+    List<Enrollment> findBySemester(String semester);
+
+    /**
+     * Find enrollments by course across semesters.
+     *
+     * @param courseId the course ID
+     * @return list of enrollments
+     */
+    List<Enrollment> findByCourseId(Long courseId);
+
+    /**
+     * Find enrollments by schedule across semesters.
+     *
+     * @param scheduleId the schedule ID
+     * @return list of enrollments
+     */
+    List<Enrollment> findByScheduleId(Long scheduleId);
+
+    /**
+     * Find enrollments for multiple schedules.
+     *
+     * @param scheduleIds the schedule IDs
+     * @return list of enrollments
+     */
+    List<Enrollment> findByScheduleIdIn(Collection<Long> scheduleIds);
 
     /**
      * Find enrollments by student.

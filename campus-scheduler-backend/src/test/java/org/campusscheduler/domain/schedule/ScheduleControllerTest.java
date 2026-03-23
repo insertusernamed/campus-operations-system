@@ -44,7 +44,11 @@ class ScheduleControllerTest {
     @MockitoBean
     private ScheduleService scheduleService;
 
+    @MockitoBean
+    private ScheduleResponseService scheduleResponseService;
+
     private Schedule testSchedule;
+    private ScheduleResponse testScheduleResponse;
     private Course testCourse;
     private Room testRoom;
     private TimeSlot testTimeSlot;
@@ -81,6 +85,17 @@ class ScheduleControllerTest {
                 .timeSlot(testTimeSlot)
                 .semester("Spring 2026")
                 .build();
+
+        testScheduleResponse = new ScheduleResponse(
+                1L,
+                ScheduleResponse.CourseSummary.from(testCourse),
+                ScheduleResponse.RoomSummary.from(testRoom),
+                ScheduleResponse.TimeSlotSummary.from(testTimeSlot),
+                "Spring 2026",
+                20,
+                30,
+                10,
+                3);
     }
 
     @Nested
@@ -91,17 +106,21 @@ class ScheduleControllerTest {
         @DisplayName("should return all schedules")
         void shouldReturnAllSchedules() throws Exception {
             when(scheduleService.findAll()).thenReturn(List.of(testSchedule));
+            when(scheduleResponseService.toResponses(List.of(testSchedule))).thenReturn(List.of(testScheduleResponse));
 
             mockMvc.perform(get("/api/schedules"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$", hasSize(1)))
-                    .andExpect(jsonPath("$[0].semester", is("Spring 2026")));
+                    .andExpect(jsonPath("$[0].semester", is("Spring 2026")))
+                    .andExpect(jsonPath("$[0].filledSeats", is(20)))
+                    .andExpect(jsonPath("$[0].waitlistCount", is(3)));
         }
 
         @Test
         @DisplayName("should filter schedules by roomId")
         void shouldFilterSchedulesByRoomId() throws Exception {
             when(scheduleService.findByRoomId(1L)).thenReturn(List.of(testSchedule));
+            when(scheduleResponseService.toResponses(List.of(testSchedule))).thenReturn(List.of(testScheduleResponse));
 
             mockMvc.perform(get("/api/schedules").param("roomId", "1"))
                     .andExpect(status().isOk())
@@ -112,6 +131,7 @@ class ScheduleControllerTest {
         @DisplayName("should filter schedules by courseId")
         void shouldFilterSchedulesByCourseId() throws Exception {
             when(scheduleService.findByCourseId(1L)).thenReturn(List.of(testSchedule));
+            when(scheduleResponseService.toResponses(List.of(testSchedule))).thenReturn(List.of(testScheduleResponse));
 
             mockMvc.perform(get("/api/schedules").param("courseId", "1"))
                     .andExpect(status().isOk())
@@ -122,6 +142,7 @@ class ScheduleControllerTest {
         @DisplayName("should filter schedules by semester")
         void shouldFilterSchedulesBySemester() throws Exception {
             when(scheduleService.findBySemester("Spring 2026")).thenReturn(List.of(testSchedule));
+            when(scheduleResponseService.toResponses(List.of(testSchedule))).thenReturn(List.of(testScheduleResponse));
 
             mockMvc.perform(get("/api/schedules").param("semester", "Spring 2026"))
                     .andExpect(status().isOk())
@@ -137,11 +158,13 @@ class ScheduleControllerTest {
         @DisplayName("should return schedule when found")
         void shouldReturnScheduleWhenFound() throws Exception {
             when(scheduleService.findById(1L)).thenReturn(Optional.of(testSchedule));
+            when(scheduleResponseService.toResponse(testSchedule)).thenReturn(testScheduleResponse);
 
             mockMvc.perform(get("/api/schedules/1"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id", is(1)))
-                    .andExpect(jsonPath("$.semester", is("Spring 2026")));
+                    .andExpect(jsonPath("$.semester", is("Spring 2026")))
+                    .andExpect(jsonPath("$.seatLimit", is(30)));
         }
 
         @Test
@@ -163,12 +186,14 @@ class ScheduleControllerTest {
         void shouldCreateScheduleAndReturn201() throws Exception {
             when(scheduleService.create(anyLong(), anyLong(), anyLong(), anyString()))
                     .thenReturn(Optional.of(testSchedule));
+            when(scheduleResponseService.toResponse(testSchedule)).thenReturn(testScheduleResponse);
 
             mockMvc.perform(post("/api/schedules")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("{\"courseId\":1,\"roomId\":1,\"timeSlotId\":1,\"semester\":\"Spring 2026\"}"))
                     .andExpect(status().isCreated())
-                    .andExpect(jsonPath("$.id", is(1)));
+                    .andExpect(jsonPath("$.id", is(1)))
+                    .andExpect(jsonPath("$.remainingSeats", is(10)));
         }
 
         @Test

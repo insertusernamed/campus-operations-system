@@ -70,6 +70,22 @@ class EnrollmentServiceTest {
     }
 
     @Nested
+    @DisplayName("findAll")
+    class FindAll {
+
+        @Test
+        @DisplayName("should return all enrollments")
+        void shouldReturnAllEnrollments() {
+            when(enrollmentRepository.findAll()).thenReturn(List.of(enrollment));
+
+            List<Enrollment> result = enrollmentService.findAll();
+
+            assertThat(result).containsExactly(enrollment);
+            verify(enrollmentRepository).findAll();
+        }
+    }
+
+    @Nested
     @DisplayName("findByStudent")
     class FindByStudent {
 
@@ -142,6 +158,45 @@ class EnrollmentServiceTest {
             List<Enrollment> result = enrollmentService.findByStudentScheduleAndSemester(1L, 20L, "Spring 2026");
 
             assertThat(result).containsExactly(enrollment);
+        }
+    }
+
+    @Nested
+    @DisplayName("findByFilters")
+    class FindByFilters {
+
+        @Test
+        @DisplayName("should query by semester when only semester is provided")
+        void shouldQueryBySemesterWhenOnlySemesterIsProvided() {
+            when(enrollmentRepository.findBySemester("Spring 2026")).thenReturn(List.of(enrollment));
+
+            List<Enrollment> result = enrollmentService.findByFilters(null, null, null, "Spring 2026");
+
+            assertThat(result).containsExactly(enrollment);
+            verify(enrollmentRepository).findBySemester("Spring 2026");
+        }
+
+        @Test
+        @DisplayName("should query by course without semester")
+        void shouldQueryByCourseWithoutSemester() {
+            when(enrollmentRepository.findByCourseId(10L)).thenReturn(List.of(enrollment));
+
+            List<Enrollment> result = enrollmentService.findByFilters(null, 10L, null, null);
+
+            assertThat(result).containsExactly(enrollment);
+            verify(enrollmentRepository).findByCourseId(10L);
+        }
+
+        @Test
+        @DisplayName("should prefer the combined student course semester query")
+        void shouldPreferTheCombinedStudentCourseSemesterQuery() {
+            when(enrollmentRepository.findByStudentIdAndCourseIdAndSemester(1L, 10L, "Spring 2026"))
+                    .thenReturn(List.of(enrollment));
+
+            List<Enrollment> result = enrollmentService.findByFilters(1L, 10L, null, "Spring 2026");
+
+            assertThat(result).containsExactly(enrollment);
+            verify(enrollmentRepository).findByStudentIdAndCourseIdAndSemester(1L, 10L, "Spring 2026");
         }
     }
 }
