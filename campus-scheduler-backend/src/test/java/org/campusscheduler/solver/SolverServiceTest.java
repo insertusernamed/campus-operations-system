@@ -4,10 +4,13 @@ import ai.timefold.solver.core.api.solver.SolverStatus;
 import org.campusscheduler.domain.building.Building;
 import org.campusscheduler.domain.course.Course;
 import org.campusscheduler.domain.course.CourseRepository;
+import org.campusscheduler.domain.enrollment.Enrollment;
 import org.campusscheduler.domain.enrollment.EnrollmentAssignmentService;
 import org.campusscheduler.domain.enrollment.EnrollmentRepository;
+import org.campusscheduler.domain.enrollment.EnrollmentStatus;
 import org.campusscheduler.domain.room.Room;
 import org.campusscheduler.domain.room.RoomRepository;
+import org.campusscheduler.domain.schedule.Schedule;
 import org.campusscheduler.domain.schedule.ScheduleRepository;
 import org.campusscheduler.domain.student.Student;
 import org.campusscheduler.domain.student.StudentRepository;
@@ -144,6 +147,124 @@ class SolverServiceTest {
                 });
         assertThat(solution.getCourseDemandSummaries())
                 .containsExactly(new CourseDemandSummary(1L, 1, 1, 1));
+    }
+
+    @Test
+    void getAnalyticsIncludesStudentMetricsFromSavedEnrollments() {
+        Building building = Building.builder()
+                .id(1L)
+                .name("Science Building")
+                .code("SCI")
+                .build();
+
+        Room room = Room.builder()
+                .id(11L)
+                .roomNumber("101")
+                .capacity(1)
+                .type(Room.RoomType.CLASSROOM)
+                .building(building)
+                .build();
+
+        TimeSlot firstSlot = TimeSlot.builder()
+                .id(21L)
+                .dayOfWeek(DayOfWeek.MONDAY)
+                .startTime(LocalTime.of(9, 0))
+                .endTime(LocalTime.of(10, 0))
+                .label("Period 1")
+                .build();
+
+        TimeSlot secondSlot = TimeSlot.builder()
+                .id(22L)
+                .dayOfWeek(DayOfWeek.MONDAY)
+                .startTime(LocalTime.of(11, 0))
+                .endTime(LocalTime.of(12, 0))
+                .label("Period 2")
+                .build();
+
+        Course firstCourse = Course.builder()
+                .id(1L)
+                .code("CS101")
+                .name("Intro CS")
+                .credits(3)
+                .enrollmentCapacity(1)
+                .department("Computer Science")
+                .build();
+
+        Course secondCourse = Course.builder()
+                .id(2L)
+                .code("CS102")
+                .name("Data Structures")
+                .credits(3)
+                .enrollmentCapacity(1)
+                .department("Computer Science")
+                .build();
+
+        Schedule firstSchedule = Schedule.builder()
+                .id(101L)
+                .course(firstCourse)
+                .room(room)
+                .timeSlot(firstSlot)
+                .semester("Fall 2026")
+                .build();
+
+        Schedule secondSchedule = Schedule.builder()
+                .id(102L)
+                .course(secondCourse)
+                .room(room)
+                .timeSlot(secondSlot)
+                .semester("Fall 2026")
+                .build();
+
+        Student student = Student.builder()
+                .id(10L)
+                .studentNumber("S00000001")
+                .firstName("Mia")
+                .lastName("Lopez")
+                .email("mia.lopez@student.test.edu")
+                .department("Computer Science")
+                .yearLevel(2)
+                .preferredCourseIds(List.of(1L, 2L))
+                .build();
+
+        when(roomRepository.findAll()).thenReturn(List.of(room));
+        when(timeSlotRepository.findAll()).thenReturn(List.of(firstSlot, secondSlot));
+        when(scheduleRepository.findBySemester("Fall 2026")).thenReturn(List.of(firstSchedule, secondSchedule));
+        when(studentRepository.findAll()).thenReturn(List.of(student));
+        when(enrollmentRepository.findBySemester("Fall 2026")).thenReturn(List.of(
+                Enrollment.builder()
+                        .id(1001L)
+                        .student(student)
+                        .course(firstCourse)
+                        .schedule(firstSchedule)
+                        .semester("Fall 2026")
+                        .status(EnrollmentStatus.ENROLLED)
+                        .build(),
+                Enrollment.builder()
+                        .id(1002L)
+                        .student(student)
+                        .course(secondCourse)
+                        .schedule(secondSchedule)
+                        .semester("Fall 2026")
+                        .status(EnrollmentStatus.ENROLLED)
+                        .build(),
+                Enrollment.builder()
+                        .id(1003L)
+                        .student(student)
+                        .course(secondCourse)
+                        .schedule(secondSchedule)
+                        .semester("Fall 2026")
+                        .status(EnrollmentStatus.WAITLISTED)
+                        .build()));
+
+        SolverService.SolverAnalyticsResponse response = solverService.getAnalytics("Fall 2026");
+
+        assertThat(response.totalStudents()).isEqualTo(1);
+        assertThat(response.enrolledRequests()).isEqualTo(2);
+        assertThat(response.waitlistedRequests()).isEqualTo(1);
+        assertThat(response.averageFillRate()).isEqualTo(100.0);
+        assertThat(response.averageGapMinutes()).isEqualTo(60.0);
+        assertThat(response.dailyLoadDistribution())
+                .containsExactly(new SolverService.SolverStudentDailyLoad(2, 1));
     }
 
     @SuppressWarnings("unchecked")

@@ -146,6 +146,11 @@ public class SolverService {
 			long bookingCount) {
 	}
 
+	public record SolverStudentDailyLoad(
+			int classesPerDay,
+			long studentDays) {
+	}
+
 	public record SolverAnalyticsResponse(
 			String semester,
 			int totalRooms,
@@ -153,6 +158,12 @@ public class SolverService {
 			long totalScheduledSlots,
 			long totalAvailableSlots,
 			double overallUtilizationPercentage,
+			int totalStudents,
+			long enrolledRequests,
+			long waitlistedRequests,
+			double averageFillRate,
+			double averageGapMinutes,
+			List<SolverStudentDailyLoad> dailyLoadDistribution,
 			List<SolverRoomUtilization> topUtilizedRooms,
 			List<SolverRoomUtilization> leastUtilizedRooms,
 			List<SolverRoomUtilization> rooms,
@@ -530,12 +541,22 @@ public class SolverService {
 	private SolverAnalyticsResponse buildAnalyticsFromSolution(ScheduleSolution solution) {
 		List<Room> rooms = solution.getRooms() != null ? solution.getRooms() : roomRepository.findAll();
 		List<TimeSlot> timeSlots = solution.getTimeSlots() != null ? solution.getTimeSlots() : timeSlotRepository.findAll();
+		List<Schedule> simulatedSchedules = solution.getAssignments().stream()
+				.filter(ScheduleAssignment::isInitialized)
+				.map(this::toAnalyticsSchedule)
+				.toList();
+		List<Student> students = loadStudentsForAnalytics();
+		List<Enrollment> enrollments = enrollmentAssignmentService.assignEnrollments(
+				students,
+				simulatedSchedules,
+				solution.getSemester());
+		StudentAnalyticsMetrics studentMetrics = buildStudentAnalyticsMetrics(students, simulatedSchedules, enrollments);
 		Map<Long, Long> scheduledByRoomId = new HashMap<>();
 		Map<Long, Long> scheduledByTimeSlotId = new HashMap<>();
 
-		for (ScheduleAssignment assignment : solution.getAssignments()) {
-			Room assignedRoom = assignment.getRoom();
-			TimeSlot assignedTimeSlot = assignment.getTimeSlot();
+		for (Schedule schedule : simulatedSchedules) {
+			Room assignedRoom = schedule.getRoom();
+			TimeSlot assignedTimeSlot = schedule.getTimeSlot();
 			if (assignedRoom == null || assignedTimeSlot == null) {
 				continue;
 			}
@@ -548,16 +569,29 @@ public class SolverService {
 			}
 		}
 
-		return buildAnalyticsResponse(solution.getSemester(), rooms, timeSlots, scheduledByRoomId, scheduledByTimeSlotId);
+		return buildAnalyticsResponse(
+				solution.getSemester(),
+				rooms,
+				timeSlots,
+				scheduledByRoomId,
+				scheduledByTimeSlotId,
+				studentMetrics);
 	}
 
 	private SolverAnalyticsResponse buildAnalyticsFromSavedSchedules(String semester) {
 		List<Room> rooms = roomRepository.findAll();
 		List<TimeSlot> timeSlots = timeSlotRepository.findAll();
+		List<Schedule> schedules = scheduleRepository.findBySemester(semester);
+		List<Student> students = loadStudentsForAnalytics();
+		List<Enrollment> enrollments = enrollmentRepository.findBySemester(semester);
+		if (enrollments == null) {
+			enrollments = List.of();
+		}
+		StudentAnalyticsMetrics studentMetrics = buildStudentAnalyticsMetrics(students, schedules, enrollments);
 		Map<Long, Long> scheduledByRoomId = new HashMap<>();
 		Map<Long, Long> scheduledByTimeSlotId = new HashMap<>();
 
-		for (Schedule schedule : scheduleRepository.findBySemester(semester)) {
+		for (Schedule schedule : schedules) {
 			if (schedule.getRoom() != null && schedule.getRoom().getId() != null) {
 				scheduledByRoomId.merge(schedule.getRoom().getId(), 1L, Long::sum);
 			}
@@ -566,7 +600,13 @@ public class SolverService {
 			}
 		}
 
-		return buildAnalyticsResponse(semester, rooms, timeSlots, scheduledByRoomId, scheduledByTimeSlotId);
+		return buildAnalyticsResponse(
+				semester,
+				rooms,
+				timeSlots,
+				scheduledByRoomId,
+				scheduledByTimeSlotId,
+				studentMetrics);
 	}
 
 	private SolverAnalyticsResponse buildAnalyticsResponse(
@@ -574,7 +614,8 @@ public class SolverService {
 			List<Room> rooms,
 			List<TimeSlot> timeSlots,
 			Map<Long, Long> scheduledByRoomId,
-			Map<Long, Long> scheduledByTimeSlotId) {
+			Map<Long, Long> scheduledByTimeSlotId,
+			StudentAnalyticsMetrics studentMetrics) {
 
 		int roomCount = rooms != null ? rooms.size() : 0;
 		int timeSlotCount = timeSlots != null ? timeSlots.size() : 0;
@@ -659,10 +700,176 @@ public class SolverService {
 				totalScheduledSlots,
 				totalAvailableSlots,
 				overallUtilization,
+				studentMetrics.totalStudents(),
+				studentMetrics.enrolledRequests(),
+				studentMetrics.waitlistedRequests(),
+				studentMetrics.averageFillRate(),
+				studentMetrics.averageGapMinutes(),
+				studentMetrics.dailyLoadDistribution(),
 				topUtilized,
 				leastUtilized,
 				roomUtilization,
 				buildingUtilization,
 				peakHours);
+	}
+
+	private Schedule toAnalyticsSchedule(ScheduleAssignment assignment) {
+		return Schedule.builder()
+				.id(assignment.getId())
+				.course(assignment.getCourse())
+				.room(assignment.getRoom())
+				.timeSlot(assignment.getTimeSlot())
+				.semester(assignment.getSemester())
+				.build();
+	}
+
+	private List<Student> loadStudentsForAnalytics() {
+		List<Student> students = studentRepository.findAll();
+		if (students == null) {
+			return List.of();
+		}
+		students.forEach(student -> {
+			if (student.getPreferredCourseIds() != null) {
+				student.getPreferredCourseIds().size();
+			}
+		});
+		return students;
+	}
+
+	private StudentAnalyticsMetrics buildStudentAnalyticsMetrics(
+			List<Student> students,
+			List<Schedule> schedules,
+			List<Enrollment> enrollments) {
+		List<Student> safeStudents = students != null ? students : List.of();
+		List<Schedule> safeSchedules = schedules != null ? schedules : List.of();
+		List<Enrollment> safeEnrollments = enrollments != null ? enrollments : List.of();
+
+		long enrolledRequests = safeEnrollments.stream()
+				.filter(enrollment -> enrollment.getStatus() == org.campusscheduler.domain.enrollment.EnrollmentStatus.ENROLLED)
+				.count();
+		long waitlistedRequests = safeEnrollments.stream()
+				.filter(enrollment -> enrollment.getStatus() == org.campusscheduler.domain.enrollment.EnrollmentStatus.WAITLISTED)
+				.count();
+
+		Map<Long, Long> filledSeatsByScheduleId = safeEnrollments.stream()
+				.filter(enrollment -> enrollment.getStatus() == org.campusscheduler.domain.enrollment.EnrollmentStatus.ENROLLED)
+				.filter(enrollment -> enrollment.getSchedule() != null && enrollment.getSchedule().getId() != null)
+				.collect(Collectors.groupingBy(
+						enrollment -> enrollment.getSchedule().getId(),
+						LinkedHashMap::new,
+						Collectors.counting()));
+
+		double averageFillRate = safeSchedules.stream()
+				.mapToDouble(schedule -> {
+					int seatLimit = resolveSeatLimit(schedule);
+					if (seatLimit <= 0) {
+						return 0.0;
+					}
+					return filledSeatsByScheduleId.getOrDefault(schedule.getId(), 0L) * 100.0 / seatLimit;
+				})
+				.average()
+				.orElse(0.0);
+
+		double averageGapMinutes = computeAverageGapMinutes(safeEnrollments);
+		List<SolverStudentDailyLoad> dailyLoadDistribution = buildDailyLoadDistribution(safeEnrollments);
+
+		return new StudentAnalyticsMetrics(
+				safeStudents.size(),
+				enrolledRequests,
+				waitlistedRequests,
+				averageFillRate,
+				averageGapMinutes,
+				dailyLoadDistribution);
+	}
+
+	private double computeAverageGapMinutes(List<Enrollment> enrollments) {
+		List<Enrollment> enrolledOnly = enrollments.stream()
+				.filter(enrollment -> enrollment.getStatus() == org.campusscheduler.domain.enrollment.EnrollmentStatus.ENROLLED)
+				.filter(enrollment -> enrollment.getStudent() != null && enrollment.getStudent().getId() != null)
+				.filter(enrollment -> enrollment.getSchedule() != null && enrollment.getSchedule().getTimeSlot() != null)
+				.toList();
+
+		Map<StudentDayBucket, List<Enrollment>> byStudentDay = enrolledOnly.stream()
+				.filter(enrollment -> enrollment.getSchedule().getTimeSlot().getDayOfWeek() != null)
+				.collect(Collectors.groupingBy(
+						enrollment -> new StudentDayBucket(
+								enrollment.getStudent().getId(),
+								enrollment.getSchedule().getTimeSlot().getDayOfWeek()),
+						LinkedHashMap::new,
+						Collectors.toList()));
+
+		long totalGapMinutes = 0;
+		long gapCount = 0;
+		for (List<Enrollment> dayEnrollments : byStudentDay.values()) {
+			List<Enrollment> sorted = dayEnrollments.stream()
+					.sorted(Comparator.comparing(enrollment -> enrollment.getSchedule().getTimeSlot().getStartTime()))
+					.toList();
+			for (int index = 1; index < sorted.size(); index++) {
+				LocalTime previousEnd = sorted.get(index - 1).getSchedule().getTimeSlot().getEndTime();
+				LocalTime currentStart = sorted.get(index).getSchedule().getTimeSlot().getStartTime();
+				if (previousEnd == null || currentStart == null || !currentStart.isAfter(previousEnd)) {
+					continue;
+				}
+				totalGapMinutes += Duration.between(previousEnd, currentStart).toMinutes();
+				gapCount++;
+			}
+		}
+
+		return gapCount > 0 ? (double) totalGapMinutes / gapCount : 0.0;
+	}
+
+	private List<SolverStudentDailyLoad> buildDailyLoadDistribution(List<Enrollment> enrollments) {
+		Map<StudentDayBucket, Long> classesByStudentDay = enrollments.stream()
+				.filter(enrollment -> enrollment.getStatus() == org.campusscheduler.domain.enrollment.EnrollmentStatus.ENROLLED)
+				.filter(enrollment -> enrollment.getStudent() != null && enrollment.getStudent().getId() != null)
+				.filter(enrollment -> enrollment.getSchedule() != null && enrollment.getSchedule().getTimeSlot() != null)
+				.filter(enrollment -> enrollment.getSchedule().getTimeSlot().getDayOfWeek() != null)
+				.collect(Collectors.groupingBy(
+						enrollment -> new StudentDayBucket(
+								enrollment.getStudent().getId(),
+								enrollment.getSchedule().getTimeSlot().getDayOfWeek()),
+						LinkedHashMap::new,
+						Collectors.counting()));
+
+		return classesByStudentDay.values().stream()
+				.collect(Collectors.groupingBy(
+						Long::intValue,
+						LinkedHashMap::new,
+						Collectors.counting()))
+				.entrySet().stream()
+				.sorted(Map.Entry.comparingByKey())
+				.map(entry -> new SolverStudentDailyLoad(entry.getKey(), entry.getValue()))
+				.toList();
+	}
+
+	private int resolveSeatLimit(Schedule schedule) {
+		if (schedule == null) {
+			return 0;
+		}
+		Integer courseCapacity = schedule.getCourse() != null ? schedule.getCourse().getEnrollmentCapacity() : null;
+		Integer roomCapacity = schedule.getRoom() != null ? schedule.getRoom().getCapacity() : null;
+
+		if (courseCapacity == null && roomCapacity == null) {
+			return 0;
+		}
+		if (courseCapacity == null) {
+			return roomCapacity;
+		}
+		if (roomCapacity == null) {
+			return courseCapacity;
+		}
+		return Math.min(courseCapacity, roomCapacity);
+	}
+
+	private record StudentAnalyticsMetrics(
+			int totalStudents,
+			long enrolledRequests,
+			long waitlistedRequests,
+			double averageFillRate,
+			double averageGapMinutes,
+			List<SolverStudentDailyLoad> dailyLoadDistribution) {
+	}
+
+	private record StudentDayBucket(Long studentId, DayOfWeek dayOfWeek) {
 	}
 }
