@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -31,49 +32,71 @@ public class ScheduleService {
      * Get all schedules.
      */
     public List<Schedule> findAll() {
-        return scheduleRepository.findAll();
+        return scheduleRepository.findAll().stream()
+                .filter(Objects::nonNull)
+                .peek(this::initialize)
+                .toList();
     }
 
     /**
      * Find a schedule by ID.
      */
     public Optional<Schedule> findById(Long id) {
-        return scheduleRepository.findById(id);
+        return scheduleRepository.findById(id)
+                .map(schedule -> {
+                    initialize(schedule);
+                    return schedule;
+                });
     }
 
     /**
      * Find schedules by room ID.
      */
     public List<Schedule> findByRoomId(Long roomId) {
-        return scheduleRepository.findByRoomId(roomId);
+        return scheduleRepository.findByRoomId(roomId).stream()
+                .filter(Objects::nonNull)
+                .peek(this::initialize)
+                .toList();
     }
 
     /**
      * Find schedules by course ID.
      */
     public List<Schedule> findByCourseId(Long courseId) {
-        return scheduleRepository.findByCourseId(courseId);
+        return scheduleRepository.findByCourseId(courseId).stream()
+                .filter(Objects::nonNull)
+                .peek(this::initialize)
+                .toList();
     }
 
     /**
      * Find schedules by instructor ID.
      */
     public List<Schedule> findByInstructorId(Long instructorId) {
-        return scheduleRepository.findByCourseInstructorId(instructorId);
+        return scheduleRepository.findByCourseInstructorId(instructorId).stream()
+                .filter(Objects::nonNull)
+                .peek(this::initialize)
+                .toList();
     }
 
     /**
      * Find schedules by time slot ID.
      */
     public List<Schedule> findByTimeSlotId(Long timeSlotId) {
-        return scheduleRepository.findByTimeSlotId(timeSlotId);
+        return scheduleRepository.findByTimeSlotId(timeSlotId).stream()
+                .filter(Objects::nonNull)
+                .peek(this::initialize)
+                .toList();
     }
 
     /**
      * Find schedules by semester.
      */
     public List<Schedule> findBySemester(String semester) {
-        return scheduleRepository.findBySemester(semester);
+        return scheduleRepository.findBySemester(semester).stream()
+                .filter(Objects::nonNull)
+                .peek(this::initialize)
+                .toList();
     }
 
     /**
@@ -137,7 +160,9 @@ public class ScheduleService {
                 .semester(semester)
                 .build();
 
-        return Optional.of(scheduleRepository.save(schedule));
+        Schedule saved = scheduleRepository.save(schedule);
+        initialize(saved);
+        return Optional.of(saved);
     }
 
     /**
@@ -195,7 +220,9 @@ public class ScheduleService {
         schedule.setRoom(roomOpt.get());
         schedule.setTimeSlot(timeSlotOpt.get());
 
-        return Optional.of(scheduleRepository.save(schedule));
+        Schedule saved = scheduleRepository.save(schedule);
+        initialize(saved);
+        return Optional.of(saved);
     }
 
     /**
@@ -213,5 +240,30 @@ public class ScheduleService {
         List<Schedule> existing = scheduleRepository.findByRoomIdAndTimeSlotIdAndSemester(
                 roomId, timeSlotId, semester);
         return !existing.isEmpty();
+    }
+
+    private void initialize(Schedule schedule) {
+        if (schedule.getCourse() != null) {
+            schedule.getCourse().getId();
+            schedule.getCourse().getCode();
+            if (schedule.getCourse().getInstructor() != null) {
+                schedule.getCourse().getInstructor().getId();
+                schedule.getCourse().getInstructor().getFirstName();
+            }
+        }
+        if (schedule.getRoom() != null) {
+            schedule.getRoom().getId();
+            schedule.getRoom().getRoomNumber();
+            schedule.getRoom().getFeatureSet().size();
+            schedule.getRoom().getAccessibilityFlags().size();
+        }
+
+        TimeSlot timeSlot = schedule.getTimeSlot();
+        if (timeSlot != null) {
+            timeSlot.getId();
+            timeSlot.getDayOfWeek();
+            timeSlot.getStartTime();
+            timeSlot.getEndTime();
+        }
     }
 }

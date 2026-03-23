@@ -32,29 +32,30 @@ import java.util.Map;
 public class ScheduleController {
 
 	private final ScheduleService scheduleService;
+    private final ScheduleResponseService scheduleResponseService;
 
 	@Operation(summary = "Get all schedules", description = "Returns all schedules, with optional filtering")
 	@ApiResponse(responseCode = "200", description = "Successfully retrieved schedules")
 	@GetMapping
-	public ResponseEntity<List<Schedule>> getAll(
+	public ResponseEntity<List<ScheduleResponse>> getAll(
 			@Parameter(description = "Filter by room ID") @RequestParam(required = false) Long roomId,
 			@Parameter(description = "Filter by course ID") @RequestParam(required = false) Long courseId,
 			@Parameter(description = "Filter by instructor ID") @RequestParam(required = false) Long instructorId,
 			@Parameter(description = "Filter by semester") @RequestParam(required = false) String semester) {
 
 		if (roomId != null) {
-			return ResponseEntity.ok(scheduleService.findByRoomId(roomId));
+			return ResponseEntity.ok(scheduleResponseService.toResponses(scheduleService.findByRoomId(roomId)));
 		}
 		if (courseId != null) {
-			return ResponseEntity.ok(scheduleService.findByCourseId(courseId));
+			return ResponseEntity.ok(scheduleResponseService.toResponses(scheduleService.findByCourseId(courseId)));
 		}
 		if (instructorId != null) {
-			return ResponseEntity.ok(scheduleService.findByInstructorId(instructorId));
+			return ResponseEntity.ok(scheduleResponseService.toResponses(scheduleService.findByInstructorId(instructorId)));
 		}
 		if (semester != null && !semester.isBlank()) {
-			return ResponseEntity.ok(scheduleService.findBySemester(semester));
+			return ResponseEntity.ok(scheduleResponseService.toResponses(scheduleService.findBySemester(semester)));
 		}
-		return ResponseEntity.ok(scheduleService.findAll());
+		return ResponseEntity.ok(scheduleResponseService.toResponses(scheduleService.findAll()));
 	}
 
 	@Operation(summary = "Get schedule by ID", description = "Returns a single schedule by its ID")
@@ -63,9 +64,10 @@ public class ScheduleController {
 			@ApiResponse(responseCode = "404", description = "Schedule not found")
 	})
 	@GetMapping("/{id}")
-	public ResponseEntity<Schedule> getById(
+	public ResponseEntity<ScheduleResponse> getById(
 			@Parameter(description = "Schedule ID") @PathVariable Long id) {
 		return scheduleService.findById(id)
+				.map(scheduleResponseService::toResponse)
 				.map(ResponseEntity::ok)
 				.orElse(ResponseEntity.notFound().build());
 	}
@@ -77,12 +79,13 @@ public class ScheduleController {
 			@ApiResponse(responseCode = "409", description = "Scheduling conflict (room booked or capacity exceeded)")
 	})
 	@PostMapping
-	public ResponseEntity<Schedule> create(@Valid @RequestBody ScheduleCreateRequest request) {
+	public ResponseEntity<ScheduleResponse> create(@Valid @RequestBody ScheduleCreateRequest request) {
 		return scheduleService.create(
 				request.getCourseId(),
 				request.getRoomId(),
 				request.getTimeSlotId(),
 				request.getSemester())
+				.map(scheduleResponseService::toResponse)
 				.map(schedule -> ResponseEntity.status(HttpStatus.CREATED).body(schedule))
 				.orElse(ResponseEntity.notFound().build());
 	}
