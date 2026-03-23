@@ -12,6 +12,30 @@ import java.util.List;
 public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
 
     /**
+     * Find all enrollments in a semester.
+     *
+     * @param semester the semester name
+     * @return list of enrollments
+     */
+    List<Enrollment> findBySemester(String semester);
+
+    /**
+     * Find enrollments by course across semesters.
+     *
+     * @param courseId the course ID
+     * @return list of enrollments
+     */
+    List<Enrollment> findByCourseId(Long courseId);
+
+    /**
+     * Find enrollments by schedule across semesters.
+     *
+     * @param scheduleId the schedule ID
+     * @return list of enrollments
+     */
+    List<Enrollment> findByScheduleId(Long scheduleId);
+
+    /**
      * Find enrollments by student.
      *
      * @param studentId the student ID
