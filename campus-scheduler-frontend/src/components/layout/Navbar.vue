@@ -146,10 +146,8 @@ watch(role, nextRole => {
 })
 
 function handleDataRegenerated() {
-	switch (role.value) {
-		case 'instructor': void loadInstructors(); break
-		case 'student': void loadStudents(); break
-	}
+	void loadInstructors()
+	void loadStudents()
 }
 
 onMounted(() => {
