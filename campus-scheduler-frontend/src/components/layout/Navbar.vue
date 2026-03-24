@@ -6,6 +6,7 @@ import { useStudents } from '@/composables/useStudents'
 import { useTheme, type Theme } from '@/composables/useTheme'
 import { useRouteTransition, type RouteTransitionName } from '@/composables/useRouteTransition'
 import { useRoute, useRouter } from 'vue-router'
+import { isAdminOnlyPath, isStudentAllowedPath } from '@/utils/routeGuards'
 
 defineEmits<{
 	(e: 'toggle-sidebar'): void
@@ -18,18 +19,6 @@ const { theme, setTheme } = useTheme()
 const { routeTransition, setRouteTransition } = useRouteTransition()
 const router = useRouter()
 const route = useRoute()
-
-const ADMIN_ONLY_ROUTE_PREFIXES = ['/analytics', '/buildings', '/rooms', '/instructors', '/courses', '/timeslots', '/solver']
-const ADMIN_ONLY_ROUTES = ['/schedules/new', '/requests/admin']
-
-function isAdminOnlyPath(path: string): boolean {
-	if (ADMIN_ONLY_ROUTES.includes(path)) return true
-	return ADMIN_ONLY_ROUTE_PREFIXES.some(prefix => path === prefix || path.startsWith(`${prefix}/`))
-}
-
-function isStudentAllowedPath(path: string): boolean {
-	return path === '/'
-}
 
 const roleModel = computed({
 	get: () => role.value,
@@ -157,8 +146,10 @@ watch(role, nextRole => {
 })
 
 function handleDataRegenerated() {
-	void loadInstructors()
-	void loadStudents()
+	switch (role.value) {
+		case 'instructor': void loadInstructors(); break
+		case 'student': void loadStudents(); break
+	}
 }
 
 onMounted(() => {
