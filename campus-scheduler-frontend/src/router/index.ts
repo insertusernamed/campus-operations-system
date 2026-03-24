@@ -182,9 +182,27 @@ const router = createRouter({
 	routes,
 })
 
+const ADMIN_ONLY_ROUTE_PREFIXES = ['/analytics', '/buildings', '/rooms', '/instructors', '/courses', '/timeslots', '/solver']
+const ADMIN_ONLY_ROUTES = ['/schedules/new', '/requests/admin']
+
+function isAdminOnlyPath(path: string): boolean {
+	if (ADMIN_ONLY_ROUTES.includes(path)) return true
+	return ADMIN_ONLY_ROUTE_PREFIXES.some(prefix => path === prefix || path.startsWith(`${prefix}/`))
+}
+
+function isStudentAllowedPath(path: string): boolean {
+	return path === '/'
+}
+
 router.beforeEach((to, _from, next) => {
 	const { role } = useRole()
 
+	if (role.value === 'student' && !isStudentAllowedPath(to.path)) {
+		return next('/')
+	}
+	if (role.value !== 'admin' && isAdminOnlyPath(to.path)) {
+		return next('/')
+	}
 	if (to.path === '/requests/admin' && role.value !== 'admin') {
 		return next('/requests')
 	}
