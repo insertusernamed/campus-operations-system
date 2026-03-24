@@ -19,9 +19,38 @@ const instructors = [
 	},
 ]
 
+const students = [
+	{
+		id: 101,
+		studentNumber: 'S100101',
+		firstName: 'Maya',
+		lastName: 'Patel',
+		email: 'maya.patel@students.campus.edu',
+		department: 'Computer Science',
+		yearLevel: 3,
+		targetCourseLoad: 4,
+		preferredCourseIds: [1, 2, 3],
+	},
+	{
+		id: 102,
+		studentNumber: 'S100102',
+		firstName: 'Noah',
+		lastName: 'Kim',
+		email: 'noah.kim@students.campus.edu',
+		department: 'Mathematics',
+		yearLevel: 2,
+		targetCourseLoad: 4,
+		preferredCourseIds: [2, 4, 5],
+	},
+]
+
 async function setupBaseMocks(page: Page) {
 	await page.route(/.*\/api\/instructors$/, async route => {
 		await route.fulfill({ json: instructors })
+	})
+
+	await page.route(/.*\/api\/students$/, async route => {
+		await route.fulfill({ json: students })
 	})
 
 	await page.route(/.*\/api\/generator\/stats$/, async route => {
@@ -95,5 +124,45 @@ test.describe('Role switch instructor selection', () => {
 		await expect(page.getByRole('combobox', { name: 'Instructor' })).toHaveValue('10')
 		await expect.poll(() => page.evaluate(() => localStorage.getItem('campus-operations-system-instructor-id')))
 			.toBe('10')
+	})
+
+	test('auto-selects first student when switching from admin', async ({ page }) => {
+		await page.addInitScript(() => {
+			localStorage.setItem('campus-operations-system-role', 'admin')
+			localStorage.removeItem('campus-operations-system-student-id')
+		})
+		await setupBaseMocks(page)
+
+		await page.goto('/')
+		await page.getByRole('combobox', { name: 'Role' }).selectOption('student')
+		await expect(page.getByRole('combobox', { name: 'Student' })).toHaveValue('101')
+		await expect.poll(() => page.evaluate(() => localStorage.getItem('campus-operations-system-student-id')))
+			.toBe('101')
+	})
+
+	test('replaces stale student id with the first available student', async ({ page }) => {
+		await page.addInitScript(() => {
+			localStorage.setItem('campus-operations-system-role', 'student')
+			localStorage.setItem('campus-operations-system-student-id', '999')
+		})
+		await setupBaseMocks(page)
+
+		await page.goto('/')
+		await expect(page.getByRole('combobox', { name: 'Student' })).toHaveValue('101')
+		await expect.poll(() => page.evaluate(() => localStorage.getItem('campus-operations-system-student-id')))
+			.toBe('101')
+	})
+
+	test('redirects students away from unsupported routes', async ({ page }) => {
+		await page.addInitScript(() => {
+			localStorage.setItem('campus-operations-system-role', 'student')
+			localStorage.setItem('campus-operations-system-student-id', '101')
+		})
+		await setupBaseMocks(page)
+
+		await page.goto('/solver')
+		await expect(page).toHaveURL(/\/$/)
+		await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+		await expect(page.getByText('Student workspace is ready')).toBeVisible()
 	})
 })

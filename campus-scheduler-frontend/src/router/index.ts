@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
+import { isAdminOnlyPath, isStudentAllowedPath } from '@/utils/routeGuards'
 
 // Eagerly load lightweight nav routes (~15KB total)
 // Heavy routes (Schedules, Solver, Analytics) stay lazy-loaded
@@ -185,17 +186,25 @@ const router = createRouter({
 router.beforeEach((to, _from, next) => {
 	const { role } = useRole()
 
+	if (role.value === 'student' && !isStudentAllowedPath(to.path)) {
+		return next('/')
+	}
+	// Specific redirects must be checked before the general admin-only guard so
+	// they can send users to the appropriate fallback page rather than '/'.
 	if (to.path === '/requests/admin' && role.value !== 'admin') {
 		return next('/requests')
+	}
+	if (to.path === '/schedules/new' && role.value !== 'admin') {
+		return next('/schedules')
+	}
+	if (role.value !== 'admin' && isAdminOnlyPath(to.path)) {
+		return next('/')
 	}
 	if (to.path === '/requests/new' && role.value === 'admin') {
 		return next('/requests/admin')
 	}
 	if (to.path === '/requests' && role.value === 'admin') {
 		return next('/requests/admin')
-	}
-	if (to.path === '/schedules/new' && role.value !== 'admin') {
-		return next('/schedules')
 	}
 
 	return next()

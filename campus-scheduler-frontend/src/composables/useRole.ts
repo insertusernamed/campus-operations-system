@@ -1,20 +1,17 @@
 import { computed, ref, watch } from 'vue'
 
-// TODO(student-role): bring back the student role once we have real Student
-// entities + enrollments and a proper student selector.
-export type Role = 'admin' | 'instructor' /* | 'student' */
+export type Role = 'admin' | 'instructor' | 'student'
 
 const ROLE_KEY = 'campus-operations-system-role'
 const INSTRUCTOR_KEY = 'campus-operations-system-instructor-id'
+const STUDENT_KEY = 'campus-operations-system-student-id'
 
 function normalizeRole(raw: string | null): Role {
-	if (raw === 'admin' || raw === 'instructor') return raw
-	// Legacy: student role was previously selectable but not implemented.
-	if (raw === 'student') return 'instructor'
+	if (raw === 'admin' || raw === 'instructor' || raw === 'student') return raw
 	return 'admin'
 }
 
-function normalizeInstructorId(raw: string | null): number | null {
+function normalizeSelectedId(raw: string | null): number | null {
 	if (raw === null) return null
 	const parsed = Number(raw)
 	if (!Number.isInteger(parsed) || parsed <= 0) {
@@ -30,22 +27,30 @@ if (rawStoredRole !== storedRole) {
 	localStorage.setItem(ROLE_KEY, storedRole)
 }
 const rawStoredInstructorId = localStorage.getItem(INSTRUCTOR_KEY)
-const storedInstructorId = normalizeInstructorId(rawStoredInstructorId)
+const storedInstructorId = normalizeSelectedId(rawStoredInstructorId)
 if (storedInstructorId === null) {
 	localStorage.removeItem(INSTRUCTOR_KEY)
 } else if (rawStoredInstructorId !== String(storedInstructorId)) {
 	localStorage.setItem(INSTRUCTOR_KEY, String(storedInstructorId))
 }
+const rawStoredStudentId = localStorage.getItem(STUDENT_KEY)
+const storedStudentId = normalizeSelectedId(rawStoredStudentId)
+if (storedStudentId === null) {
+	localStorage.removeItem(STUDENT_KEY)
+} else if (rawStoredStudentId !== String(storedStudentId)) {
+	localStorage.setItem(STUDENT_KEY, String(storedStudentId))
+}
 
 const role = ref<Role>(storedRole)
 const instructorId = ref<number | null>(storedInstructorId)
+const studentId = ref<number | null>(storedStudentId)
 
 watch(role, value => {
 	localStorage.setItem(ROLE_KEY, value)
 })
 
 watch(instructorId, value => {
-	const normalized = value !== null && Number.isInteger(value) && value > 0 ? value : null
+	const normalized = normalizeSelectedId(value === null ? null : String(value))
 	if (normalized !== value) {
 		instructorId.value = normalized
 		return
@@ -57,22 +62,41 @@ watch(instructorId, value => {
 	localStorage.setItem(INSTRUCTOR_KEY, String(normalized))
 })
 
+watch(studentId, value => {
+	const normalized = normalizeSelectedId(value === null ? null : String(value))
+	if (normalized !== value) {
+		studentId.value = normalized
+		return
+	}
+	if (normalized === null) {
+		localStorage.removeItem(STUDENT_KEY)
+		return
+	}
+	localStorage.setItem(STUDENT_KEY, String(normalized))
+})
+
 export function useRole() {
 	function setRole(nextRole: Role) {
 		role.value = nextRole
 	}
 
 	function setInstructorId(id: number | null) {
-		const normalized = id !== null && Number.isInteger(id) && id > 0 ? id : null
-		instructorId.value = normalized
+		instructorId.value = normalizeSelectedId(id === null ? null : String(id))
+	}
+
+	function setStudentId(id: number | null) {
+		studentId.value = normalizeSelectedId(id === null ? null : String(id))
 	}
 
 	return {
 		role,
 		instructorId,
+		studentId,
 		setRole,
 		setInstructorId,
+		setStudentId,
 		isAdmin: computed(() => role.value === 'admin'),
 		isInstructor: computed(() => role.value === 'instructor'),
+		isStudent: computed(() => role.value === 'student'),
 	}
 }

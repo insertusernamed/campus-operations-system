@@ -36,7 +36,7 @@ const navigation: NavGroup[] = [
 	{
 		title: 'Overview',
 		items: [
-			{ name: 'Dashboard', path: '/', icon: 'home', roles: ['admin', 'instructor'] },
+			{ name: 'Dashboard', path: '/', icon: 'home', roles: ['admin', 'instructor', 'student'] },
 			{ name: 'Analytics', path: '/analytics', icon: 'chart', roles: ['admin'] },
 		],
 	},

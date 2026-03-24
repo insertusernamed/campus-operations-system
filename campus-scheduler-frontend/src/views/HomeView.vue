@@ -598,6 +598,38 @@
 			</BaseModal>
 		</section>
 
+		<!-- Student dashboard shell -->
+		<section v-else-if="isStudent" class="space-y-6">
+			<div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+				<div>
+					<h1 class="text-2xl font-semibold text-gray-900">Dashboard</h1>
+					<p class="mt-1 text-sm text-gray-600">
+						Read-only student shell.
+						<span v-if="studentLabel" class="text-gray-500">
+							<span class="mx-1">|</span>
+							{{ studentLabel }}
+						</span>
+					</p>
+				</div>
+			</div>
+
+			<div class="rounded border border-gray-200 bg-white p-6">
+				<div v-if="!studentId" class="space-y-1">
+					<div class="text-sm font-medium text-gray-900">Select a student</div>
+					<p class="text-sm text-gray-600">
+						Use the student selector in the top bar to choose which generated student you want to inspect.
+					</p>
+				</div>
+				<div v-else class="space-y-1">
+					<div class="text-sm font-medium text-gray-900">Student workspace is ready</div>
+					<p class="text-sm text-gray-600">
+						Role state, selector persistence, and route restrictions are active. Student schedule views land in
+						the next feature slice.
+					</p>
+				</div>
+			</div>
+		</section>
+
 		<!-- Fallback (unknown role) -->
 		<section v-else class="space-y-4">
 			<h1 class="text-2xl font-semibold text-gray-900">Dashboard</h1>
@@ -616,6 +648,7 @@ import { changeRequestsService, type ScheduleChangeRequest } from '@/services/ch
 import { schedulesService, type Schedule } from '@/services/schedules'
 import { timeslotsService, type TimeSlot } from '@/services/timeslots'
 import { useInstructors } from '@/composables/useInstructors'
+import { useStudents } from '@/composables/useStudents'
 import { exportFullSemester } from '@/utils/icalExport'
 import BaseModal from '@/components/common/BaseModal.vue'
 import { buildingsService, type Building } from '@/services/buildings'
@@ -638,8 +671,9 @@ type Kpi = {
 	to: string
 }
 
-const { isAdmin, isInstructor, instructorId } = useRole()
+const { isAdmin, isInstructor, isStudent, instructorId, studentId } = useRole()
 const { instructors } = useInstructors()
+const { students } = useStudents()
 
 const teachingPrefsOpen = ref(false)
 const teachingPrefsLoading = ref(false)
@@ -757,6 +791,13 @@ const instructorLabel = computed(() => {
 	if (!instructorId.value) return ''
 	const match = instructors.value.find(i => i.id === instructorId.value)
 	if (!match) return `Instructor #${instructorId.value}`
+	return `${match.firstName} ${match.lastName}`.trim()
+})
+
+const studentLabel = computed(() => {
+	if (!studentId.value) return ''
+	const match = students.value.find(student => student.id === studentId.value)
+	if (!match) return `Student #${studentId.value}`
 	return `${match.firstName} ${match.lastName}`.trim()
 })
 

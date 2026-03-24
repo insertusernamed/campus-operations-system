@@ -2,28 +2,23 @@
 import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRole, type Role } from '@/composables/useRole'
 import { useInstructors } from '@/composables/useInstructors'
+import { useStudents } from '@/composables/useStudents'
 import { useTheme, type Theme } from '@/composables/useTheme'
 import { useRouteTransition, type RouteTransitionName } from '@/composables/useRouteTransition'
 import { useRoute, useRouter } from 'vue-router'
+import { isAdminOnlyPath, isStudentAllowedPath } from '@/utils/routeGuards'
 
 defineEmits<{
 	(e: 'toggle-sidebar'): void
 }>()
 
-const { role, instructorId, setRole, setInstructorId } = useRole()
+const { role, instructorId, studentId, setRole, setInstructorId, setStudentId } = useRole()
 const { instructors, loading: loadingInstructors, loadInstructors } = useInstructors()
+const { students, loading: loadingStudents, loadStudents } = useStudents()
 const { theme, setTheme } = useTheme()
 const { routeTransition, setRouteTransition } = useRouteTransition()
 const router = useRouter()
 const route = useRoute()
-
-const ADMIN_ONLY_ROUTE_PREFIXES = ['/analytics', '/buildings', '/rooms', '/instructors', '/courses', '/timeslots', '/solver']
-const ADMIN_ONLY_ROUTES = ['/schedules/new', '/requests/admin']
-
-function isAdminOnlyPath(path: string): boolean {
-	if (ADMIN_ONLY_ROUTES.includes(path)) return true
-	return ADMIN_ONLY_ROUTE_PREFIXES.some(prefix => path === prefix || path.startsWith(`${prefix}/`))
-}
 
 const roleModel = computed({
 	get: () => role.value,
@@ -53,9 +48,27 @@ const instructorModel = computed({
 	},
 })
 
+const studentModel = computed({
+	get: () => studentId.value ?? '',
+	set: value => {
+		const raw = String(value).trim()
+		if (!raw) {
+			setStudentId(null)
+			return
+		}
+		const parsed = Number(raw)
+		setStudentId(Number.isInteger(parsed) && parsed > 0 ? parsed : null)
+	},
+})
+
 function hasValidInstructorSelection(selectedId: number | null): boolean {
 	if (selectedId === null) return false
 	return instructors.value.some(instructor => instructor.id === selectedId)
+}
+
+function hasValidStudentSelection(selectedId: number | null): boolean {
+	if (selectedId === null) return false
+	return students.value.some(student => student.id === selectedId)
 }
 
 watch(
@@ -64,6 +77,16 @@ watch(
 		if (nextRole !== 'instructor') return
 		if (instructors.value.length > 0 || loadingInstructors.value) return
 		void loadInstructors()
+	},
+	{ immediate: true }
+)
+
+watch(
+	role,
+	nextRole => {
+		if (nextRole !== 'student') return
+		if (students.value.length > 0 || loadingStudents.value) return
+		void loadStudents()
 	},
 	{ immediate: true }
 )
@@ -87,7 +110,31 @@ watch(
 	{ immediate: true }
 )
 
+watch(
+	[role, students, studentId],
+	([nextRole, nextStudents, nextStudentId]) => {
+		if (nextRole !== 'student') return
+		if (nextStudents.length === 0) {
+			if (nextStudentId !== null) {
+				setStudentId(null)
+			}
+			return
+		}
+		if (hasValidStudentSelection(nextStudentId)) return
+		const fallbackStudent = nextStudents[0]
+		if (fallbackStudent) {
+			setStudentId(fallbackStudent.id)
+		}
+	},
+	{ immediate: true }
+)
+
 watch(role, nextRole => {
+	if (nextRole === 'student' && !isStudentAllowedPath(route.path)) {
+		void router.replace('/')
+		return
+	}
+
 	if (nextRole === 'instructor' && isAdminOnlyPath(route.path)) {
 		void router.replace('/')
 		return
@@ -100,11 +147,15 @@ watch(role, nextRole => {
 
 function handleDataRegenerated() {
 	void loadInstructors()
+	void loadStudents()
 }
 
 onMounted(() => {
-	if (instructors.value.length === 0 && !loadingInstructors.value) {
+	if (role.value === 'instructor' && instructors.value.length === 0 && !loadingInstructors.value) {
 		void loadInstructors()
+	}
+	if (role.value === 'student' && students.value.length === 0 && !loadingStudents.value) {
+		void loadStudents()
 	}
 	// Listen for data regeneration events
 	window.addEventListener('data-regenerated', handleDataRegenerated)
@@ -171,9 +222,10 @@ onUnmounted(() => {
 					class="px-2 py-1 border border-gray-300 rounded bg-white text-gray-700 text-xs sm:text-sm">
 					<option value="admin">Admin</option>
 					<option value="instructor">Instructor</option>
+					<option value="student">Student</option>
 				</select>
 			</div>
-			<div v-if="role !== 'admin'" class="flex items-center gap-1.5 sm:gap-2">
+			<div v-if="role === 'instructor'" class="flex items-center gap-1.5 sm:gap-2">
 				<span class="hidden sm:inline text-xs uppercase tracking-wide text-gray-500">Instructor</span>
 				<select v-model="instructorModel" aria-label="Instructor"
 					class="px-2 py-1 border border-gray-300 rounded bg-white text-gray-700 text-xs sm:text-sm max-w-32 sm:max-w-none">
@@ -182,6 +234,18 @@ onUnmounted(() => {
 					</option>
 					<option v-for="instructor in instructors" :key="instructor.id" :value="instructor.id">
 						{{ instructor.firstName }} {{ instructor.lastName }}
+					</option>
+				</select>
+			</div>
+			<div v-else-if="role === 'student'" class="flex items-center gap-1.5 sm:gap-2">
+				<span class="hidden sm:inline text-xs uppercase tracking-wide text-gray-500">Student</span>
+				<select v-model="studentModel" aria-label="Student"
+					class="px-2 py-1 border border-gray-300 rounded bg-white text-gray-700 text-xs sm:text-sm max-w-32 sm:max-w-none">
+					<option value="" disabled>
+						{{ loadingStudents ? 'Loading...' : 'Select student' }}
+					</option>
+					<option v-for="student in students" :key="student.id" :value="student.id">
+						{{ student.firstName }} {{ student.lastName }}
 					</option>
 				</select>
 			</div>
