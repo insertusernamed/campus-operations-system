@@ -37,6 +37,8 @@ const stats = ref<UniversityStats>({
 	instructors: 0,
 	courses: 0,
 	schedules: 0,
+	students: 0,
+	generatedDemandCount: 0,
 })
 
 // Research-based generator state
@@ -414,7 +416,7 @@ async function generateData() {
 			archetype: selectedArchetype.value,
 			studentPopulation: studentPopulation.value,
 		})
-		statusMessage.value = `Generated: ${result.buildings} buildings, ${result.rooms} rooms, ${result.instructors} instructors, ${result.courses} courses`
+		statusMessage.value = `Generated: ${result.buildings} buildings, ${result.rooms} rooms, ${result.instructors} instructors, ${result.courses} courses, ${result.students} students`
 		await fetchStats()
 		requestAnalyticsRefresh(true)
 		// Notify other components that data has changed

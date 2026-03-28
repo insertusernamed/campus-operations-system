@@ -6,21 +6,21 @@ COMP 4431/4432 (Advanced Project) at Lakehead University.
 The goal is to demonstrate production-style full-stack engineering:
 domain modeling, validation, optimization, testing, and deployable structure.
 
-## Current Scope (V1)
+## Current Scope (Current Build)
 
-V1 focuses on admin and instructor workflows:
+Current scope includes admin, instructor, and generated student workflows:
 
 - Campus resource management (buildings, rooms, courses, instructors, time slots)
 - Schedule creation with conflict detection
 - Instructor change request workflow
 - Utilization analytics dashboard
 - Auto-scheduling with Timefold solver and live progress updates
+- Student roster generation, enrollment simulation, and waitlist tracking
+- Student-role schedule view for enrolled and waitlisted classes
 
-Student-facing workflows are planned for V2.
+## Demo Auth Model
 
-## Demo Auth Model (Intentional for V1)
-
-This project uses a demo role-switching model in the UI (admin/instructor)
+This project uses a demo role-switching model in the UI (admin/instructor/student)
 instead of real signup/login. This keeps demos fast and allows testing of
 role-specific UX without account setup overhead.
 
@@ -72,6 +72,16 @@ campus-scheduler/
 - Impact analysis for requested schedule changes
 - Research-based demo data generation presets
 - Live solver status via WebSocket
+- Enrollment simulation using generated student demand and ranked preferences
+- Waitlist analytics and class-demand pressure summaries
+
+## Student Demand and Waitlist Semantics
+
+- Student demand is synthetic and generated from `contacts.csv` plus academic metadata (department, year, target load, ranked course basket).
+- A scheduled class seat limit is the minimum of `course.enrollmentCapacity` and `room.capacity`.
+- Enrollment assignment is deterministic by student identity ordering, then ranked preference order.
+- Overflow requests become `WAITLISTED` enrollments when a preferred class has no remaining seats.
+- Student schedules enforce hard constraints: no overlapping classes and maximum 3 enrolled classes/day.
 
 ## Getting Started
 

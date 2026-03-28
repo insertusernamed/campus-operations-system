@@ -472,6 +472,7 @@ public class UniversityGeneratorService {
             String department = pickStudentDepartment(courses, i);
             int yearLevel = generateYearLevel();
             int targetCourseLoad = generateTargetCourseLoad(yearLevel);
+            int preferenceSeed = buildPreferenceSeed(i, department, yearLevel);
             students.add(Student.builder()
                     .studentNumber(dataGeneratorService.generateStudentNumber(i))
                     .firstName(contact.firstName())
@@ -480,7 +481,13 @@ public class UniversityGeneratorService {
                     .department(department)
                     .yearLevel(yearLevel)
                     .targetCourseLoad(targetCourseLoad)
-                    .preferredCourseIds(generatePreferredCourseIds(courses, coursesByDepartment, department, yearLevel, targetCourseLoad))
+                    .preferredCourseIds(generatePreferredCourseIds(
+                            courses,
+                            coursesByDepartment,
+                            department,
+                            yearLevel,
+                            targetCourseLoad,
+                            preferenceSeed))
                     .build());
         }
 
@@ -525,24 +532,34 @@ public class UniversityGeneratorService {
         };
     }
 
+    private int buildPreferenceSeed(int studentIndex, String department, int yearLevel) {
+        int departmentHash = department == null ? 0 : department.hashCode();
+        return 31 * (studentIndex + 1) + 17 * yearLevel + departmentHash;
+    }
+
     private List<Long> generatePreferredCourseIds(
             List<Course> allCourses,
             Map<String, List<Course>> coursesByDepartment,
             String department,
             int yearLevel,
-            int targetCourseLoad) {
-        int basketSize = Math.min(allCourses.size(), targetCourseLoad + 2);
+            int targetCourseLoad,
+            int preferenceSeed) {
+        int basketSize = Math.min(allCourses.size(), Math.max(targetCourseLoad + 3, targetCourseLoad * 2));
         if (basketSize == 0) {
             return List.of();
         }
 
         LinkedHashSet<Long> rankedCourseIds = new LinkedHashSet<>();
-        List<Course> departmentCourses = sortCoursesForStudent(coursesByDepartment.getOrDefault(department, List.of()), yearLevel);
+        List<Course> departmentCourses = sortCoursesForStudent(
+                coursesByDepartment.getOrDefault(department, List.of()),
+                yearLevel,
+                preferenceSeed);
         List<Course> electiveCourses = sortCoursesForStudent(
                 allCourses.stream()
-                        .filter(course -> !department.equals(course.getDepartment()))
+                        .filter(course -> !java.util.Objects.equals(department, course.getDepartment()))
                         .toList(),
-                yearLevel);
+                yearLevel,
+                preferenceSeed);
 
         int inDepartmentTarget = Math.min(
                 departmentCourses.size(),
@@ -554,20 +571,38 @@ public class UniversityGeneratorService {
         if (rankedCourseIds.size() < basketSize) {
             addPreferredCourses(
                     rankedCourseIds,
-                    sortCoursesForStudent(allCourses, yearLevel),
+                    sortCoursesForStudent(allCourses, yearLevel, preferenceSeed),
                     basketSize - rankedCourseIds.size());
         }
 
         return new ArrayList<>(rankedCourseIds);
     }
 
-    private List<Course> sortCoursesForStudent(List<Course> courses, int yearLevel) {
+    private List<Course> sortCoursesForStudent(List<Course> courses, int yearLevel, int preferenceSeed) {
         List<Course> rankedCourses = new ArrayList<>(courses);
-        java.util.Collections.shuffle(rankedCourses, random);
         rankedCourses.sort(Comparator
                 .comparingInt((Course course) -> Math.abs(extractCourseLevel(course) - yearLevel))
-                .thenComparing(Course::getCode));
+                .thenComparingDouble(course -> preferenceNoise(course, preferenceSeed))
+                .thenComparing(Course::getCode, Comparator.nullsLast(String::compareTo)));
         return rankedCourses;
+    }
+
+    private double preferenceNoise(Course course, int preferenceSeed) {
+        long courseKey = course.getId() != null
+                ? course.getId()
+                : (course.getCode() == null ? 0L : course.getCode().hashCode());
+        long mixed = mix64(courseKey ^ (((long) preferenceSeed) << 32) ^ 0x9E3779B97F4A7C15L);
+        return (mixed & Long.MAX_VALUE) / (double) Long.MAX_VALUE;
+    }
+
+    private long mix64(long value) {
+        long mixed = value;
+        mixed ^= (mixed >>> 33);
+        mixed *= 0xff51afd7ed558ccdL;
+        mixed ^= (mixed >>> 33);
+        mixed *= 0xc4ceb9fe1a85ec53L;
+        mixed ^= (mixed >>> 33);
+        return mixed;
     }
 
     private void addPreferredCourses(LinkedHashSet<Long> rankedCourseIds, List<Course> courses, int targetCount) {

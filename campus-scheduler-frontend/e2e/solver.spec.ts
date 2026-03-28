@@ -135,6 +135,9 @@ test.describe('Solver Page', () => {
 					rooms: 20,
 					instructors: 10,
 					courses: 50,
+					students: 1200,
+					generatedDemandCount: 6000,
+					timeSlots: 30,
 				},
 			});
 		});
@@ -322,7 +325,7 @@ test.describe('Solver Page', () => {
 		const generateBtn = page.locator('main').getByRole('button', { name: 'Generate Data' });
 		await generateBtn.click();
 
-		await expect(page.getByText('Generated: 5 buildings, 20 rooms, 10 instructors, 50 courses')).toBeVisible();
+		await expect(page.getByText('Generated: 5 buildings, 20 rooms, 10 instructors, 50 courses, 1200 students')).toBeVisible();
 	});
 
 	test('should start and stop solver, updating UI state', async ({ page }) => {

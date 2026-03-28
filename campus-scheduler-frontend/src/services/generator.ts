@@ -17,9 +17,12 @@ export interface GeneratorResponse {
 	rooms: number
 	instructors: number
 	courses: number
+	students: number
+	generatedDemandCount: number
 	timeSlots: number
 	archetype?: string
 	studentPopulation?: number
+	ratioInfo?: string
 }
 
 export interface ArchetypeInfo {
@@ -100,4 +103,6 @@ export interface UniversityStats {
 	instructors: number
 	courses: number
 	schedules: number
+	students: number
+	generatedDemandCount: number
 }
