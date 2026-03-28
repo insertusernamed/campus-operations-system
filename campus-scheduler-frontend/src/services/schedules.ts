@@ -9,6 +9,10 @@ export interface Schedule {
 	room: Room
 	timeSlot: TimeSlot
 	semester: string
+	filledSeats?: number | null
+	seatLimit?: number | null
+	remainingSeats?: number | null
+	waitlistCount?: number | null
 }
 
 export interface ScheduleCreateRequest {

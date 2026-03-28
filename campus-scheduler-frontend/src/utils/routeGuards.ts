@@ -17,5 +17,5 @@ export function isAdminOnlyPath(path: string): boolean {
 }
 
 export function isStudentAllowedPath(path: string): boolean {
-	return path === '/'
+	return path === '/' || path === '/schedules' || path.startsWith('/schedules/')
 }
