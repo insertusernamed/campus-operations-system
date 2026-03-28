@@ -152,6 +152,23 @@ public class SolverService {
 			long studentDays) {
 	}
 
+	public record SolverDemandPressureCourse(
+			Long scheduleId,
+			Long courseId,
+			String courseCode,
+			String courseName,
+			String buildingCode,
+			String roomNumber,
+			DayOfWeek dayOfWeek,
+			LocalTime startTime,
+			LocalTime endTime,
+			int seatLimit,
+			long filledSeats,
+			long waitlistCount,
+			double fillRatePercentage,
+			double demandPressurePercentage) {
+	}
+
 	public record SolverAnalyticsResponse(
 			String semester,
 			int totalRooms,
@@ -164,7 +181,10 @@ public class SolverService {
 			long waitlistedRequests,
 			double averageFillRate,
 			double averageGapMinutes,
+			double averageActiveDaysPerStudent,
 			List<SolverStudentDailyLoad> dailyLoadDistribution,
+			List<SolverDemandPressureCourse> highDemandCourses,
+			List<SolverDemandPressureCourse> worstWaitlists,
 			List<SolverRoomUtilization> topUtilizedRooms,
 			List<SolverRoomUtilization> leastUtilizedRooms,
 			List<SolverRoomUtilization> rooms,
@@ -706,7 +726,10 @@ public class SolverService {
 				studentMetrics.waitlistedRequests(),
 				studentMetrics.averageFillRate(),
 				studentMetrics.averageGapMinutes(),
+				studentMetrics.averageActiveDaysPerStudent(),
 				studentMetrics.dailyLoadDistribution(),
+				studentMetrics.highDemandCourses(),
+				studentMetrics.worstWaitlists(),
 				topUtilized,
 				leastUtilized,
 				roomUtilization,
@@ -759,6 +782,13 @@ public class SolverService {
 						enrollment -> enrollment.getSchedule().getId(),
 						LinkedHashMap::new,
 						Collectors.counting()));
+		Map<Long, Long> waitlistByScheduleId = safeEnrollments.stream()
+				.filter(enrollment -> enrollment.getStatus() == org.campusscheduler.domain.enrollment.EnrollmentStatus.WAITLISTED)
+				.filter(enrollment -> enrollment.getSchedule() != null && enrollment.getSchedule().getId() != null)
+				.collect(Collectors.groupingBy(
+						enrollment -> enrollment.getSchedule().getId(),
+						LinkedHashMap::new,
+						Collectors.counting()));
 
 		double averageFillRate = safeSchedules.stream()
 				.mapToDouble(schedule -> {
@@ -772,7 +802,12 @@ public class SolverService {
 				.orElse(0.0);
 
 		double averageGapMinutes = computeAverageGapMinutes(safeEnrollments);
+		double averageActiveDaysPerStudent = computeAverageActiveDaysPerStudent(safeEnrollments);
 		List<SolverStudentDailyLoad> dailyLoadDistribution = buildDailyLoadDistribution(safeEnrollments);
+		DemandPressureMetrics demandPressureMetrics = buildDemandPressureMetrics(
+				safeSchedules,
+				filledSeatsByScheduleId,
+				waitlistByScheduleId);
 
 		return new StudentAnalyticsMetrics(
 				safeStudents.size(),
@@ -780,7 +815,10 @@ public class SolverService {
 				waitlistedRequests,
 				averageFillRate,
 				averageGapMinutes,
-				dailyLoadDistribution);
+				averageActiveDaysPerStudent,
+				dailyLoadDistribution,
+				demandPressureMetrics.highDemandCourses(),
+				demandPressureMetrics.worstWaitlists());
 	}
 
 	private double computeAverageGapMinutes(List<Enrollment> enrollments) {
@@ -845,6 +883,78 @@ public class SolverService {
 				.toList();
 	}
 
+	private double computeAverageActiveDaysPerStudent(List<Enrollment> enrollments) {
+		Map<Long, Set<DayOfWeek>> activeDaysByStudent = enrollments.stream()
+				.filter(enrollment -> enrollment.getStatus() == org.campusscheduler.domain.enrollment.EnrollmentStatus.ENROLLED)
+				.filter(enrollment -> enrollment.getStudent() != null && enrollment.getStudent().getId() != null)
+				.filter(enrollment -> enrollment.getSchedule() != null && enrollment.getSchedule().getTimeSlot() != null)
+				.filter(enrollment -> enrollment.getSchedule().getTimeSlot().getDayOfWeek() != null)
+				.collect(Collectors.groupingBy(
+						enrollment -> enrollment.getStudent().getId(),
+						LinkedHashMap::new,
+						Collectors.mapping(
+								enrollment -> enrollment.getSchedule().getTimeSlot().getDayOfWeek(),
+								Collectors.toCollection(LinkedHashSet::new))));
+
+		return activeDaysByStudent.values().stream()
+				.mapToInt(Set::size)
+				.average()
+				.orElse(0.0);
+	}
+
+	private DemandPressureMetrics buildDemandPressureMetrics(
+			List<Schedule> schedules,
+			Map<Long, Long> filledSeatsByScheduleId,
+			Map<Long, Long> waitlistByScheduleId) {
+		List<SolverDemandPressureCourse> allRows = schedules.stream()
+				.filter(Objects::nonNull)
+				.map(schedule -> {
+					long filledSeats = filledSeatsByScheduleId.getOrDefault(schedule.getId(), 0L);
+					long waitlistCount = waitlistByScheduleId.getOrDefault(schedule.getId(), 0L);
+					int seatLimit = resolveSeatLimit(schedule);
+					double fillRate = seatLimit > 0 ? filledSeats * 100.0 / seatLimit : 0.0;
+					double demandPressure = seatLimit > 0 ? (filledSeats + waitlistCount) * 100.0 / seatLimit : 0.0;
+
+					Course course = schedule.getCourse();
+					Room room = schedule.getRoom();
+					TimeSlot timeSlot = schedule.getTimeSlot();
+
+					return new SolverDemandPressureCourse(
+							schedule.getId(),
+							course != null ? course.getId() : null,
+							course != null ? course.getCode() : null,
+							course != null ? course.getName() : null,
+							room != null ? room.getBuildingCode() : null,
+							room != null ? room.getRoomNumber() : null,
+							timeSlot != null ? timeSlot.getDayOfWeek() : null,
+							timeSlot != null ? timeSlot.getStartTime() : null,
+							timeSlot != null ? timeSlot.getEndTime() : null,
+							seatLimit,
+							filledSeats,
+							waitlistCount,
+							fillRate,
+							demandPressure);
+				})
+				.toList();
+
+		List<SolverDemandPressureCourse> highDemandCourses = allRows.stream()
+				.sorted(Comparator.comparing(SolverDemandPressureCourse::demandPressurePercentage).reversed()
+						.thenComparing(SolverDemandPressureCourse::waitlistCount, Comparator.reverseOrder())
+						.thenComparing(SolverDemandPressureCourse::fillRatePercentage, Comparator.reverseOrder()))
+				.limit(5)
+				.toList();
+
+		List<SolverDemandPressureCourse> worstWaitlists = allRows.stream()
+				.filter(row -> row.waitlistCount() > 0)
+				.sorted(Comparator.comparing(SolverDemandPressureCourse::waitlistCount).reversed()
+						.thenComparing(SolverDemandPressureCourse::demandPressurePercentage, Comparator.reverseOrder())
+						.thenComparing(SolverDemandPressureCourse::fillRatePercentage, Comparator.reverseOrder()))
+				.limit(5)
+				.toList();
+
+		return new DemandPressureMetrics(highDemandCourses, worstWaitlists);
+	}
+
 	private int resolveSeatLimit(Schedule schedule) {
 		return ScheduleSeatLimitResolver.resolve(schedule);
 	}
@@ -855,7 +965,15 @@ public class SolverService {
 			long waitlistedRequests,
 			double averageFillRate,
 			double averageGapMinutes,
-			List<SolverStudentDailyLoad> dailyLoadDistribution) {
+			double averageActiveDaysPerStudent,
+			List<SolverStudentDailyLoad> dailyLoadDistribution,
+			List<SolverDemandPressureCourse> highDemandCourses,
+			List<SolverDemandPressureCourse> worstWaitlists) {
+	}
+
+	private record DemandPressureMetrics(
+			List<SolverDemandPressureCourse> highDemandCourses,
+			List<SolverDemandPressureCourse> worstWaitlists) {
 	}
 
 	private record StudentDayBucket(Long studentId, DayOfWeek dayOfWeek) {

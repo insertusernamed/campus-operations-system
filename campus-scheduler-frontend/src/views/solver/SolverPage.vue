@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSolverWebSocket } from '@/composables/useSolverWebSocket'
-import { solverService, type SolverAnalytics } from '@/services/solver'
+import { solverService, type SolverAnalytics, type SolverDemandPressureCourse } from '@/services/solver'
 import {
 	generatorService,
 	type UniversityStats,
@@ -91,6 +91,7 @@ const ANALYTICS_REFRESH_MIN_INTERVAL_MS = 350
 const ANALYTICS_FALLBACK_POLL_MS = 750
 const MAX_DISPLAYED_BUILDINGS = 10
 const MAX_ROOM_ROWS = 10
+const MAX_DEMAND_ROWS = 8
 
 const analyticsLastFetchAt = ref(0)
 const analyticsFetchInFlight = ref(false)
@@ -118,6 +119,29 @@ const topRoomRows = computed(() => {
 	return analytics.value.topUtilizedRooms.slice(0, MAX_ROOM_ROWS)
 })
 
+const studentDailyLoadData = computed<BarChartData[]>(() => {
+	const distribution = analytics.value?.dailyLoadDistribution ?? []
+	return [...distribution]
+		.sort((a, b) => a.classesPerDay - b.classesPerDay)
+		.map(entry => ({
+			label: `${entry.classesPerDay} classes/day`,
+			value: entry.studentDays,
+		}))
+})
+
+const highDemandRows = computed(() => (analytics.value?.highDemandCourses ?? []).slice(0, MAX_DEMAND_ROWS))
+const worstWaitlistRows = computed(() => (analytics.value?.worstWaitlists ?? []).slice(0, MAX_DEMAND_ROWS))
+
+const totalEnrollmentRequests = computed(() => {
+	if (!analytics.value) return 0
+	return (analytics.value.enrolledRequests ?? 0) + (analytics.value.waitlistedRequests ?? 0)
+})
+
+const waitlistPressurePercent = computed(() => {
+	if (!analytics.value || totalEnrollmentRequests.value <= 0) return 0
+	return ((analytics.value.waitlistedRequests ?? 0) / totalEnrollmentRequests.value) * 100
+})
+
 const timeSlots = computed(() => {
 	if (!analytics.value) return []
 	const slots = new Set<string>()
@@ -138,6 +162,42 @@ const heatmapData = computed<HeatmapCell[]>(() => {
 })
 
 const formatPercent = (value: number) => `${value.toFixed(1)}%`
+const formatMinutes = (value: number) => `${value.toFixed(1)} min`
+const formatSpreadDays = (value: number) => `${value.toFixed(2)} days`
+const formatInteger = (value: number) => Math.round(value).toLocaleString()
+
+const DAY_LABELS: Record<string, string> = {
+	MONDAY: 'Mon',
+	TUESDAY: 'Tue',
+	WEDNESDAY: 'Wed',
+	THURSDAY: 'Thu',
+	FRIDAY: 'Fri',
+	SATURDAY: 'Sat',
+	SUNDAY: 'Sun',
+}
+
+function formatDemandCourseTitle(row: SolverDemandPressureCourse): string {
+	const code = row.courseCode?.trim() ?? ''
+	const name = row.courseName?.trim() ?? ''
+	if (code && name) return `${code} - ${name}`
+	if (code) return code
+	if (name) return name
+	return 'Unknown course'
+}
+
+function formatDemandSlot(row: SolverDemandPressureCourse): string {
+	const day = row.dayOfWeek ? (DAY_LABELS[row.dayOfWeek] ?? row.dayOfWeek) : 'TBD'
+	const start = row.startTime ? timeslotsService.formatTime(row.startTime) : 'TBD'
+	const end = row.endTime ? timeslotsService.formatTime(row.endTime) : 'TBD'
+	return `${day} ${start} - ${end}`
+}
+
+function formatDemandRoom(row: SolverDemandPressureCourse): string {
+	const building = row.buildingCode ?? ''
+	const room = row.roomNumber ?? ''
+	const label = `${building} ${room}`.trim()
+	return label || 'TBD'
+}
 
 async function fetchSolverAnalytics() {
 	if (!semester.value) return
@@ -783,6 +843,23 @@ const solutionQuality = computed(() => {
 						:value="`${analytics.totalScheduledSlots}/${analytics.totalAvailableSlots}`" />
 				</div>
 
+				<div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+					<StatCard label="Total Students" :value="analytics.totalStudents ?? 0" />
+					<StatCard label="Enrolled Requests" :value="analytics.enrolledRequests ?? 0" />
+					<StatCard label="Waitlisted Requests" :value="analytics.waitlistedRequests ?? 0" />
+					<StatCard label="Waitlist Pressure" :value="formatPercent(waitlistPressurePercent)" />
+					<StatCard label="Average Seat Fill" :value="formatPercent(analytics.averageFillRate ?? 0)" />
+				</div>
+
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+					<StatCard label="Average Gap Between Classes"
+						:value="formatMinutes(analytics.averageGapMinutes ?? 0)"
+						sublabel="Lower means fewer idle gaps during student days" />
+					<StatCard label="Average Active Days/Student"
+						:value="formatSpreadDays(analytics.averageActiveDaysPerStudent ?? 0)"
+						sublabel="Higher means classes are spread across more days" />
+				</div>
+
 				<div class="grid grid-cols-1 xl:grid-cols-5 gap-4 mb-4">
 					<div class="border p-4 xl:col-span-3">
 						<BarChart title="Building Utilization" :data="buildingChartData" :height="220" :max-value="100"
@@ -792,6 +869,86 @@ const solutionQuality = computed(() => {
 					<div class="border p-4 xl:col-span-2">
 						<HeatMap title="Schedule Heatmap" :data="heatmapData" :rows="dayLabels" :cols="timeSlots"
 							:cell-width="58" :cell-height="34" />
+					</div>
+				</div>
+
+				<div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
+					<div class="border p-4">
+						<BarChart title="Daily Student Load Distribution" :data="studentDailyLoadData" :height="220"
+							:value-formatter="formatInteger" :min-chart-width="560" :min-bar-width="38" :bar-gap="12"
+							:x-label-max-length="16" />
+					</div>
+					<div class="border p-4">
+						<h3 class="font-semibold mb-2">Demand Pressure Summary</h3>
+						<div class="grid grid-cols-1 gap-3">
+							<div class="border border-gray-200">
+								<div class="px-3 py-2 border-b border-gray-200 bg-gray-50">
+									<p class="text-sm font-medium text-gray-900">High-Demand Classes</p>
+									<p class="text-xs text-gray-500">Highest combined seat pressure and fill rate</p>
+								</div>
+								<div class="overflow-x-auto">
+									<table class="w-full text-sm">
+										<thead>
+											<tr class="text-left text-gray-600 border-b">
+												<th class="py-2 px-3">Course</th>
+												<th class="py-2 px-3 text-right">Seats</th>
+												<th class="py-2 px-3 text-right">Waitlist</th>
+												<th class="py-2 px-3 text-right">Pressure</th>
+											</tr>
+										</thead>
+										<tbody>
+											<tr v-for="row in highDemandRows" :key="`demand-${row.scheduleId}-${row.courseId}`"
+												class="border-b last:border-0">
+												<td class="py-2 px-3">
+													<div class="font-medium text-gray-900">{{ formatDemandCourseTitle(row) }}</div>
+													<div class="text-xs text-gray-500">{{ formatDemandRoom(row) }} • {{ formatDemandSlot(row) }}</div>
+												</td>
+												<td class="py-2 px-3 text-right text-gray-700">{{ row.filledSeats }}/{{ row.seatLimit }}</td>
+												<td class="py-2 px-3 text-right text-gray-700">{{ row.waitlistCount }}</td>
+												<td class="py-2 px-3 text-right font-medium">{{ formatPercent(row.demandPressurePercentage) }}</td>
+											</tr>
+										</tbody>
+									</table>
+								</div>
+								<div v-if="highDemandRows.length === 0" class="px-3 py-2 text-sm text-gray-500">
+									No high-demand class data available.
+								</div>
+							</div>
+
+							<div class="border border-gray-200">
+								<div class="px-3 py-2 border-b border-gray-200 bg-gray-50">
+									<p class="text-sm font-medium text-gray-900">Worst Waitlists</p>
+									<p class="text-xs text-gray-500">Classes with the largest waitlisted volume</p>
+								</div>
+								<div class="overflow-x-auto">
+									<table class="w-full text-sm">
+										<thead>
+											<tr class="text-left text-gray-600 border-b">
+												<th class="py-2 px-3">Course</th>
+												<th class="py-2 px-3 text-right">Seats</th>
+												<th class="py-2 px-3 text-right">Waitlist</th>
+												<th class="py-2 px-3 text-right">Fill</th>
+											</tr>
+										</thead>
+										<tbody>
+											<tr v-for="row in worstWaitlistRows" :key="`waitlist-${row.scheduleId}-${row.courseId}`"
+												class="border-b last:border-0">
+												<td class="py-2 px-3">
+													<div class="font-medium text-gray-900">{{ formatDemandCourseTitle(row) }}</div>
+													<div class="text-xs text-gray-500">{{ formatDemandRoom(row) }} • {{ formatDemandSlot(row) }}</div>
+												</td>
+												<td class="py-2 px-3 text-right text-gray-700">{{ row.filledSeats }}/{{ row.seatLimit }}</td>
+												<td class="py-2 px-3 text-right font-semibold text-amber-700">{{ row.waitlistCount }}</td>
+												<td class="py-2 px-3 text-right text-gray-700">{{ formatPercent(row.fillRatePercentage) }}</td>
+											</tr>
+										</tbody>
+									</table>
+								</div>
+								<div v-if="worstWaitlistRows.length === 0" class="px-3 py-2 text-sm text-gray-500">
+									No waitlist pressure detected.
+								</div>
+							</div>
+						</div>
 					</div>
 				</div>
 

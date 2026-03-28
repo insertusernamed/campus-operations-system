@@ -49,6 +49,28 @@ export interface SolverPeakHours {
 	bookingCount: number
 }
 
+export interface SolverStudentDailyLoad {
+	classesPerDay: number
+	studentDays: number
+}
+
+export interface SolverDemandPressureCourse {
+	scheduleId: number | null
+	courseId: number | null
+	courseCode: string | null
+	courseName: string | null
+	buildingCode: string | null
+	roomNumber: string | null
+	dayOfWeek: string | null
+	startTime: string | null
+	endTime: string | null
+	seatLimit: number
+	filledSeats: number
+	waitlistCount: number
+	fillRatePercentage: number
+	demandPressurePercentage: number
+}
+
 export interface SolverAnalytics {
 	semester: string
 	totalRooms: number
@@ -56,6 +78,15 @@ export interface SolverAnalytics {
 	totalScheduledSlots: number
 	totalAvailableSlots: number
 	overallUtilizationPercentage: number
+	totalStudents: number
+	enrolledRequests: number
+	waitlistedRequests: number
+	averageFillRate: number
+	averageGapMinutes: number
+	averageActiveDaysPerStudent?: number
+	dailyLoadDistribution?: SolverStudentDailyLoad[]
+	highDemandCourses?: SolverDemandPressureCourse[]
+	worstWaitlists?: SolverDemandPressureCourse[]
 	topUtilizedRooms: SolverRoomUtilization[]
 	leastUtilizedRooms: SolverRoomUtilization[]
 	rooms: SolverRoomUtilization[]

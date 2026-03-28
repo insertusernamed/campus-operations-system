@@ -8,6 +8,53 @@ test.describe('Solver Page', () => {
 		totalScheduledSlots: 0,
 		totalAvailableSlots: 100,
 		overallUtilizationPercentage: 0,
+		totalStudents: 1200,
+		enrolledRequests: 3200,
+		waitlistedRequests: 400,
+		averageFillRate: 78.5,
+		averageGapMinutes: 22.0,
+		averageActiveDaysPerStudent: 3.2,
+		dailyLoadDistribution: [
+			{ classesPerDay: 1, studentDays: 480 },
+			{ classesPerDay: 2, studentDays: 620 },
+			{ classesPerDay: 3, studentDays: 210 },
+		],
+		highDemandCourses: [
+			{
+				scheduleId: 101,
+				courseId: 501,
+				courseCode: 'CS301',
+				courseName: 'Distributed Systems',
+				buildingCode: 'ENG',
+				roomNumber: '210',
+				dayOfWeek: 'MONDAY',
+				startTime: '09:00',
+				endTime: '10:15',
+				seatLimit: 20,
+				filledSeats: 20,
+				waitlistCount: 8,
+				fillRatePercentage: 100,
+				demandPressurePercentage: 140,
+			},
+		],
+		worstWaitlists: [
+			{
+				scheduleId: 102,
+				courseId: 502,
+				courseCode: 'CS341',
+				courseName: 'Operating Systems',
+				buildingCode: 'SCI',
+				roomNumber: '120',
+				dayOfWeek: 'WEDNESDAY',
+				startTime: '13:00',
+				endTime: '14:15',
+				seatLimit: 18,
+				filledSeats: 18,
+				waitlistCount: 11,
+				fillRatePercentage: 100,
+				demandPressurePercentage: 161.1,
+			},
+		],
 		topUtilizedRooms: [],
 		leastUtilizedRooms: [],
 		rooms: [],
@@ -231,6 +278,44 @@ test.describe('Solver Page', () => {
 
 	test('should load and show connected status', async ({ page }) => {
 		await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 5000 });
+	});
+
+	test('should render student analytics metrics and demand pressure summaries', async ({ page }) => {
+		await expect(page.getByText('Total Students')).toBeVisible();
+		await expect(page.getByText('1200')).toBeVisible();
+		await expect(page.getByText('Waitlist Pressure')).toBeVisible();
+		await expect(page.getByText('11.1%')).toBeVisible();
+		await expect(page.getByText('Daily Student Load Distribution')).toBeVisible();
+		await expect(page.getByText('High-Demand Classes')).toBeVisible();
+		await expect(page.getByText('CS301 - Distributed Systems')).toBeVisible();
+		await expect(page.getByText('Worst Waitlists')).toBeVisible();
+		await expect(page.getByText('CS341 - Operating Systems')).toBeVisible();
+	});
+
+	test('should handle missing student analytics contract fields without crashing', async ({ page }) => {
+		await page.route(/.*\/api\/solver\/analytics.*/, async route => {
+			await route.fulfill({
+				json: {
+					semester: 'Fall 2026',
+					totalRooms: 20,
+					totalBuildings: 5,
+					totalScheduledSlots: 0,
+					totalAvailableSlots: 100,
+					overallUtilizationPercentage: 0,
+					topUtilizedRooms: [],
+					leastUtilizedRooms: [],
+					rooms: [],
+					buildings: [],
+					peakHours: [],
+				},
+			});
+		});
+
+		await page.goto('/solver');
+		await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 5000 });
+		await expect(page.getByText('Total Students')).toBeVisible();
+		await expect(page.getByText('No high-demand class data available.')).toBeVisible();
+		await expect(page.getByText('No waitlist pressure detected.')).toBeVisible();
 	});
 
 	test('should generate demo data', async ({ page }) => {

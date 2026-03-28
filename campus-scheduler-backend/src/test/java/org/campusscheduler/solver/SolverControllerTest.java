@@ -94,7 +94,10 @@ class SolverControllerTest {
                     400,
                     78.5,
                     22.0,
+                    3.2,
                     List.of(new SolverService.SolverStudentDailyLoad(1, 800)),
+                    List.of(),
+                    List.of(),
                     List.of(),
                     List.of(),
                     List.of(),
@@ -111,6 +114,7 @@ class SolverControllerTest {
                     .andExpect(jsonPath("$.overallUtilizationPercentage", is(40.0)))
                     .andExpect(jsonPath("$.totalStudents", is(1200)))
                     .andExpect(jsonPath("$.waitlistedRequests", is(400)))
+                    .andExpect(jsonPath("$.averageActiveDaysPerStudent", is(3.2)))
                     .andExpect(jsonPath("$.dailyLoadDistribution[0].classesPerDay", is(1)));
         }
     }

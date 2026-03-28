@@ -263,8 +263,22 @@ class SolverServiceTest {
         assertThat(response.waitlistedRequests()).isEqualTo(1);
         assertThat(response.averageFillRate()).isEqualTo(100.0);
         assertThat(response.averageGapMinutes()).isEqualTo(60.0);
+        assertThat(response.averageActiveDaysPerStudent()).isEqualTo(1.0);
         assertThat(response.dailyLoadDistribution())
                 .containsExactly(new SolverService.SolverStudentDailyLoad(2, 1));
+        assertThat(response.highDemandCourses())
+                .isNotEmpty()
+                .first()
+                .satisfies(row -> {
+                    assertThat(row.courseCode()).isEqualTo("CS102");
+                    assertThat(row.waitlistCount()).isEqualTo(1);
+                    assertThat(row.demandPressurePercentage()).isEqualTo(200.0);
+                });
+        assertThat(response.worstWaitlists())
+                .containsExactlyElementsOf(response.highDemandCourses().stream()
+                        .filter(row -> row.waitlistCount() > 0)
+                        .limit(1)
+                        .toList());
     }
 
     @SuppressWarnings("unchecked")
