@@ -1,0 +1,504 @@
+import { computed, onBeforeUnmount, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { toast } from 'vue3-toastify'
+import type { Role } from '@/composables/useRole'
+import {
+	roomBookingsService,
+	type RoomBooking,
+	type RoomBookingStudentLookupResponse,
+} from '@/services/roomBookings'
+import type { Room } from '@/services/rooms'
+import type { Schedule } from '@/services/schedules'
+import type { TimeSlot } from '@/services/timeslots'
+import {
+	compareTimeSlots,
+	getUpcomingBookingOccurrenceOptions,
+	type BookingOccurrenceOption,
+} from '@/views/schedules/helpers'
+
+const PARTICIPANT_SEARCH_DEBOUNCE_MS = 250
+
+type MaybeReadonlyRef<T> = Ref<T> | ComputedRef<T>
+
+export interface BookingSelectionOption extends BookingOccurrenceOption {
+	availableRoomCount: number
+}
+
+interface UseRoomBookingWorkflowOptions {
+	role: Ref<Role>
+	studentId: Ref<number | null>
+	selectedSemester: Ref<string | null>
+	rooms: Ref<Room[]>
+	timeSlots: Ref<TimeSlot[]>
+	studentSemesters: Ref<string[]>
+	scheduleAvailabilitySource: MaybeReadonlyRef<Schedule[]>
+	studentSemesterSchedules: Ref<Schedule[]>
+}
+
+export function useRoomBookingWorkflow(options: UseRoomBookingWorkflowOptions) {
+	const roomBookings = ref<RoomBooking[]>([])
+	const roomBookingsLoading = ref(false)
+	const roomBookingsError = ref<string | null>(null)
+
+	const bookingModalOpen = ref(false)
+	const bookingSaving = ref(false)
+	const bookingError = ref<string | null>(null)
+	const bookingForm = ref({
+		semester: '',
+		bookingDate: '',
+		timeSlotId: null as number | null,
+		roomId: null as number | null,
+	})
+
+	const selectedParticipants = ref<RoomBookingStudentLookupResponse[]>([])
+	const participantSearchQuery = ref('')
+	const participantSearchResults = ref<RoomBookingStudentLookupResponse[]>([])
+	const participantSearchLoading = ref(false)
+	const participantSearchError = ref<string | null>(null)
+
+	const roomBookingsSemester = computed(() => {
+		if (
+			options.role.value === 'student'
+			&& bookingModalOpen.value
+			&& bookingForm.value.semester
+		) {
+			return bookingForm.value.semester
+		}
+
+		return options.selectedSemester.value
+	})
+
+	const bookingSemesterOptions = computed(() => {
+		if (options.studentSemesters.value.length > 0) {
+			return options.studentSemesters.value
+		}
+		return options.selectedSemester.value ? [options.selectedSemester.value] : []
+	})
+
+	const sortedTimeSlots = computed(() =>
+		[...options.timeSlots.value].sort((a, b) => {
+			const timeComparison = compareTimeSlots(a, b)
+			if (timeComparison !== 0) {
+				return timeComparison
+			}
+			return a.id - b.id
+		})
+	)
+
+	const selectedBookingTimeSlot = computed(() =>
+		options.timeSlots.value.find(timeSlot => timeSlot.id === bookingForm.value.timeSlotId) ?? null
+	)
+
+	function getAvailableRoomsForSelection(
+		semester: string,
+		bookingDate: string,
+		timeSlotId: number | null
+	): Room[] {
+		if (!semester || !bookingDate || !timeSlotId) {
+			return []
+		}
+
+		const schedulesToCheck = options.role.value === 'student'
+			? options.studentSemesterSchedules.value
+			: options.scheduleAvailabilitySource.value
+
+		const blockedScheduleRoomIds = new Set(
+			schedulesToCheck
+				.filter(schedule =>
+					schedule.semester === semester
+					&& schedule.timeSlot.id === timeSlotId
+				)
+				.map(schedule => schedule.room.id)
+		)
+
+		const blockedRoomBookingRoomIds = new Set(
+			roomBookings.value
+				.filter(booking =>
+					booking.bookingDate === bookingDate
+					&& booking.timeSlot.id === timeSlotId
+				)
+				.map(booking => booking.room.id)
+		)
+
+		return options.rooms.value
+			.filter(room => room.availabilityStatus === 'AVAILABLE')
+			.filter(room => !blockedScheduleRoomIds.has(room.id))
+			.filter(room => !blockedRoomBookingRoomIds.has(room.id))
+			.sort((a, b) => {
+				const buildingA = a.buildingCode ?? ''
+				const buildingB = b.buildingCode ?? ''
+				if (buildingA !== buildingB) {
+					return buildingA.localeCompare(buildingB)
+				}
+				return a.roomNumber.localeCompare(b.roomNumber)
+			})
+	}
+
+	const bookingOptions = computed<BookingSelectionOption[]>(() =>
+		getUpcomingBookingOccurrenceOptions(bookingForm.value.semester, sortedTimeSlots.value)
+			.map(option => ({
+				...option,
+				availableRoomCount: getAvailableRoomsForSelection(
+					bookingForm.value.semester,
+					option.bookingDate,
+					option.timeSlot.id,
+				).length,
+			}))
+	)
+
+	const selectedBookingOption = computed(() =>
+		bookingOptions.value.find(option =>
+			option.bookingDate === bookingForm.value.bookingDate
+			&& option.timeSlot.id === bookingForm.value.timeSlotId
+		) ?? null
+	)
+
+	const availableBookingRooms = computed(() =>
+		getAvailableRoomsForSelection(
+			bookingForm.value.semester,
+			bookingForm.value.bookingDate,
+			bookingForm.value.timeSlotId,
+		)
+	)
+
+	const canSubmitBooking = computed(() =>
+		!!options.studentId.value
+		&& !!bookingForm.value.semester
+		&& !!bookingForm.value.bookingDate
+		&& !!bookingForm.value.timeSlotId
+		&& !!bookingForm.value.roomId
+		&& !bookingSaving.value
+	)
+
+	const selectedParticipantIds = computed(() =>
+		new Set(selectedParticipants.value.map(participant => participant.id))
+	)
+
+	const participantSuggestions = computed(() => {
+		const ownerId = options.studentId.value
+		return participantSearchResults.value.filter(candidate =>
+			candidate.id !== ownerId && !selectedParticipantIds.value.has(candidate.id)
+		)
+	})
+
+	const participantSearchReady = computed(() =>
+		bookingModalOpen.value
+		&& !!options.studentId.value
+		&& !!bookingForm.value.semester
+		&& !!bookingForm.value.timeSlotId
+	)
+
+	let participantSearchTimer: ReturnType<typeof setTimeout> | null = null
+	let participantSearchRequestId = 0
+
+	function clearParticipantSearchTimer() {
+		if (participantSearchTimer !== null) {
+			clearTimeout(participantSearchTimer)
+			participantSearchTimer = null
+		}
+	}
+
+	function getSemesterValueForStudent(): string | null {
+		if (
+			options.selectedSemester.value
+			&& bookingSemesterOptions.value.includes(options.selectedSemester.value)
+		) {
+			return options.selectedSemester.value
+		}
+		return bookingSemesterOptions.value[0] ?? null
+	}
+
+	function applyDefaultBookingSelection() {
+		const defaultOption = bookingOptions.value.find(option => option.availableRoomCount > 0)
+			?? bookingOptions.value[0]
+			?? null
+		if (!defaultOption) {
+			bookingForm.value.bookingDate = ''
+			bookingForm.value.timeSlotId = null
+			bookingForm.value.roomId = null
+			return
+		}
+
+		bookingForm.value.bookingDate = defaultOption.bookingDate
+		bookingForm.value.timeSlotId = defaultOption.timeSlot.id
+		bookingForm.value.roomId = null
+	}
+
+	function resetBookingForm() {
+		bookingForm.value = {
+			semester: getSemesterValueForStudent() ?? '',
+			bookingDate: '',
+			timeSlotId: null,
+			roomId: null,
+		}
+		selectedParticipants.value = []
+		participantSearchQuery.value = ''
+		participantSearchResults.value = []
+		participantSearchError.value = null
+		bookingError.value = null
+	}
+
+	function selectBookingOption(option: BookingSelectionOption) {
+		const selectionChanged =
+			bookingForm.value.bookingDate !== option.bookingDate
+			|| bookingForm.value.timeSlotId !== option.timeSlot.id
+		bookingForm.value.bookingDate = option.bookingDate
+		bookingForm.value.timeSlotId = option.timeSlot.id
+		if (selectionChanged || !availableBookingRooms.value.some(room => room.id === bookingForm.value.roomId)) {
+			bookingForm.value.roomId = null
+		}
+	}
+
+	function getErrorMessage(cause: unknown, fallback: string): string {
+		const errorLike = cause as {
+			response?: { data?: { error?: string } }
+			message?: string
+		}
+		return errorLike.response?.data?.error ?? errorLike.message ?? fallback
+	}
+
+	async function loadRoomBookings() {
+		roomBookingsLoading.value = true
+		roomBookingsError.value = null
+
+		try {
+			const semester = roomBookingsSemester.value ?? undefined
+
+			if (options.role.value === 'student') {
+				if (!options.studentId.value || !semester) {
+					roomBookings.value = []
+					return
+				}
+
+				roomBookings.value = await roomBookingsService.getAll({
+					semester,
+				})
+				return
+			}
+
+			roomBookings.value = await roomBookingsService.getAll({
+				semester,
+			})
+		} catch (cause) {
+			console.error('Failed to load room bookings', cause)
+			roomBookingsError.value = 'Failed to load room bookings.'
+			roomBookings.value = []
+		} finally {
+			roomBookingsLoading.value = false
+		}
+	}
+
+	async function runParticipantSearch(requestId: number) {
+		if (!participantSearchReady.value) {
+			participantSearchResults.value = []
+			participantSearchLoading.value = false
+			return
+		}
+
+		const query = participantSearchQuery.value.trim()
+		if (query.length < 2) {
+			participantSearchResults.value = []
+			participantSearchError.value = null
+			participantSearchLoading.value = false
+			return
+		}
+
+		participantSearchLoading.value = true
+		participantSearchError.value = null
+
+		try {
+			const matches = await roomBookingsService.searchStudents(
+				query,
+				bookingForm.value.semester,
+				bookingForm.value.timeSlotId as number,
+				[
+					options.studentId.value as number,
+					...selectedParticipants.value.map(participant => participant.id),
+				]
+			)
+
+			if (requestId !== participantSearchRequestId) {
+				return
+			}
+
+			participantSearchResults.value = matches
+		} catch (cause) {
+			if (requestId !== participantSearchRequestId) {
+				return
+			}
+			console.error('Failed to search participants', cause)
+			participantSearchResults.value = []
+			participantSearchError.value = 'Could not search student email addresses.'
+		} finally {
+			if (requestId === participantSearchRequestId) {
+				participantSearchLoading.value = false
+			}
+		}
+	}
+
+	async function scheduleParticipantSearch() {
+		clearParticipantSearchTimer()
+		participantSearchRequestId += 1
+		const requestId = participantSearchRequestId
+
+		if (!participantSearchReady.value || participantSearchQuery.value.trim().length < 2) {
+			participantSearchResults.value = []
+			participantSearchError.value = null
+			participantSearchLoading.value = false
+			return
+		}
+
+		participantSearchTimer = setTimeout(() => {
+			void runParticipantSearch(requestId)
+		}, PARTICIPANT_SEARCH_DEBOUNCE_MS)
+	}
+
+	function setBookingModalOpen(isOpen: boolean) {
+		bookingModalOpen.value = isOpen
+		if (!isOpen) {
+			resetBookingForm()
+		}
+	}
+
+	function openBookingModal() {
+		if (!options.studentId.value) {
+			toast.error('Select a student profile before creating a room booking.')
+			return
+		}
+
+		if (bookingSemesterOptions.value.length === 0) {
+			toast.error('No semester is available for room booking yet.')
+			return
+		}
+
+		resetBookingForm()
+		bookingModalOpen.value = true
+	}
+
+	function addParticipant(participant: RoomBookingStudentLookupResponse) {
+		if (selectedParticipantIds.value.has(participant.id)) {
+			return
+		}
+
+		selectedParticipants.value = [...selectedParticipants.value, participant]
+		participantSearchQuery.value = ''
+		participantSearchResults.value = []
+		participantSearchError.value = null
+	}
+
+	function removeParticipant(participantId: number) {
+		selectedParticipants.value = selectedParticipants.value.filter(
+			participant => participant.id !== participantId
+		)
+	}
+
+	async function submitRoomBooking() {
+		if (!canSubmitBooking.value || !options.studentId.value) {
+			return
+		}
+
+		bookingSaving.value = true
+		bookingError.value = null
+
+		try {
+			await roomBookingsService.create({
+				studentId: options.studentId.value,
+				semester: bookingForm.value.semester,
+				bookingDate: bookingForm.value.bookingDate,
+				timeSlotId: bookingForm.value.timeSlotId as number,
+				roomId: bookingForm.value.roomId as number,
+				participantEmails: selectedParticipants.value.map(participant => participant.email),
+			})
+
+			await loadRoomBookings()
+			bookingModalOpen.value = false
+			resetBookingForm()
+			toast.success('Room booking created')
+		} catch (cause) {
+			const message = getErrorMessage(cause, 'Failed to create room booking.')
+			bookingError.value = message
+			toast.error(message)
+		} finally {
+			bookingSaving.value = false
+		}
+	}
+
+	watch(availableBookingRooms, nextRooms => {
+		if (bookingForm.value.roomId && !nextRooms.some(room => room.id === bookingForm.value.roomId)) {
+			bookingForm.value.roomId = null
+		}
+	})
+
+	watch(roomBookingsSemester, (nextSemester, previousSemester) => {
+		if (options.role.value !== 'student' || nextSemester === previousSemester) {
+			return
+		}
+
+		void loadRoomBookings()
+	})
+
+	watch(
+		bookingOptions,
+		nextOptions => {
+			if (!bookingModalOpen.value) {
+				return
+			}
+
+			const stillValidSelection = nextOptions.some(option =>
+				option.bookingDate === bookingForm.value.bookingDate
+				&& option.timeSlot.id === bookingForm.value.timeSlotId
+			)
+
+			if (!stillValidSelection) {
+				applyDefaultBookingSelection()
+			}
+		},
+		{ immediate: true }
+	)
+
+	watch(
+		[
+			participantSearchQuery,
+			() => bookingForm.value.semester,
+			() => bookingForm.value.bookingDate,
+			() => bookingForm.value.timeSlotId,
+			options.studentId,
+			bookingModalOpen,
+		],
+		() => {
+			void scheduleParticipantSearch()
+		}
+	)
+
+	onBeforeUnmount(() => {
+		clearParticipantSearchTimer()
+	})
+
+	return {
+		roomBookings,
+		roomBookingsLoading,
+		roomBookingsError,
+		bookingModalOpen,
+		bookingSaving,
+		bookingError,
+		bookingForm,
+		selectedParticipants,
+		participantSearchQuery,
+		participantSearchLoading,
+		participantSearchError,
+		bookingSemesterOptions,
+		sortedTimeSlots,
+		bookingOptions,
+		selectedBookingOption,
+		selectedBookingTimeSlot,
+		availableBookingRooms,
+		canSubmitBooking,
+		participantSuggestions,
+		loadRoomBookings,
+		setBookingModalOpen,
+		openBookingModal,
+		selectBookingOption,
+		addParticipant,
+		removeParticipant,
+		submitRoomBooking,
+	}
+}

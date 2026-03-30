@@ -2,9 +2,9 @@ import { computed, ref, watch } from 'vue'
 
 export type Role = 'admin' | 'instructor' | 'student'
 
-const ROLE_KEY = 'campus-operations-system-role'
-const INSTRUCTOR_KEY = 'campus-operations-system-instructor-id'
-const STUDENT_KEY = 'campus-operations-system-student-id'
+export const ROLE_KEY = 'campus-operations-system-role'
+export const INSTRUCTOR_KEY = 'campus-operations-system-instructor-id'
+export const STUDENT_KEY = 'campus-operations-system-student-id'
 
 function normalizeRole(raw: string | null): Role {
 	if (raw === 'admin' || raw === 'instructor' || raw === 'student') return raw

@@ -1,4 +1,4 @@
-export type A11yRole = 'admin' | 'instructor'
+export type A11yRole = 'admin' | 'instructor' | 'student'
 export type A11yTheme = 'snow-storm' | 'slate'
 export type A11yScenario = 'empty' | 'normal' | 'dense' | 'error'
 

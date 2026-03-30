@@ -8,6 +8,11 @@ import 'temporal-polyfill/global'
 import type { Schedule } from '@/services/schedules'
 import type { DayOfWeek } from '@/services/timeslots'
 import {
+	toScheduleCalendarEntry,
+	type CalendarEntry,
+	type CalendarSelection,
+} from '@/components/calendar/types'
+import {
 	DEFAULT_SEMESTER_DEFINITIONS,
 	semestersService,
 	type SemesterDefinition,
@@ -15,8 +20,9 @@ import {
 import { parseSemesterLabel, resolveSemesterDateRange } from '@/utils/semester'
 import { useTheme } from '@/composables/useTheme'
 
-const props = defineProps<{
-	schedules: Schedule[]
+const props = withDefaults(defineProps<{
+	schedules?: Schedule[]
+	entries?: CalendarEntry[]
 	height?: number
 	viewMode?: 'week' | 'day'
 	weekDays?: number
@@ -27,7 +33,10 @@ const props = defineProps<{
 	ghostSchedules?: Schedule[]
 	movedScheduleIds?: number[]
 	arrowScheduleId?: number | null
-}>()
+}>(), {
+	schedules: () => [],
+	entries: undefined,
+})
 
 const calendarHeight = computed(() => props.height ?? 800)
 const calendarViewMode = computed(() => props.viewMode ?? 'week')
@@ -52,7 +61,7 @@ const eventWidth = computed(() => {
 const { theme } = useTheme()
 
 const emit = defineEmits<{
-	(e: 'event-click', scheduleId: number): void
+	(e: 'event-click', selection: CalendarSelection): void
 }>()
 
 const DAY_INDEX: Record<DayOfWeek, number> = {
@@ -88,6 +97,9 @@ const EVENT_COLORS_SLATE = [
 	'#5e99a8', // muted cyan
 	'#8ba35c', // muted lime
 ]
+
+const ROOM_BOOKING_COLOR_LIGHT = '#6b7280'
+const ROOM_BOOKING_COLOR_SLATE = '#7c8798'
 
 const eventColors = computed(() =>
 	theme.value === 'slate' ? EVENT_COLORS_SLATE : EVENT_COLORS_LIGHT
@@ -153,15 +165,15 @@ function getFirstClassDateForDay(start: Temporal.PlainDate, dayOfWeek: DayOfWeek
 	return start.add({ days: delta })
 }
 
-function getClassDatesForSemester(schedule: Schedule): Temporal.PlainDate[] {
-	const parsedWindow = parseSemesterWindow(schedule.semester)
+function getSemesterOccurrenceDates(semester: string, dayOfWeek: DayOfWeek): Temporal.PlainDate[] {
+	const parsedWindow = parseSemesterWindow(semester)
 	if (!parsedWindow) {
 		const fallbackMonday = getReferenceMonday()
-		return [fallbackMonday.add({ days: DAY_INDEX[schedule.timeSlot.dayOfWeek] })]
+		return [fallbackMonday.add({ days: DAY_INDEX[dayOfWeek] })]
 	}
 
 	const dates: Temporal.PlainDate[] = []
-	let nextDate = getFirstClassDateForDay(parsedWindow.start, schedule.timeSlot.dayOfWeek)
+	let nextDate = getFirstClassDateForDay(parsedWindow.start, dayOfWeek)
 	while (Temporal.PlainDate.compare(nextDate, parsedWindow.end) <= 0) {
 		dates.push(nextDate)
 		nextDate = nextDate.add({ weeks: 1 })
@@ -176,17 +188,25 @@ watch(effectiveViewMode, (mode, previousMode) => {
 	}
 }, { immediate: true })
 
-function parseScheduleIdFromEventId(eventId: string): number | null {
-	const match = eventId.match(/^(\d+)(?:-|$)/)
+function parseSelectionFromEventId(eventId: string): CalendarSelection | null {
+	const match = eventId.match(/^(schedule|room-booking)-(\d+)(?:-|$)/)
 	if (!match) {
 		return null
 	}
-	const parsed = Number(match[1])
-	return Number.isNaN(parsed) ? null : parsed
+
+	const sourceId = Number(match[2])
+	if (Number.isNaN(sourceId)) {
+		return null
+	}
+
+	return {
+		kind: match[1] === 'room-booking' ? 'roomBooking' : 'schedule',
+		sourceId,
+	}
 }
 
 function getMovedSelector(scheduleId: number): string {
-	return `[data-event-id^="${scheduleId}-"]`
+	return `[data-event-id^="schedule-${scheduleId}-"]`
 }
 
 function getGhostSelector(scheduleId: number): string {
@@ -200,16 +220,22 @@ function sanitizeKey(key: string): string {
 	return key.replace(/[^a-zA-Z0-9-]/g, '-')
 }
 
-// Build a map of departments to color indices
-const departmentColorMap = computed(() => {
+const normalizedEntries = computed<CalendarEntry[]>(() =>
+	props.entries ?? props.schedules.map(schedule => toScheduleCalendarEntry(schedule))
+)
+
+function getEntryCalendarId(entry: CalendarEntry): string {
+	return sanitizeKey(entry.colorKey || 'General')
+}
+
+// Build a map of entry color keys to color indices
+const calendarColorMap = computed(() => {
 	const map = new Map<string, number>()
 	let colorIndex = 0
-	for (const schedule of props.schedules) {
-		const rawDept = schedule.course.department || 'General'
-		const deptKey = sanitizeKey(rawDept)
-
-		if (!map.has(deptKey)) {
-			map.set(deptKey, colorIndex % eventColors.value.length)
+	for (const entry of normalizedEntries.value) {
+		const key = getEntryCalendarId(entry)
+		if (!map.has(key)) {
+			map.set(key, colorIndex % eventColors.value.length)
 			colorIndex++
 		}
 	}
@@ -219,10 +245,12 @@ const departmentColorMap = computed(() => {
 // Generate calendars config for Schedule X
 const calendarsConfig = computed(() => {
 	const config: Record<string, { colorName: string; lightColors: { main: string; container: string; onContainer: string } }> = {}
-	for (const [deptKey, colorIndex] of departmentColorMap.value.entries()) {
-		const color = eventColors.value[colorIndex] ?? '#6b7280'
-		config[deptKey] = {
-			colorName: deptKey, // This label is for internal use mostly
+	for (const [calendarId, colorIndex] of calendarColorMap.value.entries()) {
+		const color = calendarId === 'Room-Booking'
+			? (theme.value === 'slate' ? ROOM_BOOKING_COLOR_SLATE : ROOM_BOOKING_COLOR_LIGHT)
+			: (eventColors.value[colorIndex] ?? '#6b7280')
+		config[calendarId] = {
+			colorName: calendarId, // This label is for internal use mostly
 			lightColors: {
 				main: color,
 				container: color,
@@ -235,21 +263,43 @@ const calendarsConfig = computed(() => {
 
 const calendarsSignature = computed(() =>
 	Object.entries(calendarsConfig.value)
-		.map(([deptKey, config]) => `${deptKey}:${config.lightColors.main}`)
+		.map(([calendarId, config]) => `${calendarId}:${config.lightColors.main}`)
 		.sort()
 		.join('|')
 )
 
-// Convert schedule to ScheduleX event format with proper Temporal types
-function scheduleToEvents(
-	schedule: Schedule,
+function getEntryOccurrenceDates(entry: CalendarEntry): Temporal.PlainDate[] {
+	if (entry.kind === 'roomBooking' && entry.bookingDate) {
+		return [Temporal.PlainDate.from(entry.bookingDate)]
+	}
+
+	if (entry.kind === 'schedule' || entry.kind === 'roomBooking') {
+		return getSemesterOccurrenceDates(entry.semester, entry.timeSlot.dayOfWeek)
+	}
+
+	return []
+}
+
+function formatEntryEventId(entry: CalendarEntry): string {
+	return entry.kind === 'roomBooking'
+		? `room-booking-${entry.sourceId}`
+		: `schedule-${entry.sourceId}`
+}
+
+// Convert shared calendar entries to Schedule X event format with proper Temporal types
+function calendarEntryToEvents(
+	entry: CalendarEntry,
 	options?: { eventId?: string; additionalClasses?: string[] }
 ) {
-	const { hour: startHour, minute: startMin } = parseTimeParts(schedule.timeSlot.startTime)
-	const { hour: endHour, minute: endMin } = parseTimeParts(schedule.timeSlot.endTime)
+	const { hour: startHour, minute: startMin } = parseTimeParts(entry.timeSlot.startTime)
+	const { hour: endHour, minute: endMin } = parseTimeParts(entry.timeSlot.endTime)
 
-	const deptKey = sanitizeKey(schedule.course.department || 'General')
-	const occurrenceDates = getClassDatesForSemester(schedule)
+	const occurrenceDates = getEntryOccurrenceDates(entry)
+	const calendarId = getEntryCalendarId(entry)
+	const location = `${entry.room.buildingCode ?? ''} ${entry.room.roomNumber}`.trim() || 'Room unavailable'
+	const description = entry.secondaryText
+		? `${entry.secondaryText}\n${location}`
+		: location
 
 	return occurrenceDates.map(date => {
 		const start = date.toZonedDateTime({
@@ -265,13 +315,13 @@ function scheduleToEvents(
 		return {
 			id: options?.eventId
 				? `${options.eventId}-${date.toString()}`
-				: `${schedule.id}-${date.toString()}`,
-			title: schedule.course.code,
+				: `${formatEntryEventId(entry)}-${date.toString()}`,
+			title: entry.title,
 			start,
 			end,
-			description: `${schedule.course.name}\n${schedule.room.buildingCode} ${schedule.room.roomNumber}`,
-			location: `${schedule.room.buildingCode} ${schedule.room.roomNumber}`,
-			calendarId: deptKey,
+			description,
+			location,
+			calendarId,
 			_options: options?.additionalClasses ? { additionalClasses: options.additionalClasses } : undefined,
 		}
 	})
@@ -279,13 +329,21 @@ function scheduleToEvents(
 
 const movedIds = computed(() => new Set(props.movedScheduleIds ?? []))
 const baseEvents = computed(() =>
-	props.schedules.flatMap(schedule =>
-		scheduleToEvents(schedule, movedIds.value.has(schedule.id) ? { additionalClasses: ['cs-moved'] } : undefined)
+	normalizedEntries.value.flatMap(entry =>
+		calendarEntryToEvents(
+			entry,
+			entry.kind === 'schedule' && movedIds.value.has(entry.sourceId)
+				? { additionalClasses: ['cs-moved'] }
+				: undefined
+		)
 	)
 )
 const ghostEvents = computed(() =>
 	(props.ghostSchedules ?? []).flatMap(schedule =>
-		scheduleToEvents(schedule, { eventId: `ghost-${schedule.id}`, additionalClasses: ['cs-ghost'] })
+		calendarEntryToEvents(
+			toScheduleCalendarEntry(schedule),
+			{ eventId: `ghost-${schedule.id}`, additionalClasses: ['cs-ghost'] }
+		)
 	)
 )
 const events = computed(() => [...baseEvents.value, ...ghostEvents.value])
@@ -330,9 +388,9 @@ function initCalendar() {
 				if (eventId.startsWith('ghost-')) {
 					return
 				}
-				const parsedId = parseScheduleIdFromEventId(eventId)
-				if (parsedId !== null) {
-					emit('event-click', parsedId)
+				const selection = parseSelectionFromEventId(eventId)
+				if (selection !== null) {
+					emit('event-click', selection)
 				}
 			},
 		},

@@ -4,17 +4,27 @@ import type { Schedule } from '@/services/schedules'
 import type { Building } from '@/services/buildings'
 import type { Room } from '@/services/rooms'
 import type { DayOfWeek } from '@/services/timeslots'
+import {
+	getCalendarSelection,
+	toScheduleCalendarEntry,
+	type CalendarEntry,
+	type CalendarSelection,
+} from '@/components/calendar/types'
 
-const props = defineProps<{
-	schedules: Schedule[]
+const props = withDefaults(defineProps<{
+	schedules?: Schedule[]
+	entries?: CalendarEntry[]
 	buildings: Building[]
 	rooms: Room[]
 	selectedBuildingId: number | null
 	selectedRoomId: number | null
-}>()
+}>(), {
+	schedules: () => [],
+	entries: undefined,
+})
 
 const emit = defineEmits<{
-	(e: 'event-click', scheduleId: number): void
+	(e: 'event-click', selection: CalendarSelection): void
 	(e: 'building-drilldown', buildingId: number): void
 }>()
 
@@ -45,7 +55,7 @@ type TimeRow = {
 type GridCell = {
 	key: string
 	column: GridColumn
-	schedules: Schedule[]
+	entries: CalendarEntry[]
 	count: number
 	uniqueRoomCount: number
 	previewText: string
@@ -61,21 +71,25 @@ const selectedDay = ref<DayOfWeek>('MONDAY')
 
 const isAggregateMode = computed(() => !props.selectedBuildingId && !props.selectedRoomId)
 
-const daySchedules = computed(() =>
-	props.schedules.filter(schedule => schedule.timeSlot.dayOfWeek === selectedDay.value)
+const normalizedEntries = computed<CalendarEntry[]>(() =>
+	props.entries ?? props.schedules.map(schedule => toScheduleCalendarEntry(schedule))
+)
+
+const dayEntries = computed(() =>
+	normalizedEntries.value.filter(entry => entry.timeSlot.dayOfWeek === selectedDay.value)
 )
 
 watch(
-	() => props.schedules,
+	() => normalizedEntries.value,
 	() => {
-		const hasSchedulesForSelectedDay = props.schedules.some(
-			schedule => schedule.timeSlot.dayOfWeek === selectedDay.value
+		const hasEntriesForSelectedDay = normalizedEntries.value.some(
+			entry => entry.timeSlot.dayOfWeek === selectedDay.value
 		)
-		if (hasSchedulesForSelectedDay) {
+		if (hasEntriesForSelectedDay) {
 			return
 		}
 		const firstDayWithData = dayOrder.find(day =>
-			props.schedules.some(schedule => schedule.timeSlot.dayOfWeek === day)
+			normalizedEntries.value.some(entry => entry.timeSlot.dayOfWeek === day)
 		)
 		if (firstDayWithData) {
 			selectedDay.value = firstDayWithData
@@ -116,15 +130,15 @@ function pluralize(label: string, count: number): string {
 	return label.endsWith('s') ? `${label}es` : `${label}s`
 }
 
-function getPreview(schedules: Schedule[], limit = 2): { text: string; overflow: number } {
-	if (schedules.length === 0) {
+function getPreview(entries: CalendarEntry[], limit = 2): { text: string; overflow: number } {
+	if (entries.length === 0) {
 		return { text: '', overflow: 0 }
 	}
-	const text = schedules
+	const text = entries
 		.slice(0, limit)
-		.map(schedule => schedule.course.code)
+		.map(entry => entry.title)
 		.join(' • ')
-	return { text, overflow: Math.max(0, schedules.length - limit) }
+	return { text, overflow: Math.max(0, entries.length - limit) }
 }
 
 function getInstructorLabel(schedule: Schedule | undefined): string {
@@ -160,8 +174,8 @@ const columns = computed<GridColumn[]>(() => {
 	}
 
 	const activeBuildingIds = new Set(
-		daySchedules.value
-			.map(schedule => schedule.room.buildingId)
+		dayEntries.value
+			.map(entry => entry.room.buildingId)
 			.filter((id): id is number => !!id)
 	)
 
@@ -178,13 +192,13 @@ const columns = computed<GridColumn[]>(() => {
 
 const timeRows = computed<TimeRow[]>(() => {
 	const rowsById = new Map<string, TimeRow>()
-	for (const schedule of daySchedules.value) {
-		const rowId = `${schedule.timeSlot.startTime}-${schedule.timeSlot.endTime}`
+	for (const entry of dayEntries.value) {
+		const rowId = `${entry.timeSlot.startTime}-${entry.timeSlot.endTime}`
 		if (!rowsById.has(rowId)) {
 			rowsById.set(rowId, {
 				id: rowId,
-				start: schedule.timeSlot.startTime,
-				end: schedule.timeSlot.endTime,
+				start: entry.timeSlot.startTime,
+				end: entry.timeSlot.endTime,
 			})
 		}
 	}
@@ -192,26 +206,30 @@ const timeRows = computed<TimeRow[]>(() => {
 })
 
 const cellMap = computed(() => {
-	const map = new Map<string, Schedule[]>()
-	for (const schedule of daySchedules.value) {
-		const rowId = `${schedule.timeSlot.startTime}-${schedule.timeSlot.endTime}`
+	const map = new Map<string, CalendarEntry[]>()
+	for (const entry of dayEntries.value) {
+		const rowId = `${entry.timeSlot.startTime}-${entry.timeSlot.endTime}`
 		const colId = props.selectedBuildingId || props.selectedRoomId
-			? `room-${schedule.room.id}`
-			: `building-${schedule.room.buildingId}`
+			? `room-${entry.room.id}`
+			: `building-${entry.room.buildingId}`
 		const key = `${rowId}|${colId}`
 		const current = map.get(key) ?? []
-		current.push(schedule)
+		current.push(entry)
 		map.set(key, current)
 	}
 	return map
 })
 
-function getCellSchedules(rowId: string, colId: string): Schedule[] {
+function getCellEntries(rowId: string, colId: string): CalendarEntry[] {
 	return cellMap.value.get(`${rowId}|${colId}`) ?? []
 }
 
-function getUniqueRoomCount(schedules: Schedule[]): number {
-	return new Set(schedules.map(schedule => schedule.room.id)).size
+function getUniqueRoomCount(entries: CalendarEntry[]): number {
+	return new Set(entries.map(entry => entry.room.id)).size
+}
+
+function getPrimaryCountLabel(entries: CalendarEntry[]): string {
+	return entries.every(entry => entry.kind === 'schedule') ? pluralize('class', entries.length) : pluralize('event', entries.length)
 }
 
 function getDensityClass(count: number): string {
@@ -225,14 +243,14 @@ const matrixRows = computed<MatrixRow[]>(() =>
 	timeRows.value.map(row => ({
 		row,
 		cells: columns.value.map(column => {
-			const schedules = getCellSchedules(row.id, column.id)
-			const preview = getPreview(schedules)
+			const entries = getCellEntries(row.id, column.id)
+			const preview = getPreview(entries)
 			return {
 				key: `${row.id}-${column.id}`,
 				column,
-				schedules,
-				count: schedules.length,
-				uniqueRoomCount: getUniqueRoomCount(schedules),
+				entries,
+				count: entries.length,
+				uniqueRoomCount: getUniqueRoomCount(entries),
 				previewText: preview.text,
 				overflowCount: preview.overflow,
 			}
@@ -240,7 +258,7 @@ const matrixRows = computed<MatrixRow[]>(() =>
 	}))
 )
 
-const scheduleCount = computed(() => daySchedules.value.length)
+const scheduleCount = computed(() => dayEntries.value.length)
 
 const peakRowSummary = computed(() => {
 	if (timeRows.value.length === 0) {
@@ -251,7 +269,7 @@ const peakRowSummary = computed(() => {
 	for (const row of timeRows.value) {
 		let count = 0
 		for (const column of columns.value) {
-			count += getCellSchedules(row.id, column.id).length
+			count += getCellEntries(row.id, column.id).length
 		}
 		if (count > bestCount) {
 			bestCount = count
@@ -273,8 +291,8 @@ const selectedBuildingName = computed(() => {
 
 const interactionHint = computed(() =>
 	isAggregateMode.value
-		? 'Select any box with classes to view rooms in that building.'
-		: 'Select a class box to view schedule details.'
+		? 'Select any box with scheduled items to view rooms in that building.'
+		: 'Select an item to view schedule details.'
 )
 
 function handleCellClick(cell: GridCell): void {
@@ -287,9 +305,9 @@ function handleCellClick(cell: GridCell): void {
 		return
 	}
 
-	const firstSchedule = cell.schedules[0]
-	if (firstSchedule) {
-		emit('event-click', firstSchedule.id)
+	const firstEntry = cell.entries[0]
+	if (firstEntry) {
+		emit('event-click', getCalendarSelection(firstEntry))
 	}
 }
 </script>
@@ -308,7 +326,7 @@ function handleCellClick(cell: GridCell): void {
 				</button>
 			</div>
 			<div class="text-sm text-gray-600">
-				<span class="font-medium text-gray-900">{{ scheduleCount }}</span> classes
+				<span class="font-medium text-gray-900">{{ scheduleCount }}</span> scheduled items
 				<span v-if="peakRowSummary" class="ml-3">Busiest: <span class="font-medium text-gray-900">{{
 					peakRowSummary.label }}</span> ({{ peakRowSummary.count }})</span>
 				<span v-if="selectedBuildingName" class="ml-3">Viewing: <span class="font-medium text-gray-900">{{
@@ -322,7 +340,7 @@ function handleCellClick(cell: GridCell): void {
 
 		<div v-if="columns.length === 0 || timeRows.length === 0"
 			class="text-sm text-gray-500 border border-gray-200 rounded p-4 bg-white">
-			No classes for {{ dayLabels[selectedDay] }} with the current filters.
+			No scheduled items for {{ dayLabels[selectedDay] }} with the current filters.
 		</div>
 
 		<div v-else class="border border-gray-200 rounded bg-white overflow-auto max-h-[76vh]">
@@ -353,7 +371,7 @@ function handleCellClick(cell: GridCell): void {
 								<template v-if="isAggregateMode">
 									<div class="flex items-center justify-between gap-2">
 										<span class="text-xs font-semibold cell-primary">{{ cell.count }} {{
-											pluralize('class', cell.count) }}</span>
+											getPrimaryCountLabel(cell.entries) }}</span>
 										<span class="text-[11px] cell-secondary">{{ cell.uniqueRoomCount }} {{
 											pluralize('room', cell.uniqueRoomCount) }}</span>
 									</div>
@@ -367,16 +385,20 @@ function handleCellClick(cell: GridCell): void {
 								<template v-else>
 									<template v-if="cell.count === 1">
 										<div class="text-xs font-semibold cell-primary truncate">
-											{{ cell.schedules[0]?.course.code }}
+											{{ cell.entries[0]?.title }}
 										</div>
 										<div class="mt-1 text-[11px] cell-secondary truncate">
-											{{ getInstructorLabel(cell.schedules[0]) }}
+											{{
+												cell.entries[0]?.kind === 'schedule'
+													? getInstructorLabel(cell.entries[0].schedule)
+													: cell.entries[0]?.secondaryText
+											}}
 										</div>
 									</template>
 									<template v-else>
 										<div class="flex items-center justify-between gap-2">
 											<span class="text-xs font-semibold cell-primary">{{ cell.count }} {{
-												pluralize('class', cell.count) }}</span>
+												getPrimaryCountLabel(cell.entries) }}</span>
 											<span
 												class="text-[10px] uppercase tracking-wide cell-overlap">Overlap</span>
 										</div>

@@ -30,6 +30,14 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     Optional<Student> findByEmail(String email);
 
     /**
+     * Find a small list of students matching an email fragment for autocomplete.
+     *
+     * @param email the partial email query
+     * @return ordered matching students
+     */
+    List<Student> findTop8ByEmailContainingIgnoreCaseOrderByEmailAsc(String email);
+
+    /**
      * Find all students in a department.
      *
      * @param department the department name

@@ -222,6 +222,10 @@ onUnmounted(() => {
 	transition: opacity 0.2s ease;
 }
 
+.modal-leave-active {
+	pointer-events: none;
+}
+
 .modal-enter-active .modal-container,
 .modal-leave-active .modal-container {
 	transition: transform 0.2s ease;

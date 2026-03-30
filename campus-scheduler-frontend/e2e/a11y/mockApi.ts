@@ -96,6 +96,46 @@ interface MockState {
 	}>
 }
 
+interface MockStudent {
+	id: number
+	studentNumber: string
+	firstName: string
+	lastName: string
+	email: string
+	department: string | null
+	yearLevel: number | null
+	targetCourseLoad: number | null
+	preferredCourseIds: number[]
+}
+
+interface MockRoomBookingParticipant {
+	id: number
+	fullName: string
+	email: string
+}
+
+interface MockRoomBooking {
+	id: number
+	room: MockState['rooms'][number]
+	timeSlot: MockState['timeslots'][number]
+	semester: string
+	bookingDate: string | null
+	createdAt: string
+	participantCount: number
+	viewerCanSeeStudentDetails: boolean
+	viewerIsOwner: boolean
+	viewerIsParticipant: boolean
+	bookedBy: MockRoomBookingParticipant | null
+	participants: MockRoomBookingParticipant[]
+}
+
+interface MockStudentFixtures {
+	students: MockStudent[]
+	semester: string
+	roomBookings: MockRoomBooking[]
+	plans: Record<number, { enrolledScheduleIds: number[]; waitlistedScheduleIds: number[] }>
+}
+
 const semesterDefinitions = [
 	{
 		term: 'WINTER',
@@ -617,6 +657,146 @@ function nextId(items: Array<{ id: number }>): number {
 	return items.length > 0 ? Math.max(...items.map(item => item.id)) + 1 : 1
 }
 
+function buildStudentFixtures(state: MockState): MockStudentFixtures {
+	const students: MockStudent[] = [
+		{
+			id: 101,
+			studentNumber: 'S100101',
+			firstName: 'Maya',
+			lastName: 'Patel',
+			email: 'maya.patel@students.campus.edu',
+			department: 'Computer Science',
+			yearLevel: 3,
+			targetCourseLoad: 4,
+			preferredCourseIds: state.courses.slice(0, 2).map(course => course.id),
+		},
+		{
+			id: 102,
+			studentNumber: 'S100102',
+			firstName: 'Jonah',
+			lastName: 'Lee',
+			email: 'jonah.lee@students.campus.edu',
+			department: 'Computer Science',
+			yearLevel: 2,
+			targetCourseLoad: 4,
+			preferredCourseIds: state.courses.slice(1, 3).map(course => course.id),
+		},
+		{
+			id: 103,
+			studentNumber: 'S100103',
+			firstName: 'Priya',
+			lastName: 'Singh',
+			email: 'priya.singh@students.campus.edu',
+			department: 'Mathematics',
+			yearLevel: 4,
+			targetCourseLoad: 3,
+			preferredCourseIds: state.courses.slice(0, 1).map(course => course.id),
+		},
+	]
+
+	const semester = state.schedules[0]?.semester ?? 'Fall 2026'
+	const owner = students[0] as MockStudent
+	const invited = students[1] as MockStudent
+	const bookingRoom = state.rooms.find(room => room.id !== state.schedules[0]?.room.id) ?? state.rooms[0]
+	const bookingTimeSlot = state.timeslots[2] ?? state.timeslots[0]
+	const roomBookings: MockRoomBooking[] = []
+
+	if (state.schedules.length > 0 && bookingRoom && bookingTimeSlot) {
+		roomBookings.push({
+			id: 9001,
+			room: bookingRoom,
+			timeSlot: bookingTimeSlot,
+			semester,
+			bookingDate: '2026-03-30',
+			createdAt: '2026-03-30T11:00:00Z',
+			participantCount: 2,
+			viewerCanSeeStudentDetails: true,
+			viewerIsOwner: true,
+			viewerIsParticipant: true,
+			bookedBy: {
+				id: owner.id,
+				fullName: `${owner.firstName} ${owner.lastName}`,
+				email: owner.email,
+			},
+			participants: [
+				{
+					id: invited.id,
+					fullName: `${invited.firstName} ${invited.lastName}`,
+					email: invited.email,
+				},
+			],
+		})
+	}
+
+	return {
+		students,
+		semester,
+		roomBookings,
+		plans: {
+			101: {
+				enrolledScheduleIds: state.schedules[0] ? [state.schedules[0].id] : [],
+				waitlistedScheduleIds: state.schedules[1] ? [state.schedules[1].id] : [],
+			},
+			102: {
+				enrolledScheduleIds: state.schedules[1] ? [state.schedules[1].id] : [],
+				waitlistedScheduleIds: [],
+			},
+			103: {
+				enrolledScheduleIds: state.schedules[2] ? [state.schedules[2].id] : [],
+				waitlistedScheduleIds: [],
+			},
+		},
+	}
+}
+
+function buildStudentScheduleResponse(
+	state: MockState,
+	fixtures: MockStudentFixtures,
+	studentId: number,
+	semester: string
+) {
+	const plan = fixtures.plans[studentId] ?? { enrolledScheduleIds: [], waitlistedScheduleIds: [] }
+	const scheduleById = new Map(state.schedules.map(schedule => [schedule.id, schedule]))
+	const toEnrollment = (scheduleId: number, status: 'ENROLLED' | 'WAITLISTED', index: number) => ({
+		id: index + 1,
+		semester,
+		status,
+		student: null,
+		schedule: scheduleById.get(scheduleId) ?? null,
+	})
+
+	return {
+		studentId,
+		semester,
+		enrolled: plan.enrolledScheduleIds
+			.map((scheduleId, index) => toEnrollment(scheduleId, 'ENROLLED', index))
+			.filter(item => item.schedule !== null),
+		waitlisted: plan.waitlistedScheduleIds
+			.map((scheduleId, index) => toEnrollment(scheduleId, 'WAITLISTED', index + plan.enrolledScheduleIds.length))
+			.filter(item => item.schedule !== null),
+	}
+}
+
+function buildStudentEnrollmentSummaries(fixtures: MockStudentFixtures, studentId: number) {
+	const plan = fixtures.plans[studentId] ?? { enrolledScheduleIds: [], waitlistedScheduleIds: [] }
+	return [
+		...plan.enrolledScheduleIds.map((_, index) => ({
+			id: index + 1,
+			semester: fixtures.semester,
+			status: 'ENROLLED' as const,
+			student: null,
+			schedule: null,
+		})),
+		...plan.waitlistedScheduleIds.map((_, index) => ({
+			id: index + 1 + plan.enrolledScheduleIds.length,
+			semester: fixtures.semester,
+			status: 'WAITLISTED' as const,
+			student: null,
+			schedule: null,
+		})),
+	]
+}
+
 function filterSchedulesByQuery(
 	schedules: MockState['schedules'],
 	searchParams: URLSearchParams
@@ -859,6 +1039,7 @@ export async function installA11yMockApi(
 	options: MockInstallOptions
 ): Promise<{ mockGaps: A11yMockGap[] }> {
 	const state = createState(options.scenario)
+	const studentFixtures = buildStudentFixtures(state)
 	const mockGaps: A11yMockGap[] = []
 
 	await page.route('**/ws/info**', async route => {
@@ -1176,8 +1357,114 @@ export async function installA11yMockApi(
 			}
 		}
 
+		if (pathname === '/students' && method === 'GET') {
+			await asJson(route, studentFixtures.students)
+			return
+		}
+
+		if (/^\/students\/\d+\/schedule$/.test(pathname) && method === 'GET') {
+			const studentId = getNumericPathId(pathname) ?? 101
+			const semester = url.searchParams.get('semester') || studentFixtures.semester
+			await asJson(route, buildStudentScheduleResponse(state, studentFixtures, studentId, semester))
+			return
+		}
+
+		if (/^\/students\/\d+$/.test(pathname) && method === 'GET') {
+			const studentId = getNumericPathId(pathname) ?? 101
+			const student = studentFixtures.students.find(item => item.id === studentId) ?? studentFixtures.students[0]
+			await asJson(route, student)
+			return
+		}
+
+		if (pathname === '/enrollments' && method === 'GET') {
+			const studentId = Number(url.searchParams.get('studentId') || 101)
+			await asJson(route, buildStudentEnrollmentSummaries(studentFixtures, studentId))
+			return
+		}
+
 		if (pathname === '/schedules' && method === 'GET') {
 			await asJson(route, filterSchedulesByQuery(state.schedules, url.searchParams))
+			return
+		}
+
+		if (pathname === '/room-bookings/student-search' && method === 'GET') {
+			const query = (url.searchParams.get('query') || '').trim().toLowerCase()
+			const timeSlotId = Number(url.searchParams.get('timeSlotId') || 0)
+			const excludeStudentIds = new Set(
+				url.searchParams.getAll('excludeStudentId').map(value => Number(value)).filter(Number.isFinite)
+			)
+			const results = studentFixtures.students
+				.filter(student => !excludeStudentIds.has(student.id))
+				.filter(student => {
+					if (!query) return true
+					return `${student.firstName} ${student.lastName}`.toLowerCase().includes(query)
+						|| student.email.toLowerCase().includes(query)
+				})
+				.map(student => {
+					const scheduleResponse = buildStudentScheduleResponse(state, studentFixtures, student.id, studentFixtures.semester)
+					const hasClassDuringPeriod = [...scheduleResponse.enrolled, ...scheduleResponse.waitlisted]
+						.some(item => item.schedule?.timeSlot.id === timeSlotId)
+
+					return {
+						id: student.id,
+						email: student.email,
+						fullName: `${student.firstName} ${student.lastName}`,
+						hasClassDuringPeriod,
+					}
+				})
+			await asJson(route, results)
+			return
+		}
+
+		if (pathname === '/room-bookings' && method === 'GET') {
+			const semester = url.searchParams.get('semester')
+			const bookings = semester
+				? studentFixtures.roomBookings.filter(booking => booking.semester === semester)
+				: studentFixtures.roomBookings
+			await asJson(route, bookings)
+			return
+		}
+
+		if (pathname === '/room-bookings' && method === 'POST') {
+			const payload = request.postDataJSON() as {
+				studentId?: number
+				roomId?: number
+				timeSlotId?: number
+				semester?: string
+				bookingDate?: string
+				participantEmails?: string[]
+			} | null
+			const student = studentFixtures.students.find(item => item.id === Number(payload?.studentId || 0)) ?? studentFixtures.students[0]
+			const room = state.rooms.find(item => item.id === Number(payload?.roomId || 0)) ?? state.rooms[0]
+			const timeSlot = state.timeslots.find(item => item.id === Number(payload?.timeSlotId || 0)) ?? state.timeslots[0]
+			const participants = studentFixtures.students
+				.filter(item => payload?.participantEmails?.includes(item.email))
+				.map(item => ({
+					id: item.id,
+					fullName: `${item.firstName} ${item.lastName}`,
+					email: item.email,
+				}))
+
+			const booking: MockRoomBooking = {
+				id: nextId(studentFixtures.roomBookings),
+				room,
+				timeSlot,
+				semester: payload?.semester || studentFixtures.semester,
+				bookingDate: payload?.bookingDate || '2026-03-30',
+				createdAt: new Date().toISOString(),
+				participantCount: participants.length + 1,
+				viewerCanSeeStudentDetails: true,
+				viewerIsOwner: true,
+				viewerIsParticipant: true,
+				bookedBy: {
+					id: student.id,
+					fullName: `${student.firstName} ${student.lastName}`,
+					email: student.email,
+				},
+				participants,
+			}
+			studentFixtures.roomBookings.push(booking)
+			await asJson(route, booking, 201)
 			return
 		}
 
