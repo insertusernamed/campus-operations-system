@@ -37,9 +37,7 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
-import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -86,16 +84,16 @@ class UniversityGeneratorServiceTest {
 	private jakarta.persistence.EntityManager entityManager;
 
 	@Captor
-	private ArgumentCaptor<Building> buildingCaptor;
+	private ArgumentCaptor<List<Building>> buildingListCaptor;
 
 	@Captor
-	private ArgumentCaptor<Room> roomCaptor;
+	private ArgumentCaptor<List<Room>> roomListCaptor;
 
 	@Captor
-	private ArgumentCaptor<Instructor> instructorCaptor;
+	private ArgumentCaptor<List<Instructor>> instructorListCaptor;
 
 	@Captor
-	private ArgumentCaptor<Course> courseCaptor;
+	private ArgumentCaptor<List<Course>> courseListCaptor;
 
 	@Captor
 	private ArgumentCaptor<List<Student>> studentListCaptor;
@@ -158,38 +156,37 @@ class UniversityGeneratorServiceTest {
 
 		@BeforeEach
 		void setUpMocks() {
+			AtomicLong buildingIdSequence = new AtomicLong(1);
+			AtomicLong roomIdSequence = new AtomicLong(1);
+			AtomicLong instructorIdSequence = new AtomicLong(1);
 			AtomicLong courseIdSequence = new AtomicLong(1);
 
-			// Mock building saves to return with ID
-			when(buildingRepository.save(any(Building.class)))
+			when(buildingRepository.saveAll(anyCollection()))
 					.thenAnswer(inv -> {
-						Building b = inv.getArgument(0);
-						b.setId(1L);
-						return b;
+						List<Building> buildings = inv.getArgument(0);
+						buildings.forEach(building -> building.setId(buildingIdSequence.getAndIncrement()));
+						return buildings;
 					});
 
-			// Mock room saves
-			when(roomRepository.save(any(Room.class)))
+			when(roomRepository.saveAll(anyCollection()))
 					.thenAnswer(inv -> {
-						Room r = inv.getArgument(0);
-						r.setId(1L);
-						return r;
+						List<Room> rooms = inv.getArgument(0);
+						rooms.forEach(room -> room.setId(roomIdSequence.getAndIncrement()));
+						return rooms;
 					});
 
-			// Mock instructor saves
-			when(instructorRepository.save(any(Instructor.class)))
+			when(instructorRepository.saveAll(anyCollection()))
 					.thenAnswer(inv -> {
-						Instructor i = inv.getArgument(0);
-						i.setId(1L);
-						return i;
+						List<Instructor> instructors = inv.getArgument(0);
+						instructors.forEach(instructor -> instructor.setId(instructorIdSequence.getAndIncrement()));
+						return instructors;
 					});
 
-			// Mock course saves
-			when(courseRepository.save(any(Course.class)))
+			when(courseRepository.saveAll(anyCollection()))
 					.thenAnswer(inv -> {
-						Course c = inv.getArgument(0);
-						c.setId(courseIdSequence.getAndIncrement());
-						return c;
+						List<Course> courses = inv.getArgument(0);
+						courses.forEach(course -> course.setId(courseIdSequence.getAndIncrement()));
+						return courses;
 					});
 
 			when(studentRepository.saveAll(anyCollection()))
@@ -234,8 +231,8 @@ class UniversityGeneratorServiceTest {
 
 			service.generateUniversity(config);
 
-			verify(buildingRepository, times(4)).save(buildingCaptor.capture());
-			List<Building> savedBuildings = buildingCaptor.getAllValues();
+			verify(buildingRepository).saveAll(buildingListCaptor.capture());
+			List<Building> savedBuildings = buildingListCaptor.getValue();
 
 			assertThat(savedBuildings).hasSize(4);
 			assertThat(savedBuildings.get(0).getName()).isNotBlank();
@@ -250,7 +247,8 @@ class UniversityGeneratorServiceTest {
 			service.generateUniversity(config);
 
 			// 2 buildings * 9 rooms per building = 18 rooms
-			verify(roomRepository, atLeast(6)).save(any(Room.class));
+			verify(roomRepository).saveAll(roomListCaptor.capture());
+			assertThat(roomListCaptor.getValue()).hasSize(18);
 		}
 
 		@Test
@@ -260,8 +258,8 @@ class UniversityGeneratorServiceTest {
 
 			service.generateUniversity(config);
 
-			verify(instructorRepository, times(2)).save(instructorCaptor.capture());
-			List<Instructor> savedInstructors = instructorCaptor.getAllValues();
+			verify(instructorRepository).saveAll(instructorListCaptor.capture());
+			List<Instructor> savedInstructors = instructorListCaptor.getValue();
 
 			assertThat(savedInstructors.get(0).getFirstName()).isEqualTo("John");
 			assertThat(savedInstructors.get(0).getLastName()).isEqualTo("Doe");
@@ -317,11 +315,11 @@ class UniversityGeneratorServiceTest {
 
 			service.generateUniversity(config);
 
-			verify(courseRepository, times(48)).save(courseCaptor.capture());
+			verify(courseRepository).saveAll(courseListCaptor.capture());
 			verify(studentRepository).saveAll(studentListCaptor.capture());
-			Map<Long, String> courseDepartments = courseCaptor.getAllValues().stream()
+			Map<Long, String> courseDepartments = courseListCaptor.getValue().stream()
 					.collect(Collectors.toMap(Course::getId, Course::getDepartment, (left, right) -> left));
-			Map<String, Long> coursesPerDepartment = courseCaptor.getAllValues().stream()
+			Map<String, Long> coursesPerDepartment = courseListCaptor.getValue().stream()
 					.collect(Collectors.groupingBy(Course::getDepartment, Collectors.counting()));
 			assertThat(studentListCaptor.getValue())
 					.allSatisfy(student -> {
@@ -359,11 +357,11 @@ class UniversityGeneratorServiceTest {
 
 			service.generateUniversity(config);
 
-			verify(courseRepository, times(48)).save(courseCaptor.capture());
+			verify(courseRepository).saveAll(courseListCaptor.capture());
 			verify(studentRepository).saveAll(studentListCaptor.capture());
-			Map<Long, String> courseDepartments = courseCaptor.getAllValues().stream()
+			Map<Long, String> courseDepartments = courseListCaptor.getValue().stream()
 					.collect(Collectors.toMap(Course::getId, Course::getDepartment, (left, right) -> left));
-			Map<String, Long> coursesPerDepartment = courseCaptor.getAllValues().stream()
+			Map<String, Long> coursesPerDepartment = courseListCaptor.getValue().stream()
 					.collect(Collectors.groupingBy(Course::getDepartment, Collectors.counting()));
 
 			assertThat(studentListCaptor.getValue())
