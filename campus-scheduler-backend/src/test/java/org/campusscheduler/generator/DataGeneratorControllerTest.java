@@ -6,6 +6,7 @@ import org.campusscheduler.generator.UniversityGeneratorService.GenerationResult
 import org.campusscheduler.generator.UniversityGeneratorService.UniversityStats;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -14,6 +15,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -29,6 +31,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(SecurityConfig.class)
 class DataGeneratorControllerTest {
 
+    private static final String AUTH_HEADER = "Basic YWRtaW46YWRtaW4=";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -43,6 +47,7 @@ class DataGeneratorControllerTest {
                 .thenReturn(result);
 
         mockMvc.perform(post("/api/generator/university")
+                .header("Authorization", AUTH_HEADER)
                 .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.buildings").value(8))
@@ -62,6 +67,7 @@ class DataGeneratorControllerTest {
 
         String requestBody = """
                 {
+                    "studentPopulation": 6000,
                     "buildings": 4,
                     "roomsPerBuilding": 10,
                     "instructors": 50,
@@ -70,12 +76,21 @@ class DataGeneratorControllerTest {
                 """;
 
         mockMvc.perform(post("/api/generator/university")
+                .header("Authorization", AUTH_HEADER)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.buildings").value(4));
 
-        verify(universityGeneratorService).generateUniversity(any(GenerationConfig.class));
+        ArgumentCaptor<GenerationConfig> configCaptor = ArgumentCaptor.forClass(GenerationConfig.class);
+        verify(universityGeneratorService, times(1)).generateUniversity(configCaptor.capture());
+        GenerationConfig config = configCaptor.getValue();
+        org.assertj.core.api.Assertions.assertThat(config.studentPopulation()).isEqualTo(6000);
+        org.assertj.core.api.Assertions.assertThat(config.buildings()).isEqualTo(4);
+        org.assertj.core.api.Assertions.assertThat(config.academicBuildings()).isEqualTo(4);
+        org.assertj.core.api.Assertions.assertThat(config.roomsPerBuilding()).isEqualTo(10);
+        org.assertj.core.api.Assertions.assertThat(config.instructors()).isEqualTo(50);
+        org.assertj.core.api.Assertions.assertThat(config.courses()).isEqualTo(100);
     }
 
     @Test
@@ -85,7 +100,8 @@ class DataGeneratorControllerTest {
         when(universityGeneratorService.generateUniversity(GenerationConfig.small()))
                 .thenReturn(result);
 
-        mockMvc.perform(post("/api/generator/university/small"))
+        mockMvc.perform(post("/api/generator/university/small")
+                .header("Authorization", AUTH_HEADER))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.buildings").value(4));
     }
@@ -97,7 +113,8 @@ class DataGeneratorControllerTest {
         when(universityGeneratorService.generateUniversity(GenerationConfig.large()))
                 .thenReturn(result);
 
-        mockMvc.perform(post("/api/generator/university/large"))
+        mockMvc.perform(post("/api/generator/university/large")
+                .header("Authorization", AUTH_HEADER))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.buildings").value(12));
     }
@@ -105,7 +122,8 @@ class DataGeneratorControllerTest {
     @Test
     @DisplayName("DELETE /api/generator/reset should clear database")
     void shouldResetDatabase() throws Exception {
-        mockMvc.perform(delete("/api/generator/reset"))
+        mockMvc.perform(delete("/api/generator/reset")
+                .header("Authorization", AUTH_HEADER))
                 .andExpect(status().isNoContent());
 
         verify(universityGeneratorService).clearAll();
@@ -117,7 +135,8 @@ class DataGeneratorControllerTest {
         UniversityStats stats = new UniversityStats(4, 40, 50, 100, 30, 5000, 25000);
         when(universityGeneratorService.getStats()).thenReturn(stats);
 
-        mockMvc.perform(get("/api/generator/stats"))
+        mockMvc.perform(get("/api/generator/stats")
+                .header("Authorization", AUTH_HEADER))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.students").value(5000))
                 .andExpect(jsonPath("$.generatedDemandCount").value(25000));

@@ -46,7 +46,20 @@ public class DataGeneratorController {
 
 			@Min(value = 1000, message = "Minimum 1000 students")
 			@Max(value = 100000, message = "Maximum 100000 students")
-			Integer studentPopulation) {
+			Integer studentPopulation,
+
+			@Min(value = 1, message = "Minimum 1 building")
+			Integer buildings,
+
+			@Min(value = 1, message = "Minimum 1 room per building")
+			@Max(value = 20, message = "Maximum 20 rooms per building")
+			Integer roomsPerBuilding,
+
+			@Min(value = 1, message = "Minimum 1 instructor")
+			Integer instructors,
+
+			@Min(value = 1, message = "Minimum 1 course")
+			Integer courses) {
 
 		/**
 		 * Convert to GenerationConfig using research-based ratios.
@@ -60,7 +73,20 @@ public class DataGeneratorController {
 					? studentPopulation
 					: 8000;
 
-			return GenerationConfig.fromStudentPopulation(arch, population);
+			GenerationConfig derived = GenerationConfig.fromStudentPopulation(arch, population);
+			if (buildings == null && roomsPerBuilding == null && instructors == null && courses == null) {
+				return derived;
+			}
+
+			int resolvedBuildings = buildings != null ? buildings : derived.academicBuildings();
+			return new GenerationConfig(
+					arch,
+					population,
+					resolvedBuildings,
+					resolvedBuildings,
+					roomsPerBuilding != null ? roomsPerBuilding : derived.roomsPerBuilding(),
+					instructors != null ? instructors : derived.instructors(),
+					courses != null ? courses : derived.courses());
 		}
 	}
 
