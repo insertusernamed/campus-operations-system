@@ -9,11 +9,19 @@ import {
 import type { Room } from '@/services/rooms'
 import type { Schedule } from '@/services/schedules'
 import type { TimeSlot } from '@/services/timeslots'
-import { compareTimeSlots } from '@/views/schedules/helpers'
+import {
+	compareTimeSlots,
+	getUpcomingBookingOccurrenceOptions,
+	type BookingOccurrenceOption,
+} from '@/views/schedules/helpers'
 
 const PARTICIPANT_SEARCH_DEBOUNCE_MS = 250
 
 type MaybeReadonlyRef<T> = Ref<T> | ComputedRef<T>
+
+export interface BookingSelectionOption extends BookingOccurrenceOption {
+	availableRoomCount: number
+}
 
 interface UseRoomBookingWorkflowOptions {
 	role: Ref<Role>
@@ -36,6 +44,7 @@ export function useRoomBookingWorkflow(options: UseRoomBookingWorkflowOptions) {
 	const bookingError = ref<string | null>(null)
 	const bookingForm = ref({
 		semester: '',
+		bookingDate: '',
 		timeSlotId: null as number | null,
 		roomId: null as number | null,
 	})
@@ -67,45 +76,41 @@ export function useRoomBookingWorkflow(options: UseRoomBookingWorkflowOptions) {
 		options.timeSlots.value.find(timeSlot => timeSlot.id === bookingForm.value.timeSlotId) ?? null
 	)
 
-	const blockedScheduleRoomIds = computed(() => {
-		if (!bookingForm.value.semester || !bookingForm.value.timeSlotId) {
-			return new Set<number>()
+	function getAvailableRoomsForSelection(
+		semester: string,
+		bookingDate: string,
+		timeSlotId: number | null
+	): Room[] {
+		if (!semester || !bookingDate || !timeSlotId) {
+			return []
 		}
 
 		const schedulesToCheck = options.role.value === 'student'
 			? options.studentSemesterSchedules.value
 			: options.scheduleAvailabilitySource.value
 
-		return new Set(
+		const blockedScheduleRoomIds = new Set(
 			schedulesToCheck
 				.filter(schedule =>
-					schedule.semester === bookingForm.value.semester
-					&& schedule.timeSlot.id === bookingForm.value.timeSlotId
+					schedule.semester === semester
+					&& schedule.timeSlot.id === timeSlotId
 				)
 				.map(schedule => schedule.room.id)
 		)
-	})
 
-	const blockedRoomBookingRoomIds = computed(() => {
-		if (!bookingForm.value.semester || !bookingForm.value.timeSlotId) {
-			return new Set<number>()
-		}
-
-		return new Set(
+		const blockedRoomBookingRoomIds = new Set(
 			roomBookings.value
 				.filter(booking =>
-					booking.semester === bookingForm.value.semester
-					&& booking.timeSlot.id === bookingForm.value.timeSlotId
+					booking.bookingDate === bookingDate
+					&& booking.timeSlot.id === timeSlotId
 				)
 				.map(booking => booking.room.id)
 		)
-	})
 
-	const availableBookingRooms = computed(() =>
-		options.rooms.value
+		return options.rooms.value
 			.filter(room => room.availabilityStatus === 'AVAILABLE')
-			.filter(room => !blockedScheduleRoomIds.value.has(room.id))
-			.filter(room => !blockedRoomBookingRoomIds.value.has(room.id))
+			.filter(room => !blockedScheduleRoomIds.has(room.id))
+			.filter(room => !blockedRoomBookingRoomIds.has(room.id))
 			.sort((a, b) => {
 				const buildingA = a.buildingCode ?? ''
 				const buildingB = b.buildingCode ?? ''
@@ -114,11 +119,39 @@ export function useRoomBookingWorkflow(options: UseRoomBookingWorkflowOptions) {
 				}
 				return a.roomNumber.localeCompare(b.roomNumber)
 			})
+	}
+
+	const bookingOptions = computed<BookingSelectionOption[]>(() =>
+		getUpcomingBookingOccurrenceOptions(bookingForm.value.semester, sortedTimeSlots.value)
+			.map(option => ({
+				...option,
+				availableRoomCount: getAvailableRoomsForSelection(
+					bookingForm.value.semester,
+					option.bookingDate,
+					option.timeSlot.id,
+				).length,
+			}))
+	)
+
+	const selectedBookingOption = computed(() =>
+		bookingOptions.value.find(option =>
+			option.bookingDate === bookingForm.value.bookingDate
+			&& option.timeSlot.id === bookingForm.value.timeSlotId
+		) ?? null
+	)
+
+	const availableBookingRooms = computed(() =>
+		getAvailableRoomsForSelection(
+			bookingForm.value.semester,
+			bookingForm.value.bookingDate,
+			bookingForm.value.timeSlotId,
+		)
 	)
 
 	const canSubmitBooking = computed(() =>
 		!!options.studentId.value
 		&& !!bookingForm.value.semester
+		&& !!bookingForm.value.bookingDate
 		&& !!bookingForm.value.timeSlotId
 		&& !!bookingForm.value.roomId
 		&& !bookingSaving.value
@@ -162,9 +195,26 @@ export function useRoomBookingWorkflow(options: UseRoomBookingWorkflowOptions) {
 		return bookingSemesterOptions.value[0] ?? null
 	}
 
+	function applyDefaultBookingSelection() {
+		const defaultOption = bookingOptions.value.find(option => option.availableRoomCount > 0)
+			?? bookingOptions.value[0]
+			?? null
+		if (!defaultOption) {
+			bookingForm.value.bookingDate = ''
+			bookingForm.value.timeSlotId = null
+			bookingForm.value.roomId = null
+			return
+		}
+
+		bookingForm.value.bookingDate = defaultOption.bookingDate
+		bookingForm.value.timeSlotId = defaultOption.timeSlot.id
+		bookingForm.value.roomId = null
+	}
+
 	function resetBookingForm() {
 		bookingForm.value = {
 			semester: getSemesterValueForStudent() ?? '',
+			bookingDate: '',
 			timeSlotId: null,
 			roomId: null,
 		}
@@ -173,6 +223,17 @@ export function useRoomBookingWorkflow(options: UseRoomBookingWorkflowOptions) {
 		participantSearchResults.value = []
 		participantSearchError.value = null
 		bookingError.value = null
+	}
+
+	function selectBookingOption(option: BookingSelectionOption) {
+		const selectionChanged =
+			bookingForm.value.bookingDate !== option.bookingDate
+			|| bookingForm.value.timeSlotId !== option.timeSlot.id
+		bookingForm.value.bookingDate = option.bookingDate
+		bookingForm.value.timeSlotId = option.timeSlot.id
+		if (selectionChanged || !availableBookingRooms.value.some(room => room.id === bookingForm.value.roomId)) {
+			bookingForm.value.roomId = null
+		}
 	}
 
 	function getErrorMessage(cause: unknown, fallback: string): string {
@@ -328,6 +389,7 @@ export function useRoomBookingWorkflow(options: UseRoomBookingWorkflowOptions) {
 			await roomBookingsService.create({
 				studentId: options.studentId.value,
 				semester: bookingForm.value.semester,
+				bookingDate: bookingForm.value.bookingDate,
 				timeSlotId: bookingForm.value.timeSlotId as number,
 				roomId: bookingForm.value.roomId as number,
 				participantEmails: selectedParticipants.value.map(participant => participant.email),
@@ -353,9 +415,29 @@ export function useRoomBookingWorkflow(options: UseRoomBookingWorkflowOptions) {
 	})
 
 	watch(
+		bookingOptions,
+		nextOptions => {
+			if (!bookingModalOpen.value) {
+				return
+			}
+
+			const stillValidSelection = nextOptions.some(option =>
+				option.bookingDate === bookingForm.value.bookingDate
+				&& option.timeSlot.id === bookingForm.value.timeSlotId
+			)
+
+			if (!stillValidSelection) {
+				applyDefaultBookingSelection()
+			}
+		},
+		{ immediate: true }
+	)
+
+	watch(
 		[
 			participantSearchQuery,
 			() => bookingForm.value.semester,
+			() => bookingForm.value.bookingDate,
 			() => bookingForm.value.timeSlotId,
 			options.studentId,
 			bookingModalOpen,
@@ -383,6 +465,8 @@ export function useRoomBookingWorkflow(options: UseRoomBookingWorkflowOptions) {
 		participantSearchError,
 		bookingSemesterOptions,
 		sortedTimeSlots,
+		bookingOptions,
+		selectedBookingOption,
 		selectedBookingTimeSlot,
 		availableBookingRooms,
 		canSubmitBooking,
@@ -390,6 +474,7 @@ export function useRoomBookingWorkflow(options: UseRoomBookingWorkflowOptions) {
 		loadRoomBookings,
 		setBookingModalOpen,
 		openBookingModal,
+		selectBookingOption,
 		addParticipant,
 		removeParticipant,
 		submitRoomBooking,

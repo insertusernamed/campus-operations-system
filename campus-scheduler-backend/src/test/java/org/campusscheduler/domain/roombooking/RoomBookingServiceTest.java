@@ -19,7 +19,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.temporal.TemporalAdjusters;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -61,6 +63,7 @@ class RoomBookingServiceTest {
     private Room room;
     private TimeSlot timeSlot;
     private RoomBooking booking;
+    private LocalDate bookingDate;
 
     @BeforeEach
     void setUp() {
@@ -113,11 +116,14 @@ class RoomBookingServiceTest {
                 .label("Mon 10:00")
                 .build();
 
+        bookingDate = LocalDate.now().with(TemporalAdjusters.nextOrSame(DayOfWeek.MONDAY));
+
         booking = RoomBooking.builder()
                 .id(50L)
                 .room(room)
                 .timeSlot(timeSlot)
                 .semester("Fall 2026")
+                .bookingDate(bookingDate)
                 .bookedBy(owner)
                 .participants(new LinkedHashSet<>(Set.of(collaborator)))
                 .build();
@@ -135,6 +141,7 @@ class RoomBookingServiceTest {
             request.setRoomId(10L);
             request.setTimeSlotId(20L);
             request.setSemester("Fall 2026");
+            request.setBookingDate(bookingDate);
             request.setParticipantEmails(List.of("jonah.lee@students.campus.edu"));
 
             when(studentRepository.findById(1L)).thenReturn(Optional.of(owner));
@@ -142,11 +149,11 @@ class RoomBookingServiceTest {
             when(timeSlotRepository.findById(20L)).thenReturn(Optional.of(timeSlot));
             when(studentRepository.findByEmail("jonah.lee@students.campus.edu")).thenReturn(Optional.of(collaborator));
             when(scheduleRepository.findByRoomIdAndTimeSlotIdAndSemester(10L, 20L, "Fall 2026")).thenReturn(List.of());
-            when(roomBookingRepository.findByRoomIdAndTimeSlotIdAndSemester(10L, 20L, "Fall 2026")).thenReturn(List.of());
-            when(roomBookingRepository.existsForStudentAtTime(1L, 20L, "Fall 2026")).thenReturn(false);
-            when(roomBookingRepository.existsForStudentAtTime(2L, 20L, "Fall 2026")).thenReturn(false);
-            when(roomBookingRepository.countForStudentOnDay(1L, DayOfWeek.MONDAY, "Fall 2026")).thenReturn(1L);
-            when(roomBookingRepository.countForStudentOnDay(2L, DayOfWeek.MONDAY, "Fall 2026")).thenReturn(0L);
+            when(roomBookingRepository.findConflictingRoomBookings(10L, 20L, bookingDate, "Fall 2026")).thenReturn(List.of());
+            when(roomBookingRepository.existsForStudentAtTime(1L, 20L, bookingDate, "Fall 2026")).thenReturn(false);
+            when(roomBookingRepository.existsForStudentAtTime(2L, 20L, bookingDate, "Fall 2026")).thenReturn(false);
+            when(roomBookingRepository.countForStudentOnDate(1L, bookingDate, "Fall 2026", DayOfWeek.MONDAY)).thenReturn(1L);
+            when(roomBookingRepository.countForStudentOnDate(2L, bookingDate, "Fall 2026", DayOfWeek.MONDAY)).thenReturn(0L);
             when(roomBookingRepository.save(any(RoomBooking.class))).thenReturn(booking);
 
             Optional<RoomBookingResponse> response = roomBookingService.create(request, "student", 1L);
@@ -167,6 +174,7 @@ class RoomBookingServiceTest {
             request.setRoomId(10L);
             request.setTimeSlotId(20L);
             request.setSemester("Fall 2026");
+            request.setBookingDate(bookingDate);
 
             when(studentRepository.findById(1L)).thenReturn(Optional.of(owner));
             when(roomRepository.findById(10L)).thenReturn(Optional.of(room));
@@ -187,6 +195,7 @@ class RoomBookingServiceTest {
             request.setRoomId(10L);
             request.setTimeSlotId(20L);
             request.setSemester("Fall 2026");
+            request.setBookingDate(bookingDate);
             request.setParticipantEmails(List.of("jonah.lee@students.campus.edu"));
 
             when(studentRepository.findById(1L)).thenReturn(Optional.of(owner));
@@ -194,10 +203,10 @@ class RoomBookingServiceTest {
             when(timeSlotRepository.findById(20L)).thenReturn(Optional.of(timeSlot));
             when(studentRepository.findByEmail("jonah.lee@students.campus.edu")).thenReturn(Optional.of(collaborator));
             when(scheduleRepository.findByRoomIdAndTimeSlotIdAndSemester(10L, 20L, "Fall 2026")).thenReturn(List.of());
-            when(roomBookingRepository.findByRoomIdAndTimeSlotIdAndSemester(10L, 20L, "Fall 2026")).thenReturn(List.of());
-            when(roomBookingRepository.existsForStudentAtTime(1L, 20L, "Fall 2026")).thenReturn(false);
-            when(roomBookingRepository.existsForStudentAtTime(2L, 20L, "Fall 2026")).thenReturn(true);
-            when(roomBookingRepository.countForStudentOnDay(1L, DayOfWeek.MONDAY, "Fall 2026")).thenReturn(0L);
+            when(roomBookingRepository.findConflictingRoomBookings(10L, 20L, bookingDate, "Fall 2026")).thenReturn(List.of());
+            when(roomBookingRepository.existsForStudentAtTime(1L, 20L, bookingDate, "Fall 2026")).thenReturn(false);
+            when(roomBookingRepository.existsForStudentAtTime(2L, 20L, bookingDate, "Fall 2026")).thenReturn(true);
+            when(roomBookingRepository.countForStudentOnDate(1L, bookingDate, "Fall 2026", DayOfWeek.MONDAY)).thenReturn(0L);
 
             assertThatThrownBy(() -> roomBookingService.create(request, "student", 1L))
                     .isInstanceOf(RoomBookingConflictException.class)
@@ -212,14 +221,15 @@ class RoomBookingServiceTest {
             request.setRoomId(10L);
             request.setTimeSlotId(20L);
             request.setSemester("Fall 2026");
+            request.setBookingDate(bookingDate);
 
             when(studentRepository.findById(1L)).thenReturn(Optional.of(owner));
             when(roomRepository.findById(10L)).thenReturn(Optional.of(room));
             when(timeSlotRepository.findById(20L)).thenReturn(Optional.of(timeSlot));
             when(scheduleRepository.findByRoomIdAndTimeSlotIdAndSemester(10L, 20L, "Fall 2026")).thenReturn(List.of());
-            when(roomBookingRepository.findByRoomIdAndTimeSlotIdAndSemester(10L, 20L, "Fall 2026")).thenReturn(List.of());
-            when(roomBookingRepository.existsForStudentAtTime(1L, 20L, "Fall 2026")).thenReturn(false);
-            when(roomBookingRepository.countForStudentOnDay(1L, DayOfWeek.MONDAY, "Fall 2026")).thenReturn(2L);
+            when(roomBookingRepository.findConflictingRoomBookings(10L, 20L, bookingDate, "Fall 2026")).thenReturn(List.of());
+            when(roomBookingRepository.existsForStudentAtTime(1L, 20L, bookingDate, "Fall 2026")).thenReturn(false);
+            when(roomBookingRepository.countForStudentOnDate(1L, bookingDate, "Fall 2026", DayOfWeek.MONDAY)).thenReturn(2L);
 
             assertThatThrownBy(() -> roomBookingService.create(request, "student", 1L))
                     .isInstanceOf(RoomBookingConflictException.class)

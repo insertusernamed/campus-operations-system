@@ -245,7 +245,7 @@ onUnmounted(() => {
 						{{ loadingStudents ? 'Loading...' : 'Select student' }}
 					</option>
 					<option v-for="student in students" :key="student.id" :value="student.id">
-						{{ student.firstName }} {{ student.lastName }}
+						{{ student.lastName }}, {{ student.firstName }} ({{ student.studentNumber }})
 					</option>
 				</select>
 			</div>

@@ -9,6 +9,7 @@ import type { Schedule } from '@/services/schedules'
 import { timeslotsService } from '@/services/timeslots'
 import {
 	formatRoom,
+	formatBookingDate,
 	getBookingPrivacyMessage,
 	getInstructorName,
 	getParticipantTotalLabel,
@@ -185,6 +186,10 @@ function closeModal() {
 			<div>
 				<span class="font-medium text-gray-900">Semester:</span>
 				{{ selectedRoomBooking.semester }}
+			</div>
+			<div v-if="selectedRoomBooking.bookingDate">
+				<span class="font-medium text-gray-900">Date:</span>
+				{{ formatBookingDate(selectedRoomBooking.bookingDate) }}
 			</div>
 			<div>
 				<span class="font-medium text-gray-900">Students:</span>

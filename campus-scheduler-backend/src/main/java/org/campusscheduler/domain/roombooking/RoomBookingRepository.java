@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.time.DayOfWeek;
 import java.util.List;
 
@@ -23,31 +24,56 @@ public interface RoomBookingRepository extends JpaRepository<RoomBooking, Long> 
             """)
     List<RoomBooking> findByFilters(@Param("semester") String semester, @Param("studentId") Long studentId);
 
-    List<RoomBooking> findByRoomIdAndTimeSlotIdAndSemester(Long roomId, Long timeSlotId, String semester);
+    @Query("""
+            select distinct rb
+            from RoomBooking rb
+            where rb.room.id = :roomId
+              and rb.timeSlot.id = :timeSlotId
+              and (
+                    rb.bookingDate = :bookingDate
+                    or (rb.bookingDate is null and rb.semester = :semester)
+              )
+            """)
+    List<RoomBooking> findConflictingRoomBookings(
+            @Param("roomId") Long roomId,
+            @Param("timeSlotId") Long timeSlotId,
+            @Param("bookingDate") LocalDate bookingDate,
+            @Param("semester") String semester);
 
     @Query("""
             select (count(distinct rb) > 0)
             from RoomBooking rb
             left join rb.participants participant
-            where rb.semester = :semester
-              and rb.timeSlot.id = :timeSlotId
+            where rb.timeSlot.id = :timeSlotId
+              and (
+                    rb.bookingDate = :bookingDate
+                    or (rb.bookingDate is null and rb.semester = :semester)
+              )
               and (rb.bookedBy.id = :studentId or participant.id = :studentId)
             """)
     boolean existsForStudentAtTime(
             @Param("studentId") Long studentId,
             @Param("timeSlotId") Long timeSlotId,
+            @Param("bookingDate") LocalDate bookingDate,
             @Param("semester") String semester);
 
     @Query("""
             select count(distinct rb)
             from RoomBooking rb
             left join rb.participants participant
-            where rb.semester = :semester
-              and rb.timeSlot.dayOfWeek = :dayOfWeek
+            where (
+                    rb.bookingDate = :bookingDate
+                    or (
+                        rb.bookingDate is null
+                        and rb.semester = :semester
+                        and rb.timeSlot.dayOfWeek = :dayOfWeek
+                    )
+              )
               and (rb.bookedBy.id = :studentId or participant.id = :studentId)
             """)
-    long countForStudentOnDay(
+    long countForStudentOnDate(
             @Param("studentId") Long studentId,
-            @Param("dayOfWeek") DayOfWeek dayOfWeek,
-            @Param("semester") String semester);
+            @Param("bookingDate") LocalDate bookingDate,
+            @Param("semester") String semester,
+            @Param("dayOfWeek") DayOfWeek dayOfWeek);
 }

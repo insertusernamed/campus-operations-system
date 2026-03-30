@@ -27,6 +27,7 @@ import org.campusscheduler.domain.student.Student;
 import org.campusscheduler.domain.timeslot.TimeSlot;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
@@ -40,6 +41,8 @@ import java.util.Set;
         indexes = {
                 @Index(name = "idx_room_booking_semester", columnList = "semester"),
                 @Index(name = "idx_room_booking_room_slot_semester", columnList = "room_id,time_slot_id,semester"),
+                @Index(name = "idx_room_booking_room_slot_date", columnList = "room_id,time_slot_id,booking_date"),
+                @Index(name = "idx_room_booking_booking_date", columnList = "booking_date"),
                 @Index(name = "idx_room_booking_booked_by", columnList = "booked_by_student_id")
         }
 )
@@ -68,6 +71,13 @@ public class RoomBooking {
     @Size(max = 50, message = "Semester must not exceed 50 characters")
     @Column(nullable = false, length = 50)
     private String semester;
+
+    /**
+     * Concrete occurrence date for one-off student bookings. Older rows may not
+     * have this populated, so service logic remains backward-compatible.
+     */
+    @Column(name = "booking_date")
+    private LocalDate bookingDate;
 
     @NotNull(message = "Booking owner is required")
     @ManyToOne(fetch = FetchType.LAZY)

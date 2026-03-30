@@ -1,8 +1,10 @@
 import type { EnrollmentStatus } from '@/services/enrollments'
+import { DEFAULT_SEMESTER_DEFINITIONS } from '@/services/semesters'
 import type { RoomBooking } from '@/services/roomBookings'
 import type { Room } from '@/services/rooms'
 import type { Schedule } from '@/services/schedules'
 import type { DayOfWeek, TimeSlot } from '@/services/timeslots'
+import { parseSemesterLabel, resolveSemesterDateRange } from '@/utils/semester'
 
 const DAY_ORDER: Record<DayOfWeek, number> = {
 	MONDAY: 1,
@@ -12,6 +14,24 @@ const DAY_ORDER: Record<DayOfWeek, number> = {
 	FRIDAY: 5,
 	SATURDAY: 6,
 	SUNDAY: 7,
+}
+
+const JAVASCRIPT_DAY_ORDER: Record<DayOfWeek, number> = {
+	SUNDAY: 0,
+	MONDAY: 1,
+	TUESDAY: 2,
+	WEDNESDAY: 3,
+	THURSDAY: 4,
+	FRIDAY: 5,
+	SATURDAY: 6,
+}
+
+const BOOKING_WINDOW_DAYS = 21
+
+export interface BookingOccurrenceOption {
+	key: string
+	bookingDate: string
+	timeSlot: TimeSlot
 }
 
 export function formatRoom(room: Room): string {
@@ -87,6 +107,14 @@ export function sortSchedulesByTime(schedules: Schedule[]): Schedule[] {
 
 export function sortRoomBookingsByTime(bookings: RoomBooking[]): RoomBooking[] {
 	return [...bookings].sort((a, b) => {
+		const bookingDateA = a.bookingDate ?? ''
+		const bookingDateB = b.bookingDate ?? ''
+		if (bookingDateA !== bookingDateB) {
+			if (!bookingDateA) return 1
+			if (!bookingDateB) return -1
+			return bookingDateA.localeCompare(bookingDateB)
+		}
+
 		const semesterComparison = a.semester.localeCompare(b.semester)
 		if (semesterComparison !== 0) {
 			return semesterComparison
@@ -152,6 +180,102 @@ export function getStudentStatusLabel(status: EnrollmentStatus | null): string {
 
 export function getParticipantTotalLabel(count: number): string {
 	return count === 1 ? '1 student' : `${count} students`
+}
+
+function normalizeCalendarDate(date: Date): Date {
+	return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0)
+}
+
+function parseIsoBookingDate(bookingDate: string): Date {
+	const [rawYear = '0', rawMonth = '1', rawDay = '1'] = bookingDate.split('-')
+	return normalizeCalendarDate(
+		new Date(Number(rawYear), Number(rawMonth) - 1, Number(rawDay))
+	)
+}
+
+function toIsoBookingDate(date: Date): string {
+	const year = date.getFullYear()
+	const month = String(date.getMonth() + 1).padStart(2, '0')
+	const day = String(date.getDate()).padStart(2, '0')
+	return `${year}-${month}-${day}`
+}
+
+function getNextOccurrenceOnOrAfter(baseDate: Date, dayOfWeek: DayOfWeek): Date {
+	const normalizedBase = normalizeCalendarDate(baseDate)
+	const diff = (JAVASCRIPT_DAY_ORDER[dayOfWeek] - normalizedBase.getDay() + 7) % 7
+	const result = new Date(normalizedBase)
+	result.setDate(result.getDate() + diff)
+	return normalizeCalendarDate(result)
+}
+
+export function getUpcomingBookingOccurrenceOptions(
+	semester: string,
+	timeSlots: TimeSlot[],
+	referenceDate: Date = new Date()
+): BookingOccurrenceOption[] {
+	if (!semester.trim()) {
+		return []
+	}
+
+	const parsedSemester = parseSemesterLabel(semester, DEFAULT_SEMESTER_DEFINITIONS)
+	const today = normalizeCalendarDate(referenceDate)
+	const windowEnd = normalizeCalendarDate(referenceDate)
+	windowEnd.setDate(windowEnd.getDate() + BOOKING_WINDOW_DAYS)
+
+	let effectiveStart = today
+	let effectiveEnd = windowEnd
+
+	if (parsedSemester) {
+		const range = resolveSemesterDateRange(parsedSemester.definition, parsedSemester.year)
+		const semesterStart = normalizeCalendarDate(
+			new Date(range.start.year, range.start.month - 1, range.start.day)
+		)
+		const semesterEnd = normalizeCalendarDate(
+			new Date(range.end.year, range.end.month - 1, range.end.day)
+		)
+		if (semesterEnd < effectiveStart || semesterStart > effectiveEnd) {
+			return []
+		}
+		effectiveStart = semesterStart > effectiveStart ? semesterStart : effectiveStart
+		effectiveEnd = semesterEnd < effectiveEnd ? semesterEnd : effectiveEnd
+	}
+
+	const options: BookingOccurrenceOption[] = []
+
+	for (const timeSlot of timeSlots) {
+		let nextOccurrence = getNextOccurrenceOnOrAfter(effectiveStart, timeSlot.dayOfWeek)
+		while (nextOccurrence <= effectiveEnd) {
+			const bookingDate = toIsoBookingDate(nextOccurrence)
+			options.push({
+				key: `${bookingDate}-${timeSlot.id}`,
+				bookingDate,
+				timeSlot,
+			})
+			const followingWeek = new Date(nextOccurrence)
+			followingWeek.setDate(followingWeek.getDate() + 7)
+			nextOccurrence = normalizeCalendarDate(followingWeek)
+		}
+	}
+
+	return options.sort((a, b) => {
+		if (a.bookingDate !== b.bookingDate) {
+			return a.bookingDate.localeCompare(b.bookingDate)
+		}
+		return compareTimeSlots(a.timeSlot, b.timeSlot)
+	})
+}
+
+export function formatBookingDate(bookingDate: string | null): string {
+	if (!bookingDate) {
+		return 'Date unavailable'
+	}
+
+	return new Intl.DateTimeFormat(undefined, {
+		weekday: 'short',
+		month: 'short',
+		day: 'numeric',
+		year: 'numeric',
+	}).format(parseIsoBookingDate(bookingDate))
 }
 
 export function getBookingPrivacyMessage(booking: RoomBooking): string | null {

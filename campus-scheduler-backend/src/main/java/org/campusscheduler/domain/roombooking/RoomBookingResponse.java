@@ -4,6 +4,7 @@ import org.campusscheduler.domain.room.RoomResponse;
 import org.campusscheduler.domain.schedule.ScheduleResponse;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -14,6 +15,7 @@ public record RoomBookingResponse(
         RoomResponse room,
         ScheduleResponse.TimeSlotSummary timeSlot,
         String semester,
+        LocalDate bookingDate,
         Instant createdAt,
         int participantCount,
         boolean viewerCanSeeStudentDetails,

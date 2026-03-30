@@ -269,6 +269,10 @@ const calendarsSignature = computed(() =>
 )
 
 function getEntryOccurrenceDates(entry: CalendarEntry): Temporal.PlainDate[] {
+	if (entry.kind === 'roomBooking' && entry.bookingDate) {
+		return [Temporal.PlainDate.from(entry.bookingDate)]
+	}
+
 	if (entry.kind === 'schedule' || entry.kind === 'roomBooking') {
 		return getSemesterOccurrenceDates(entry.semester, entry.timeSlot.dayOfWeek)
 	}

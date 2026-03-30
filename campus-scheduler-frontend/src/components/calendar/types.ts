@@ -28,6 +28,7 @@ export interface ScheduleCalendarEntry extends BaseCalendarEntry {
 
 export interface RoomBookingCalendarEntry extends BaseCalendarEntry {
 	kind: 'roomBooking'
+	bookingDate: string | null
 	roomBooking: RoomBooking
 }
 
@@ -62,6 +63,7 @@ export function toRoomBookingCalendarEntry(roomBooking: RoomBooking): RoomBookin
 		title: 'Room Booking',
 		secondaryText: formatRoomLabel(roomBooking.room),
 		colorKey: 'Room Booking',
+		bookingDate: roomBooking.bookingDate,
 		roomBooking,
 	}
 }

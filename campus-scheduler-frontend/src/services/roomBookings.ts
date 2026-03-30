@@ -13,6 +13,7 @@ export interface RoomBooking {
 	room: Room
 	timeSlot: TimeSlot
 	semester: string
+	bookingDate: string | null
 	createdAt: string
 	participantCount: number
 	viewerCanSeeStudentDetails: boolean
@@ -27,6 +28,7 @@ export interface CreateRoomBookingRequest {
 	roomId: number
 	timeSlotId: number
 	semester: string
+	bookingDate: string
 	participantEmails: string[]
 }
 

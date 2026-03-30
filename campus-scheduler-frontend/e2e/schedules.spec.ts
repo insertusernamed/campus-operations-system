@@ -1,5 +1,17 @@
 import { test, expect, type Page } from '@playwright/test';
 
+function getNextIsoDateForDay(dayOfWeek: number, referenceDate = new Date()): string {
+	const baseDate = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
+	const diff = (dayOfWeek - baseDate.getDay() + 7) % 7;
+	baseDate.setDate(baseDate.getDate() + diff);
+	const year = baseDate.getFullYear();
+	const month = String(baseDate.getMonth() + 1).padStart(2, '0');
+	const day = String(baseDate.getDate()).padStart(2, '0');
+	return `${year}-${month}-${day}`;
+}
+
+const sharedMondayBookingDate = getNextIsoDateForDay(1);
+
 const mockSchedules: any[] = [];
 const mockCourses = [{ id: 1, code: 'CS101', name: 'Intro' }];
 const mockRooms = [{ id: 1, buildingCode: 'ENG', roomNumber: '101', capacity: 30 }];
@@ -96,8 +108,13 @@ test.describe('Schedules CRUD & Conflicts', () => {
 		await expect(main.getByText('This room is already booked')).not.toBeVisible();
 		await expect(main.getByRole('button', { name: 'Create' })).toBeEnabled();
 
-		await main.getByRole('button', { name: 'Create' }).click();
-		await expect(page).toHaveURL('/schedules');
+		const createResponse = page.waitForResponse(response =>
+			response.request().method() === 'POST'
+			&& response.url().endsWith('/api/schedules')
+		);
+		await main.getByRole('button', { name: 'Create' }).click({ force: true });
+		await createResponse;
+		await page.waitForURL('**/schedules');
 	});
 
 	test('should show api conflict error when create fails', async ({ page }) => {
@@ -143,6 +160,7 @@ test.describe('Room booking visibility on the shared schedules page', () => {
 			room: sharedRoom,
 			timeSlot: sharedTimeSlot,
 			semester: 'Fall 2026',
+			bookingDate: sharedMondayBookingDate,
 			createdAt: '2026-03-30T12:00:00Z',
 			participantCount: 2,
 			viewerCanSeeStudentDetails: true,
@@ -162,7 +180,7 @@ test.describe('Room booking visibility on the shared schedules page', () => {
 			],
 		});
 
-		await page.goto('/schedules');
+		await page.goto('/schedules', { waitUntil: 'domcontentloaded' });
 		await page.getByLabel('Room Filter').selectOption(String(sharedRoom.id));
 		await page.getByRole('button', { name: /Room Booking/ }).click();
 
@@ -185,6 +203,7 @@ test.describe('Room booking visibility on the shared schedules page', () => {
 			room: sharedRoom,
 			timeSlot: sharedTimeSlot,
 			semester: 'Spring 2026',
+			bookingDate: sharedMondayBookingDate,
 			createdAt: '2026-03-30T12:30:00Z',
 			participantCount: 2,
 			viewerCanSeeStudentDetails: false,
@@ -198,7 +217,7 @@ test.describe('Room booking visibility on the shared schedules page', () => {
 			await route.fulfill({ json: [] });
 		});
 
-		await page.goto('/schedules');
+		await page.goto('/schedules', { waitUntil: 'domcontentloaded' });
 		await expect(page.locator('.sx__time-grid-event').first()).toBeVisible();
 		await page.locator('.sx__time-grid-event').first().click();
 

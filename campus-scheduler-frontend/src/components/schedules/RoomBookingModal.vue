@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import BaseModal from '@/components/common/BaseModal.vue'
+import type { BookingSelectionOption } from '@/composables/useRoomBookingWorkflow'
 import type { RoomBookingStudentLookupResponse } from '@/services/roomBookings'
 import type { Room } from '@/services/rooms'
 import { DAY_OF_WEEK_OPTIONS, timeslotsService, type TimeSlot } from '@/services/timeslots'
-import { formatRoom } from '@/views/schedules/helpers'
+import { formatBookingDate, formatRoom } from '@/views/schedules/helpers'
 
 const props = defineProps<{
 	modelValue: boolean
@@ -12,7 +13,8 @@ const props = defineProps<{
 	saving: boolean
 	semesterOptions: string[]
 	semester: string
-	timeSlots: TimeSlot[]
+	bookingOptions: BookingSelectionOption[]
+	selectedBookingOption: BookingSelectionOption | null
 	timeSlotId: number | null
 	availableRooms: Room[]
 	roomId: number | null
@@ -28,9 +30,9 @@ const props = defineProps<{
 const emit = defineEmits<{
 	(e: 'update:modelValue', value: boolean): void
 	(e: 'update:semester', value: string): void
-	(e: 'update:timeSlotId', value: number | null): void
 	(e: 'update:roomId', value: number | null): void
 	(e: 'update:participantSearchQuery', value: string): void
+	(e: 'selectBookingOption', option: BookingSelectionOption): void
 	(e: 'addParticipant', participant: RoomBookingStudentLookupResponse): void
 	(e: 'removeParticipant', participantId: number): void
 	(e: 'submit'): void
@@ -39,11 +41,6 @@ const emit = defineEmits<{
 const semesterModel = computed({
 	get: () => props.semester,
 	set: (value: string) => emit('update:semester', value),
-})
-
-const timeSlotIdModel = computed({
-	get: () => props.timeSlotId,
-	set: (value: number | null) => emit('update:timeSlotId', value),
 })
 
 const roomIdModel = computed({
@@ -61,6 +58,12 @@ const selectedBookingDayLabel = computed(() =>
 		? DAY_OF_WEEK_OPTIONS.find(option => option.value === props.selectedBookingTimeSlot?.dayOfWeek)?.label
 		: null
 )
+
+const hasAvailableRoomsForSelectedWindow = computed(() => props.availableRooms.length > 0)
+
+function getDayLabel(timeSlot: TimeSlot): string {
+	return DAY_OF_WEEK_OPTIONS.find(option => option.value === timeSlot.dayOfWeek)?.label ?? timeSlot.dayOfWeek
+}
 
 function closeModal() {
 	emit('update:modelValue', false)
@@ -95,43 +98,89 @@ function closeModal() {
 						</option>
 					</select>
 				</div>
+				<div class="rounded border border-blue-200 bg-blue-50 px-3 py-3 text-sm text-blue-900">
+					<div class="font-medium">Booking window</div>
+					<div class="mt-1 text-blue-800">Students can book at most 3 weeks ahead.</div>
+				</div>
+			</div>
+
+			<div class="space-y-3">
 				<div>
-					<label for="booking-timeslot" class="mb-1 block text-sm font-medium text-gray-700">
-						Time Slot
-					</label>
-					<select
-						id="booking-timeslot"
-						v-model="timeSlotIdModel"
-						class="w-full rounded border border-gray-300 px-3 py-2"
+					<h3 class="text-sm font-semibold text-gray-900">Upcoming Booking Windows</h3>
+					<p class="mt-1 text-xs text-gray-500">
+						Choose a specific upcoming class block. Only the next 3 weeks are shown.
+					</p>
+				</div>
+				<div
+					v-if="bookingOptions.length === 0"
+					class="rounded border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-600"
+				>
+					No booking windows are available within the next 3 weeks for this semester.
+				</div>
+				<div v-else class="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+					<button
+						v-for="option in bookingOptions"
+						:key="option.key"
+						type="button"
+						class="rounded border px-3 py-3 text-left transition"
+						:class="selectedBookingOption?.key === option.key
+							? 'border-blue-500 bg-blue-50 shadow-sm'
+							: 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/40'"
+						@click="emit('selectBookingOption', option)"
 					>
-						<option :value="null" disabled>Select time slot</option>
-						<option v-for="timeSlot in timeSlots" :key="timeSlot.id" :value="timeSlot.id">
-							{{ timeslotsService.formatTimeSlot(timeSlot) }}
-						</option>
-					</select>
+						<div class="flex items-start justify-between gap-3">
+							<div>
+								<div class="font-medium text-gray-900">{{ formatBookingDate(option.bookingDate) }}</div>
+								<div class="mt-1 text-sm text-gray-700">
+									{{ timeslotsService.formatTime(option.timeSlot.startTime) }} -
+									{{ timeslotsService.formatTime(option.timeSlot.endTime) }}
+								</div>
+								<div class="mt-1 text-xs text-gray-500">{{ option.timeSlot.label || getDayLabel(option.timeSlot) }}</div>
+							</div>
+							<span
+								class="rounded-full px-2 py-0.5 text-xs font-medium"
+								:class="option.availableRoomCount > 0
+									? 'bg-emerald-100 text-emerald-800'
+									: 'bg-amber-100 text-amber-800'"
+							>
+								{{ option.availableRoomCount }} rooms
+							</span>
+						</div>
+					</button>
 				</div>
 			</div>
 
 			<div>
-				<label for="booking-room" class="mb-1 block text-sm font-medium text-gray-700">Room</label>
-				<select
-					id="booking-room"
-					v-model="roomIdModel"
-					class="w-full rounded border border-gray-300 px-3 py-2"
-					:disabled="!semester || !timeSlotId"
+				<div class="mb-1 block text-sm font-medium text-gray-700">Room</div>
+				<div
+					v-if="!selectedBookingOption"
+					class="rounded border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-600"
 				>
-					<option :value="null" disabled>Select room</option>
-					<option v-for="room in availableRooms" :key="room.id" :value="room.id">
-						{{ formatRoom(room) }} ({{ room.capacity }} seats)
-					</option>
-				</select>
-				<p
-					v-if="semester && timeSlotId && availableRooms.length === 0"
-					class="mt-2 text-sm text-gray-600"
+					Choose a booking window to view available rooms.
+				</div>
+				<div
+					v-else-if="!hasAvailableRoomsForSelectedWindow"
+					class="rounded border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-600"
 				>
-					No available rooms remain for this time slot.
-				</p>
-				<p v-else class="mt-2 text-xs text-gray-500">
+					No available rooms remain for this booking window.
+				</div>
+				<div v-else class="grid gap-2 md:grid-cols-2">
+					<button
+						v-for="room in availableRooms"
+						:key="room.id"
+						type="button"
+						class="rounded border px-3 py-3 text-left transition"
+						:class="roomId === room.id
+							? 'border-blue-500 bg-blue-50 shadow-sm'
+							: 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50/40'"
+						@click="roomIdModel = room.id"
+					>
+						<div class="font-medium text-gray-900">{{ formatRoom(room) }}</div>
+						<div class="mt-1 text-sm text-gray-700">{{ room.capacity }} seats</div>
+						<div class="mt-1 text-xs text-gray-500">{{ room.buildingName || 'Building unavailable' }}</div>
+					</button>
+				</div>
+				<p v-if="selectedBookingOption" class="mt-2 text-xs text-gray-500">
 					Only rooms that are available and unused by classes or other student bookings are listed.
 				</p>
 			</div>
@@ -222,7 +271,8 @@ function closeModal() {
 				class="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900"
 			>
 				Booking for {{ semester }} on
-				{{ selectedBookingDayLabel }}
+				{{ selectedBookingOption ? formatBookingDate(selectedBookingOption.bookingDate) : selectedBookingDayLabel }}
+				,
 				{{ timeslotsService.formatTime(selectedBookingTimeSlot.startTime) }} -
 				{{ timeslotsService.formatTime(selectedBookingTimeSlot.endTime) }}.
 			</div>

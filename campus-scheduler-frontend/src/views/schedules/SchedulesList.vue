@@ -31,6 +31,7 @@ import { timeslotsService, type TimeSlot } from '@/services/timeslots'
 import type { ChangeRequestIssue } from '@/constants/changeRequestIssues'
 import {
 	formatRoom,
+	formatBookingDate,
 	getSeatPressure,
 	getSeatUtilization,
 	getWaitlistSummary,
@@ -121,7 +122,8 @@ const {
 	participantSearchLoading,
 	participantSearchError,
 	bookingSemesterOptions,
-	sortedTimeSlots,
+	bookingOptions,
+	selectedBookingOption,
 	selectedBookingTimeSlot,
 	availableBookingRooms,
 	canSubmitBooking,
@@ -129,6 +131,7 @@ const {
 	loadRoomBookings,
 	setBookingModalOpen,
 	openBookingModal,
+	selectBookingOption,
 	addParticipant,
 	removeParticipant,
 	submitRoomBooking,
@@ -213,6 +216,14 @@ const studentRoomBookings = computed(() =>
 		)
 	)
 )
+
+const studentCalendarEntries = computed(() => [
+	...sortSchedulesByTime([
+		...studentEnrolledItems.value,
+		...studentWaitlistedItems.value,
+	]).map(schedule => toScheduleCalendarEntry(schedule)),
+	...studentRoomBookings.value.map(booking => toRoomBookingCalendarEntry(booking)),
+])
 
 const studentHasAnyRows = computed(() =>
 	studentEnrolledItems.value.length > 0
@@ -705,6 +716,23 @@ function handleExportClassForSemester() {
 				hint="Try selecting a different semester from the filter above."
 			/>
 			<div v-else class="space-y-6">
+				<section v-if="studentCalendarEntries.length > 0" class="rounded border border-gray-200 bg-white p-4">
+					<div class="mb-3">
+						<h2 class="text-sm font-semibold text-gray-900">Calendar</h2>
+						<p class="mt-0.5 text-xs text-gray-500">
+							View your enrolled classes, waitlisted classes, and room bookings together.
+						</p>
+					</div>
+					<ScheduleCalendar
+						:entries="studentCalendarEntries"
+						view-mode="week"
+						:week-days="7"
+						:height="860"
+						:event-width="95"
+						@event-click="handleEventClick"
+					/>
+				</section>
+
 				<section class="rounded border border-emerald-200 bg-emerald-50/40">
 					<div class="flex items-center justify-between border-b border-emerald-200 px-4 py-3">
 						<h2 class="text-sm font-semibold text-emerald-900">Enrolled Classes</h2>
@@ -822,7 +850,7 @@ function handleExportClassForSemester() {
 							<thead>
 								<tr class="border-b border-blue-100 bg-blue-50/50">
 									<th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Room</th>
-									<th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Time</th>
+									<th class="px-4 py-3 text-left text-sm font-medium text-gray-700">When</th>
 									<th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Students</th>
 									<th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Role</th>
 									<th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Actions</th>
@@ -832,7 +860,8 @@ function handleExportClassForSemester() {
 								<tr v-for="booking in studentRoomBookings" :key="booking.id" class="border-b border-gray-100">
 									<td class="px-4 py-3 text-gray-700">{{ formatRoom(booking.room) }}</td>
 									<td class="px-4 py-3 text-gray-600">
-										{{ timeslotsService.formatTimeSlot(booking.timeSlot) }}
+										<div>{{ formatBookingDate(booking.bookingDate) }}</div>
+										<div class="text-xs text-gray-500">{{ timeslotsService.formatTimeSlot(booking.timeSlot) }}</div>
 									</td>
 									<td class="px-4 py-3 text-gray-600">
 										{{ booking.participantCount === 1 ? '1 student' : `${booking.participantCount} students` }}
@@ -964,7 +993,8 @@ function handleExportClassForSemester() {
 			:saving="bookingSaving"
 			:semester-options="bookingSemesterOptions"
 			:semester="bookingForm.semester"
-			:time-slots="sortedTimeSlots"
+			:booking-options="bookingOptions"
+			:selected-booking-option="selectedBookingOption"
 			:time-slot-id="bookingForm.timeSlotId"
 			:available-rooms="availableBookingRooms"
 			:room-id="bookingForm.roomId"
@@ -977,9 +1007,9 @@ function handleExportClassForSemester() {
 			:can-submit="canSubmitBooking"
 			@update:model-value="setBookingModalOpen"
 			@update:semester="bookingForm.semester = $event"
-			@update:time-slot-id="bookingForm.timeSlotId = $event"
 			@update:room-id="bookingForm.roomId = $event"
 			@update:participant-search-query="participantSearchQuery = $event"
+			@select-booking-option="selectBookingOption"
 			@add-participant="addParticipant"
 			@remove-participant="removeParticipant"
 			@submit="submitRoomBooking"

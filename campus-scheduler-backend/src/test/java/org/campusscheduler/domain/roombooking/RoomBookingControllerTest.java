@@ -59,6 +59,7 @@ class RoomBookingControllerTest {
                         java.time.LocalTime.of(11, 15),
                         "Mon 10:00"),
                 "Fall 2026",
+                LocalDate.of(2026, 4, 6),
                 Instant.parse("2026-03-30T10:00:00Z"),
                 2,
                 true,
@@ -109,11 +110,13 @@ class RoomBookingControllerTest {
                               "roomId": 10,
                               "timeSlotId": 20,
                               "semester": "Fall 2026",
+                              "bookingDate": "2026-04-06",
                               "participantEmails": ["jonah.lee@students.campus.edu"]
                             }
                             """))
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.id", is(77)))
+                    .andExpect(jsonPath("$.bookingDate", is("2026-04-06")))
                     .andExpect(jsonPath("$.participantCount", is(2)));
         }
     }

@@ -10,6 +10,7 @@ import org.campusscheduler.domain.room.RoomRepository;
 import org.campusscheduler.domain.room.RoomResponse;
 import org.campusscheduler.domain.schedule.ScheduleRepository;
 import org.campusscheduler.domain.schedule.ScheduleResponse;
+import org.campusscheduler.domain.semester.SemesterTerm;
 import org.campusscheduler.domain.student.Student;
 import org.campusscheduler.domain.student.StudentRepository;
 import org.campusscheduler.domain.timeslot.TimeSlot;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -38,6 +40,7 @@ import java.util.Set;
 public class RoomBookingService {
 
     private static final int MAX_BOOKINGS_PER_DAY = 2;
+    private static final int MAX_BOOKING_WINDOW_DAYS = 21;
 
     private final RoomBookingRepository roomBookingRepository;
     private final StudentRepository studentRepository;
@@ -83,15 +86,18 @@ public class RoomBookingService {
         Student bookedBy = bookedByOpt.get();
         Room room = roomOpt.get();
         TimeSlot timeSlot = timeSlotOpt.get();
+        LocalDate bookingDate = request.getBookingDate();
         Set<Student> participants = resolveParticipants(request.getParticipantEmails(), bookedBy);
 
-        validateRoom(room, timeSlot, request.getSemester());
-        validateStudentLimits(bookedBy, participants, timeSlot, request.getSemester());
+        validateBookingDate(bookingDate, request.getSemester(), timeSlot);
+        validateRoom(room, timeSlot, request.getSemester(), bookingDate);
+        validateStudentLimits(bookedBy, participants, timeSlot, request.getSemester(), bookingDate);
 
         RoomBooking booking = RoomBooking.builder()
                 .room(room)
                 .timeSlot(timeSlot)
                 .semester(request.getSemester())
+                .bookingDate(bookingDate)
                 .bookedBy(bookedBy)
                 .participants(new LinkedHashSet<>(participants))
                 .build();
@@ -150,7 +156,30 @@ public class RoomBookingService {
         return new LinkedHashSet<>(participantsById.values());
     }
 
-    private void validateRoom(Room room, TimeSlot timeSlot, String semester) {
+    private void validateBookingDate(LocalDate bookingDate, String semester, TimeSlot timeSlot) {
+        LocalDate today = LocalDate.now();
+        if (bookingDate == null) {
+            throw new IllegalArgumentException("Booking date is required");
+        }
+        if (bookingDate.isBefore(today)) {
+            throw new RoomBookingConflictException("Booking date must be today or later");
+        }
+        if (bookingDate.isAfter(today.plusDays(MAX_BOOKING_WINDOW_DAYS))) {
+            throw new RoomBookingConflictException("Room bookings can only be made up to 3 weeks in advance");
+        }
+        if (timeSlot.getDayOfWeek() != null && bookingDate.getDayOfWeek() != timeSlot.getDayOfWeek()) {
+            throw new RoomBookingConflictException(
+                    "Booking date must fall on " + formatDay(timeSlot.getDayOfWeek()));
+        }
+
+        SemesterDateRange semesterDateRange = resolveSemesterDateRange(semester);
+        if (semesterDateRange != null
+                && (bookingDate.isBefore(semesterDateRange.start()) || bookingDate.isAfter(semesterDateRange.end()))) {
+            throw new RoomBookingConflictException("Booking date must fall within the selected semester");
+        }
+    }
+
+    private void validateRoom(Room room, TimeSlot timeSlot, String semester, LocalDate bookingDate) {
         AvailabilityStatus availabilityStatus = room.getAvailabilityStatus() == null
                 ? AvailabilityStatus.AVAILABLE
                 : room.getAvailabilityStatus();
@@ -164,13 +193,18 @@ public class RoomBookingService {
                     "Room " + room.getRoomNumber() + " is already scheduled for classes during this time slot in " + semester);
         }
 
-        if (!roomBookingRepository.findByRoomIdAndTimeSlotIdAndSemester(room.getId(), timeSlot.getId(), semester).isEmpty()) {
+        if (!roomBookingRepository.findConflictingRoomBookings(room.getId(), timeSlot.getId(), bookingDate, semester).isEmpty()) {
             throw new RoomBookingConflictException(
-                    "Room " + room.getRoomNumber() + " is already booked by a student during this time slot in " + semester);
+                    "Room " + room.getRoomNumber() + " is already booked by a student during this time slot on " + bookingDate);
         }
     }
 
-    private void validateStudentLimits(Student bookedBy, Set<Student> participants, TimeSlot timeSlot, String semester) {
+    private void validateStudentLimits(
+            Student bookedBy,
+            Set<Student> participants,
+            TimeSlot timeSlot,
+            String semester,
+            LocalDate bookingDate) {
         List<Student> involvedStudents = new ArrayList<>();
         involvedStudents.add(bookedBy);
         involvedStudents.addAll(participants);
@@ -180,16 +214,20 @@ public class RoomBookingService {
                 continue;
             }
 
-            if (roomBookingRepository.existsForStudentAtTime(student.getId(), timeSlot.getId(), semester)) {
+            if (roomBookingRepository.existsForStudentAtTime(student.getId(), timeSlot.getId(), bookingDate, semester)) {
                 throw new RoomBookingConflictException(
                         formatStudentName(student) + " already has a room booking during this time slot");
             }
 
-            long dailyCount = roomBookingRepository.countForStudentOnDay(student.getId(), timeSlot.getDayOfWeek(), semester);
+            long dailyCount = roomBookingRepository.countForStudentOnDate(
+                    student.getId(),
+                    bookingDate,
+                    semester,
+                    bookingDate.getDayOfWeek());
             if (dailyCount >= MAX_BOOKINGS_PER_DAY) {
                 throw new RoomBookingConflictException(
                         formatStudentName(student) + " already has the maximum of " + MAX_BOOKINGS_PER_DAY
-                                + " room bookings on " + formatDay(timeSlot.getDayOfWeek()));
+                                + " room bookings on " + formatDay(bookingDate.getDayOfWeek()));
             }
         }
     }
@@ -227,6 +265,7 @@ public class RoomBookingService {
                 RoomResponse.fromEntity(booking.getRoom()),
                 ScheduleResponse.TimeSlotSummary.from(booking.getTimeSlot()),
                 booking.getSemester(),
+                booking.getBookingDate(),
                 booking.getCreatedAt(),
                 1 + booking.getParticipants().size(),
                 viewerCanSeeStudentDetails,
@@ -268,7 +307,8 @@ public class RoomBookingService {
 
     private Comparator<RoomBooking> roomBookingComparator() {
         return Comparator
-                .comparing(RoomBooking::getSemester, Comparator.nullsLast(String::compareTo))
+                .comparing(RoomBooking::getBookingDate, Comparator.nullsLast(LocalDate::compareTo))
+                .thenComparing(RoomBooking::getSemester, Comparator.nullsLast(String::compareTo))
                 .thenComparing(booking -> booking.getTimeSlot() != null && booking.getTimeSlot().getDayOfWeek() != null
                         ? booking.getTimeSlot().getDayOfWeek().getValue()
                         : Integer.MAX_VALUE)
@@ -309,11 +349,48 @@ public class RoomBookingService {
         return fullName.isBlank() ? "Student" : fullName;
     }
 
+    private SemesterDateRange resolveSemesterDateRange(String semester) {
+        if (semester == null) {
+            return null;
+        }
+
+        String normalized = semester.trim().toUpperCase(Locale.ROOT);
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("([A-Z]+)\\s+(\\d{4})").matcher(normalized);
+        if (!matcher.matches()) {
+            return null;
+        }
+
+        String rawTerm = matcher.group(1);
+        int year = Integer.parseInt(matcher.group(2));
+        String termToken = "AUTUMN".equals(rawTerm) ? "FALL" : rawTerm;
+
+        SemesterTerm semesterTerm;
+        try {
+            semesterTerm = SemesterTerm.valueOf(termToken);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+
+        LocalDate start = LocalDate.of(
+                year + semesterTerm.getStartYearOffset(),
+                semesterTerm.getStartMonth(),
+                semesterTerm.getStartDay());
+        LocalDate end = LocalDate.of(
+                year + semesterTerm.getEndYearOffset(),
+                semesterTerm.getEndMonth(),
+                semesterTerm.getEndDay());
+
+        return new SemesterDateRange(start, end);
+    }
+
     private record ViewerContext(boolean isAdmin, Long studentId) {
 
         static ViewerContext of(String viewerRole, Long viewerStudentId) {
             boolean admin = viewerRole != null && "admin".equalsIgnoreCase(viewerRole.trim());
             return new ViewerContext(admin, viewerStudentId);
         }
+    }
+
+    private record SemesterDateRange(LocalDate start, LocalDate end) {
     }
 }
