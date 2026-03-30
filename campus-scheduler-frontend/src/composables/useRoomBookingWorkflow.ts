@@ -55,6 +55,18 @@ export function useRoomBookingWorkflow(options: UseRoomBookingWorkflowOptions) {
 	const participantSearchLoading = ref(false)
 	const participantSearchError = ref<string | null>(null)
 
+	const roomBookingsSemester = computed(() => {
+		if (
+			options.role.value === 'student'
+			&& bookingModalOpen.value
+			&& bookingForm.value.semester
+		) {
+			return bookingForm.value.semester
+		}
+
+		return options.selectedSemester.value
+	})
+
 	const bookingSemesterOptions = computed(() => {
 		if (options.studentSemesters.value.length > 0) {
 			return options.studentSemesters.value
@@ -249,20 +261,22 @@ export function useRoomBookingWorkflow(options: UseRoomBookingWorkflowOptions) {
 		roomBookingsError.value = null
 
 		try {
+			const semester = roomBookingsSemester.value ?? undefined
+
 			if (options.role.value === 'student') {
-				if (!options.studentId.value || !options.selectedSemester.value) {
+				if (!options.studentId.value || !semester) {
 					roomBookings.value = []
 					return
 				}
 
 				roomBookings.value = await roomBookingsService.getAll({
-					semester: options.selectedSemester.value,
+					semester,
 				})
 				return
 			}
 
 			roomBookings.value = await roomBookingsService.getAll({
-				semester: options.selectedSemester.value ?? undefined,
+				semester,
 			})
 		} catch (cause) {
 			console.error('Failed to load room bookings', cause)
@@ -412,6 +426,14 @@ export function useRoomBookingWorkflow(options: UseRoomBookingWorkflowOptions) {
 		if (bookingForm.value.roomId && !nextRooms.some(room => room.id === bookingForm.value.roomId)) {
 			bookingForm.value.roomId = null
 		}
+	})
+
+	watch(roomBookingsSemester, (nextSemester, previousSemester) => {
+		if (options.role.value !== 'student' || nextSemester === previousSemester) {
+			return
+		}
+
+		void loadRoomBookings()
 	})
 
 	watch(

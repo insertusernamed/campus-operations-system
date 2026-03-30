@@ -1,6 +1,37 @@
 import { expect, test, type Page } from '@playwright/test'
 
-const primaryBookingDate = '2026-03-30'
+function getNextIsoDateForDay(targetDay: number): string {
+	const today = new Date()
+
+	for (let offset = 0; offset <= 21; offset += 1) {
+		const candidate = new Date(today)
+		candidate.setDate(today.getDate() + offset)
+
+		if (candidate.getDay() === targetDay) {
+			const year = candidate.getFullYear()
+			const month = String(candidate.getMonth() + 1).padStart(2, '0')
+			const day = String(candidate.getDate()).padStart(2, '0')
+			return `${year}-${month}-${day}`
+		}
+	}
+
+	const year = today.getFullYear()
+	const month = String(today.getMonth() + 1).padStart(2, '0')
+	const day = String(today.getDate()).padStart(2, '0')
+	return `${year}-${month}-${day}`
+}
+
+function getSemesterLabelForIsoDate(isoDate: string): string {
+	const [yearToken, monthToken] = isoDate.split('-')
+	const year = Number(yearToken)
+	const month = Number(monthToken)
+	const term = month >= 1 && month <= 5 ? 'Spring' : month <= 8 ? 'Summer' : 'Fall'
+	return `${term} ${year}`
+}
+
+const primaryBookingDate = getNextIsoDateForDay(1)
+const bookingSemester = getSemesterLabelForIsoDate(primaryBookingDate)
+const primaryBookingCreatedAt = `${primaryBookingDate}T11:00:00Z`
 
 const ownerStudent = {
 	id: 101,
@@ -138,7 +169,7 @@ const enrolledSchedule = {
 	},
 	room: engineeringRoom,
 	timeSlot: morningTimeSlot,
-	semester: 'Spring 2026',
+	semester: bookingSemester,
 }
 
 const waitlistedSchedule = {
@@ -155,16 +186,16 @@ const waitlistedSchedule = {
 	},
 	room: scienceRoom,
 	timeSlot: afternoonTimeSlot,
-	semester: 'Spring 2026',
+	semester: bookingSemester,
 }
 
 const existingOtherStudentBooking = {
 	id: 9001,
 	room: scienceRoom,
 	timeSlot: morningTimeSlot,
-	semester: 'Spring 2026',
+	semester: bookingSemester,
 	bookingDate: primaryBookingDate,
-	createdAt: '2026-03-30T11:00:00Z',
+	createdAt: primaryBookingCreatedAt,
 	participantCount: 1,
 	viewerCanSeeStudentDetails: false,
 	viewerIsOwner: false,
@@ -208,26 +239,26 @@ test.describe('Student schedule UI', () => {
 		await page.route(/.*\/api\/enrollments\?studentId=\d+$/, async route => {
 			await route.fulfill({
 				json: [
-					{ id: 1, semester: 'Spring 2026', status: 'ENROLLED', student: null, schedule: null },
-					{ id: 2, semester: 'Spring 2026', status: 'WAITLISTED', student: null, schedule: null },
+					{ id: 1, semester: bookingSemester, status: 'ENROLLED', student: null, schedule: null },
+					{ id: 2, semester: bookingSemester, status: 'WAITLISTED', student: null, schedule: null },
 				],
 			})
 		})
 
-		await page.route(/.*\/api\/students\/\d+\/schedule\?semester=Spring\+2026$/, async route => {
+		await page.route(/.*\/api\/students\/\d+\/schedule.*/, async route => {
 			const match = route.request().url().match(/\/api\/students\/(\d+)\/schedule/)
 			const requestedStudentId = Number(match?.[1] ?? ownerStudent.id)
 			await route.fulfill({
 				json: {
 					studentId: requestedStudentId,
-					semester: 'Spring 2026',
-					enrolled: [{ id: 1, semester: 'Spring 2026', status: 'ENROLLED', student: null, schedule: enrolledSchedule }],
-					waitlisted: [{ id: 2, semester: 'Spring 2026', status: 'WAITLISTED', student: null, schedule: waitlistedSchedule }],
+					semester: bookingSemester,
+					enrolled: [{ id: 1, semester: bookingSemester, status: 'ENROLLED', student: null, schedule: enrolledSchedule }],
+					waitlisted: [{ id: 2, semester: bookingSemester, status: 'WAITLISTED', student: null, schedule: waitlistedSchedule }],
 				},
 			})
 		})
 
-		await page.route(/.*\/api\/schedules\?semester=Spring\+2026$/, async route => {
+		await page.route(/.*\/api\/schedules\?semester=.*/, async route => {
 			await route.fulfill({
 				json: [
 					{ ...enrolledSchedule, filledSeats: 18, seatLimit: 20, remainingSeats: 2, waitlistCount: 5 },
@@ -272,7 +303,7 @@ test.describe('Student schedule UI', () => {
 			id: 9002,
 			room: bookingRoom,
 			timeSlot: morningTimeSlot,
-			semester: 'Spring 2026',
+			semester: bookingSemester,
 			participantCount: 2,
 			viewerCanSeeStudentDetails: true,
 			viewerIsOwner: true,
@@ -301,7 +332,7 @@ test.describe('Student schedule UI', () => {
 			const requestUrl = new URL(route.request().url())
 			studentSearchHeaders = route.request().headers()
 			expect(requestUrl.searchParams.get('query')).toBe('jon')
-			expect(requestUrl.searchParams.get('semester')).toBe('Spring 2026')
+			expect(requestUrl.searchParams.get('semester')).toBe(bookingSemester)
 			expect(requestUrl.searchParams.get('timeSlotId')).toBe(String(morningTimeSlot.id))
 			expect(requestUrl.searchParams.getAll('excludeStudentId')).toContain(String(ownerStudent.id))
 			await route.fulfill({
@@ -325,7 +356,7 @@ test.describe('Student schedule UI', () => {
 				const createdBooking = {
 					...createdBookingBase,
 					bookingDate: String(createPayload.bookingDate),
-					createdAt: '2026-03-30T12:00:00Z',
+						createdAt: `${String(createPayload.bookingDate)}T12:00:00Z`,
 				}
 				roomBookings = [...roomBookings, createdBooking]
 				await route.fulfill({
@@ -338,7 +369,7 @@ test.describe('Student schedule UI', () => {
 
 			const requestUrl = new URL(route.request().url())
 			roomBookingQueries.push(requestUrl.search)
-			expect(requestUrl.searchParams.get('semester')).toBe('Spring 2026')
+			expect(requestUrl.searchParams.get('semester')).toBe(bookingSemester)
 			expect(requestUrl.searchParams.has('studentId')).toBe(false)
 			await route.fulfill({ json: roomBookings })
 		})
@@ -346,26 +377,26 @@ test.describe('Student schedule UI', () => {
 		await page.route(/.*\/api\/enrollments\?studentId=\d+$/, async route => {
 			await route.fulfill({
 				json: [
-					{ id: 1, semester: 'Spring 2026', status: 'ENROLLED', student: null, schedule: null },
-					{ id: 2, semester: 'Spring 2026', status: 'WAITLISTED', student: null, schedule: null },
+					{ id: 1, semester: bookingSemester, status: 'ENROLLED', student: null, schedule: null },
+					{ id: 2, semester: bookingSemester, status: 'WAITLISTED', student: null, schedule: null },
 				],
 			})
 		})
 
-		await page.route(/.*\/api\/students\/\d+\/schedule\?semester=Spring\+2026$/, async route => {
+		await page.route(/.*\/api\/students\/\d+\/schedule.*/, async route => {
 			const match = route.request().url().match(/\/api\/students\/(\d+)\/schedule/)
 			const requestedStudentId = Number(match?.[1] ?? ownerStudent.id)
 			await route.fulfill({
 				json: {
 					studentId: requestedStudentId,
-					semester: 'Spring 2026',
-					enrolled: [{ id: 1, semester: 'Spring 2026', status: 'ENROLLED', student: null, schedule: enrolledSchedule }],
-					waitlisted: [{ id: 2, semester: 'Spring 2026', status: 'WAITLISTED', student: null, schedule: waitlistedSchedule }],
+					semester: bookingSemester,
+					enrolled: [{ id: 1, semester: bookingSemester, status: 'ENROLLED', student: null, schedule: enrolledSchedule }],
+					waitlisted: [{ id: 2, semester: bookingSemester, status: 'WAITLISTED', student: null, schedule: waitlistedSchedule }],
 				},
 			})
 		})
 
-		await page.route(/.*\/api\/schedules\?semester=Spring\+2026$/, async route => {
+		await page.route(/.*\/api\/schedules\?semester=.*/, async route => {
 			await route.fulfill({
 				json: [
 					{ ...enrolledSchedule, filledSeats: 18, seatLimit: 20, remainingSeats: 2, waitlistCount: 5 },
@@ -406,7 +437,7 @@ test.describe('Student schedule UI', () => {
 
 		expect(createPayload).toEqual({
 			studentId: ownerStudent.id,
-			semester: 'Spring 2026',
+			semester: bookingSemester,
 			bookingDate: primaryBookingDate,
 			timeSlotId: morningTimeSlot.id,
 			roomId: bookingRoom.id,
