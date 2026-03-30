@@ -196,7 +196,6 @@ export function useRoomBookingWorkflow(options: UseRoomBookingWorkflowOptions) {
 
 				roomBookings.value = await roomBookingsService.getAll({
 					semester: options.selectedSemester.value,
-					studentId: options.studentId.value,
 				})
 				return
 			}

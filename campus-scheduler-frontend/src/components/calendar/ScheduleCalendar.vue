@@ -165,15 +165,15 @@ function getFirstClassDateForDay(start: Temporal.PlainDate, dayOfWeek: DayOfWeek
 	return start.add({ days: delta })
 }
 
-function getClassDatesForSemester(schedule: Schedule): Temporal.PlainDate[] {
-	const parsedWindow = parseSemesterWindow(schedule.semester)
+function getSemesterOccurrenceDates(semester: string, dayOfWeek: DayOfWeek): Temporal.PlainDate[] {
+	const parsedWindow = parseSemesterWindow(semester)
 	if (!parsedWindow) {
 		const fallbackMonday = getReferenceMonday()
-		return [fallbackMonday.add({ days: DAY_INDEX[schedule.timeSlot.dayOfWeek] })]
+		return [fallbackMonday.add({ days: DAY_INDEX[dayOfWeek] })]
 	}
 
 	const dates: Temporal.PlainDate[] = []
-	let nextDate = getFirstClassDateForDay(parsedWindow.start, schedule.timeSlot.dayOfWeek)
+	let nextDate = getFirstClassDateForDay(parsedWindow.start, dayOfWeek)
 	while (Temporal.PlainDate.compare(nextDate, parsedWindow.end) <= 0) {
 		dates.push(nextDate)
 		nextDate = nextDate.add({ weeks: 1 })
@@ -269,17 +269,11 @@ const calendarsSignature = computed(() =>
 )
 
 function getEntryOccurrenceDates(entry: CalendarEntry): Temporal.PlainDate[] {
-	if (entry.kind === 'schedule') {
-		return getClassDatesForSemester(entry.schedule)
+	if (entry.kind === 'schedule' || entry.kind === 'roomBooking') {
+		return getSemesterOccurrenceDates(entry.semester, entry.timeSlot.dayOfWeek)
 	}
 
-	const parsedWindow = parseSemesterWindow(entry.semester)
-	if (!parsedWindow) {
-		const fallbackMonday = getReferenceMonday()
-		return [fallbackMonday.add({ days: DAY_INDEX[entry.timeSlot.dayOfWeek] })]
-	}
-
-	return [getFirstClassDateForDay(parsedWindow.start, entry.timeSlot.dayOfWeek)]
+	return []
 }
 
 function formatEntryEventId(entry: CalendarEntry): string {
