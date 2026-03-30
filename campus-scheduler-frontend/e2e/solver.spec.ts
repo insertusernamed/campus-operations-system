@@ -471,11 +471,11 @@ test.describe('Solver Page', () => {
 		await expect(saveBtn).toBeEnabled();
 		await saveBtn.click();
 
-		await expect(page.getByText('Saved 50 schedules')).toBeVisible();
-		await expect(page.getByRole('link', { name: 'View Schedule' })).toBeVisible();
+		await expect(page).toHaveURL('/schedules');
+		await expect(page.getByTestId('toast-content').getByText('Saved 50 schedules')).toBeVisible();
 	});
 
-	test('should navigate to schedules from save confirmation link', async ({ page }) => {
+	test('should show optimizing state once all courses are assigned but solving continues', async ({ page }) => {
 		const main = page.locator('main');
 		await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 5000 });
 		await main.getByRole('button', { name: 'Start Solver' }).click();
@@ -484,26 +484,20 @@ test.describe('Solver Page', () => {
 		await sendProgress(
 			page,
 			{
-				status: 'NOT_SOLVING',
-				score: '0hard/-100soft',
+				status: 'SOLVING_ACTIVE',
+				score: '0hard/-125soft',
 				assignedCourses: 50,
 				totalCourses: 50,
 				hardViolations: 0,
-				softScore: -100,
-				message: 'Finished',
+				softScore: -125,
+				message: 'Solving...',
 			},
 			300
 		);
 
-		const saveBtn = main.getByRole('button', { name: 'Save Final Schedule' }).first();
-		await expect(saveBtn).toBeVisible({ timeout: 10000 });
-		await expect(saveBtn).toBeEnabled();
-		await saveBtn.click();
-
-		const viewScheduleLink = page.getByRole('link', { name: 'View Schedule' });
-		await expect(viewScheduleLink).toBeVisible();
-		await viewScheduleLink.click();
-		await expect(page).toHaveURL('/schedules');
+		await expect(page.getByText('Optimizing', { exact: true })).toBeVisible();
+		await expect(page.getByText('100% assigned, optimizing', { exact: true })).toBeVisible();
+		await expect(page.getByText('All courses are assigned. Optimizing room usage, student experience, and other soft constraints.')).toBeVisible();
 	});
 
 	test('should show error message when starting solver fails', async ({ page }) => {

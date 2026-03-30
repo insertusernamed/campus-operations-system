@@ -64,6 +64,7 @@ const hasAssignedAllCourses = computed(() => {
 	if (!progress.value) return false
 	return progress.value.totalCourses > 0 && progress.value.assignedCourses >= progress.value.totalCourses
 })
+const isOptimizing = computed(() => isSolving.value && hasAssignedAllCourses.value)
 const readyToSave = computed(
 	() => !isSolving.value && hasSolverResult.value && hasAssignedAllCourses.value && !hasHardViolations.value
 )
@@ -71,18 +72,30 @@ const finishedWithIssues = computed(
 	() => !isSolving.value && hasSolverResult.value && !readyToSave.value
 )
 const progressStatusLabel = computed(() => {
+	if (isOptimizing.value) return 'Optimizing'
 	if (isSolving.value) return 'Running'
 	if (readyToSave.value) return 'Finished'
 	if (finishedWithIssues.value) return 'Stopped'
 	return 'Idle'
 })
 const progressStatusClass = computed(() => {
+	if (isOptimizing.value) return 'text-indigo-700'
 	if (isSolving.value) return 'text-blue-700'
 	if (readyToSave.value) return 'text-green-700'
 	if (finishedWithIssues.value) return 'text-yellow-700'
 	return 'text-gray-800'
 })
 const saveButtonLabel = computed(() => (readyToSave.value ? 'Save Final Schedule' : 'Save Solution'))
+const progressAssignmentLabel = computed(() => {
+	if (isOptimizing.value) return `${progressPercent.value}% assigned, optimizing`
+	return `${progressPercent.value}% assigned`
+})
+const progressDetailMessage = computed(() => {
+	if (isOptimizing.value) {
+		return 'All courses are assigned. Optimizing room usage, student experience, and other soft constraints.'
+	}
+	return progress.value?.message ?? ''
+})
 
 const analytics = ref<SolverAnalytics | null>(null)
 const analyticsLoading = ref(false)
@@ -494,10 +507,8 @@ async function saveSolution() {
 		const result = await solverService.save()
 		statusMessage.value = result.message
 		requestAnalyticsRefresh(true)
-		toast.success('Solution saved successfully!', {
-			onClick: () => router.push('/schedules'),
-			style: { cursor: 'pointer' },
-		})
+		await router.push('/schedules')
+		toast.success(result.message)
 	} catch (e: unknown) {
 		errorMessage.value = e instanceof Error ? e.message : 'Failed to save solution'
 		toast.error('Failed to save solution')
@@ -768,11 +779,11 @@ const solutionQuality = computed(() => {
 						<div class="h-full bg-blue-600 transition-all duration-300" :style="{ width: progressPercent + '%' }">
 						</div>
 					</div>
-					<div class="text-sm text-gray-500 mt-1">{{ progressPercent }}% assigned</div>
+					<div class="text-sm text-gray-500 mt-1">{{ progressAssignmentLabel }}</div>
 
 					<!-- Latest Message -->
-					<div v-if="progress.message" class="mt-3 text-sm text-gray-600 italic">
-						{{ progress.message }}
+					<div v-if="progressDetailMessage" class="mt-3 text-sm text-gray-600 italic">
+						{{ progressDetailMessage }}
 					</div>
 				</div>
 
