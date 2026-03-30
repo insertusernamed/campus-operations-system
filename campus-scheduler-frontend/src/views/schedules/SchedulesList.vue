@@ -11,6 +11,7 @@ import { studentsService } from '@/services/students'
 import { enrollmentsService, type EnrollmentStatus } from '@/services/enrollments'
 import ScheduleCalendar from '@/components/calendar/ScheduleCalendar.vue'
 import AdminDailyScheduleGrid from '@/components/calendar/AdminDailyScheduleGrid.vue'
+import type { CalendarSelection } from '@/components/calendar/types'
 import EmptyState from '@/components/common/EmptyState.vue'
 import TableSkeleton from '@/components/common/TableSkeleton.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
@@ -388,12 +389,22 @@ async function fetchFrictions() {
 	}
 }
 
-function handleEventClick(scheduleId: number) {
-	selectedScheduleId.value = scheduleId
+function handleEventClick(selection: CalendarSelection) {
+	if (selection.kind !== 'schedule') {
+		return
+	}
+	selectedScheduleId.value = selection.sourceId
 	if (role.value === 'instructor') {
 		selectedIssue.value = ''
 	}
 	requestModalOpen.value = true
+}
+
+function openScheduleDetails(scheduleId: number) {
+	handleEventClick({
+		kind: 'schedule',
+		sourceId: scheduleId,
+	})
 }
 
 function handleStartRequest() {
@@ -630,7 +641,7 @@ function handleExportClassForSemester() {
 										<div class="text-xs text-gray-500">{{ getSeatPressure(schedule) }}</div>
 									</td>
 									<td class="px-4 py-3">
-										<button class="text-blue-600 hover:underline" @click="handleEventClick(schedule.id)">Details</button>
+										<button class="text-blue-600 hover:underline" @click="openScheduleDetails(schedule.id)">Details</button>
 									</td>
 								</tr>
 							</tbody>
@@ -675,7 +686,7 @@ function handleExportClassForSemester() {
 										<div class="text-xs text-gray-500">{{ getSeatPressure(schedule) }}</div>
 									</td>
 									<td class="px-4 py-3">
-										<button class="text-blue-600 hover:underline" @click="handleEventClick(schedule.id)">Details</button>
+										<button class="text-blue-600 hover:underline" @click="openScheduleDetails(schedule.id)">Details</button>
 									</td>
 								</tr>
 							</tbody>
@@ -737,7 +748,7 @@ function handleExportClassForSemester() {
 							</td>
 							<td class="px-4 py-3 text-gray-600">{{ getWaitlistSummary(s) }}</td>
 							<td class="px-4 py-3">
-								<button class="text-blue-600 hover:underline mr-3" @click="handleEventClick(s.id)">Details</button>
+									<button class="text-blue-600 hover:underline mr-3" @click="openScheduleDetails(s.id)">Details</button>
 								<button v-if="role === 'admin'" @click="handleDelete(s.id)"
 									class="text-red-600 hover:underline">Delete</button>
 							</td>
