@@ -1,25 +1,9 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { toast } from 'vue3-toastify'
 import { useCrud } from '@/composables/useCrud'
-import { schedulesService, type Schedule } from '@/services/schedules'
-import { roomsService, type Room } from '@/services/rooms'
-import { buildingsService, type Building } from '@/services/buildings'
-import {
-	DAY_OF_WEEK_OPTIONS,
-	timeslotsService,
-	type DayOfWeek,
-	type TimeSlot,
-} from '@/services/timeslots'
 import { useRole } from '@/composables/useRole'
-import { studentsService } from '@/services/students'
-import { enrollmentsService, type EnrollmentStatus } from '@/services/enrollments'
-import {
-	roomBookingsService,
-	type RoomBooking,
-	type RoomBookingStudentLookupResponse,
-} from '@/services/roomBookings'
+import { useRoomBookingWorkflow } from '@/composables/useRoomBookingWorkflow'
 import ScheduleCalendar from '@/components/calendar/ScheduleCalendar.vue'
 import AdminDailyScheduleGrid from '@/components/calendar/AdminDailyScheduleGrid.vue'
 import {
@@ -27,32 +11,36 @@ import {
 	toScheduleCalendarEntry,
 	type CalendarSelection,
 } from '@/components/calendar/types'
-import EmptyState from '@/components/common/EmptyState.vue'
 import TableSkeleton from '@/components/common/TableSkeleton.vue'
-import BaseModal from '@/components/common/BaseModal.vue'
-import { changeRequestIssueOptions, type ChangeRequestIssue } from '@/constants/changeRequestIssues'
-import { exportSingleClass, exportClassForSemester } from '@/utils/icalExport'
+import EmptyState from '@/components/common/EmptyState.vue'
+import RoomBookingModal from '@/components/schedules/RoomBookingModal.vue'
+import ScheduleSelectionModal from '@/components/schedules/ScheduleSelectionModal.vue'
 import { INSTRUCTOR_FRICTION_MVP } from '@/config/features'
+import { exportClassForSemester, exportSingleClass } from '@/utils/icalExport'
+import { formatFrictionType, frictionSeverityClass } from '@/utils/friction'
+import { buildingsService, type Building } from '@/services/buildings'
+import { enrollmentsService, type EnrollmentStatus } from '@/services/enrollments'
 import {
 	instructorInsightsService,
 	type InstructorFrictionIssue,
 } from '@/services/instructorInsights'
-import { formatFrictionType, frictionSeverityClass } from '@/utils/friction'
+import { roomsService, type Room } from '@/services/rooms'
+import { schedulesService, type Schedule } from '@/services/schedules'
+import { studentsService } from '@/services/students'
+import { timeslotsService, type TimeSlot } from '@/services/timeslots'
+import type { ChangeRequestIssue } from '@/constants/changeRequestIssues'
+import {
+	formatRoom,
+	getSeatPressure,
+	getSeatUtilization,
+	getWaitlistSummary,
+	sortRoomBookingsByTime,
+	sortSchedulesByTime,
+	sortSemesters,
+} from '@/views/schedules/helpers'
 
 type ViewMode = 'table' | 'calendar'
 type CalendarRangeMode = 'day' | 'week'
-
-const DAY_ORDER: Record<DayOfWeek, number> = {
-	MONDAY: 1,
-	TUESDAY: 2,
-	WEDNESDAY: 3,
-	THURSDAY: 4,
-	FRIDAY: 5,
-	SATURDAY: 6,
-	SUNDAY: 7,
-}
-
-const PARTICIPANT_SEARCH_DEBOUNCE_MS = 250
 
 const viewMode = ref<ViewMode>('calendar')
 const selectedBuildingId = ref<number | null>(null)
@@ -68,27 +56,10 @@ const studentSemesterSchedules = ref<Schedule[]>([])
 const studentLoading = ref(false)
 const studentError = ref<string | null>(null)
 const referenceDataError = ref<string | null>(null)
-const roomBookings = ref<RoomBooking[]>([])
-const roomBookingsLoading = ref(false)
-const roomBookingsError = ref<string | null>(null)
 
 const detailsModalOpen = ref(false)
 const selectedCalendarSelection = ref<CalendarSelection | null>(null)
 const selectedIssue = ref<ChangeRequestIssue | ''>('')
-
-const bookingModalOpen = ref(false)
-const bookingSaving = ref(false)
-const bookingError = ref<string | null>(null)
-const bookingForm = ref({
-	semester: '',
-	timeSlotId: null as number | null,
-	roomId: null as number | null,
-})
-const selectedParticipants = ref<RoomBookingStudentLookupResponse[]>([])
-const participantSearchQuery = ref('')
-const participantSearchResults = ref<RoomBookingStudentLookupResponse[]>([])
-const participantSearchLoading = ref(false)
-const participantSearchError = ref<string | null>(null)
 
 const frictions = ref<InstructorFrictionIssue[]>([])
 const frictionsLoading = ref(false)
@@ -137,6 +108,41 @@ const hydratedItems = computed(() => {
 	})
 })
 
+const {
+	roomBookings,
+	roomBookingsLoading,
+	roomBookingsError,
+	bookingModalOpen,
+	bookingSaving,
+	bookingError,
+	bookingForm,
+	selectedParticipants,
+	participantSearchQuery,
+	participantSearchLoading,
+	participantSearchError,
+	bookingSemesterOptions,
+	sortedTimeSlots,
+	selectedBookingTimeSlot,
+	availableBookingRooms,
+	canSubmitBooking,
+	participantSuggestions,
+	loadRoomBookings,
+	setBookingModalOpen,
+	openBookingModal,
+	addParticipant,
+	removeParticipant,
+	submitRoomBooking,
+} = useRoomBookingWorkflow({
+	role,
+	studentId,
+	selectedSemester,
+	rooms,
+	timeSlots,
+	studentSemesters,
+	scheduleAvailabilitySource: hydratedItems,
+	studentSemesterSchedules,
+})
+
 const scheduleCountByRoom = computed(() => {
 	const counts = new Map<number, number>()
 	for (const schedule of items.value) {
@@ -149,98 +155,6 @@ const filteredRooms = computed(() => {
 	if (!selectedBuildingId.value) return rooms.value
 	return rooms.value.filter(room => room.buildingId === selectedBuildingId.value)
 })
-
-function parseSemesterForSort(semester: string): { year: number; termRank: number } {
-	const match = semester.match(/([A-Za-z]+)\s+(\d{4})/)
-	if (!match) {
-		return { year: 0, termRank: 0 }
-	}
-
-	const term = match[1]?.toUpperCase() ?? ''
-	const year = Number(match[2] ?? 0)
-	const termOrder: Record<string, number> = {
-		WINTER: 1,
-		SPRING: 2,
-		SUMMER: 3,
-		FALL: 4,
-	}
-
-	return {
-		year: Number.isNaN(year) ? 0 : year,
-		termRank: termOrder[term] ?? 0,
-	}
-}
-
-function sortSemesters(semesters: string[]): string[] {
-	return semesters
-		.filter(semester => semester.trim().length > 0)
-		.sort((a, b) => {
-			const parsedA = parseSemesterForSort(a)
-			const parsedB = parseSemesterForSort(b)
-			if (parsedA.year !== parsedB.year) {
-				return parsedB.year - parsedA.year
-			}
-			if (parsedA.termRank !== parsedB.termRank) {
-				return parsedB.termRank - parsedA.termRank
-			}
-			return a.localeCompare(b)
-		})
-}
-
-function compareByTimeSlot(a: { timeSlot: TimeSlot }, b: { timeSlot: TimeSlot }): number {
-	const dayA = DAY_ORDER[a.timeSlot.dayOfWeek] ?? Number.MAX_SAFE_INTEGER
-	const dayB = DAY_ORDER[b.timeSlot.dayOfWeek] ?? Number.MAX_SAFE_INTEGER
-	if (dayA !== dayB) {
-		return dayA - dayB
-	}
-	if (a.timeSlot.startTime !== b.timeSlot.startTime) {
-		return a.timeSlot.startTime.localeCompare(b.timeSlot.startTime)
-	}
-	if (a.timeSlot.endTime !== b.timeSlot.endTime) {
-		return a.timeSlot.endTime.localeCompare(b.timeSlot.endTime)
-	}
-	return 0
-}
-
-function compareTimeSlots(a: TimeSlot, b: TimeSlot): number {
-	return compareByTimeSlot({ timeSlot: a }, { timeSlot: b })
-}
-
-function sortSchedulesByTime(schedules: Schedule[]): Schedule[] {
-	return [...schedules].sort((a, b) => {
-		const timeComparison = compareByTimeSlot(a, b)
-		if (timeComparison !== 0) {
-			return timeComparison
-		}
-		return a.course.code.localeCompare(b.course.code)
-	})
-}
-
-function sortRoomBookingsByTime(bookings: RoomBooking[]): RoomBooking[] {
-	return [...bookings].sort((a, b) => {
-		const semesterComparison = a.semester.localeCompare(b.semester)
-		if (semesterComparison !== 0) {
-			return semesterComparison
-		}
-
-		const timeComparison = compareByTimeSlot(a, b)
-		if (timeComparison !== 0) {
-			return timeComparison
-		}
-
-		const buildingA = a.room.buildingCode ?? ''
-		const buildingB = b.room.buildingCode ?? ''
-		if (buildingA !== buildingB) {
-			return buildingA.localeCompare(buildingB)
-		}
-
-		if (a.room.roomNumber !== b.room.roomNumber) {
-			return a.room.roomNumber.localeCompare(b.room.roomNumber)
-		}
-
-		return a.id - b.id
-	})
-}
 
 const semesterOptions = computed(() => {
 	if (role.value === 'student') {
@@ -362,105 +276,7 @@ const activeError = computed(() => {
 	return error.value
 })
 
-const sortedTimeSlots = computed(() =>
-	[...timeSlots.value].sort((a, b) => {
-		const timeComparison = compareTimeSlots(a, b)
-		if (timeComparison !== 0) {
-			return timeComparison
-		}
-		return a.id - b.id
-	})
-)
-
-const bookingSemesterOptions = computed(() => {
-	if (studentSemesters.value.length > 0) {
-		return studentSemesters.value
-	}
-	return selectedSemester.value ? [selectedSemester.value] : []
-})
-
-const selectedBookingTimeSlot = computed(() =>
-	timeSlots.value.find(timeSlot => timeSlot.id === bookingForm.value.timeSlotId) ?? null
-)
-
-const blockedScheduleRoomIds = computed(() => {
-	if (!bookingForm.value.semester || !bookingForm.value.timeSlotId) {
-		return new Set<number>()
-	}
-
-	const schedulesToCheck = role.value === 'student'
-		? studentSemesterSchedules.value
-		: hydratedItems.value
-
-	return new Set(
-		schedulesToCheck
-			.filter(schedule =>
-				schedule.semester === bookingForm.value.semester
-				&& schedule.timeSlot.id === bookingForm.value.timeSlotId
-			)
-			.map(schedule => schedule.room.id)
-	)
-})
-
-const blockedRoomBookingRoomIds = computed(() => {
-	if (!bookingForm.value.semester || !bookingForm.value.timeSlotId) {
-		return new Set<number>()
-	}
-
-	return new Set(
-		roomBookings.value
-			.filter(booking =>
-				booking.semester === bookingForm.value.semester
-				&& booking.timeSlot.id === bookingForm.value.timeSlotId
-			)
-			.map(booking => booking.room.id)
-	)
-})
-
-const availableBookingRooms = computed(() =>
-	rooms.value
-		.filter(room => room.availabilityStatus === 'AVAILABLE')
-		.filter(room => !blockedScheduleRoomIds.value.has(room.id))
-		.filter(room => !blockedRoomBookingRoomIds.value.has(room.id))
-		.sort((a, b) => {
-			const buildingA = a.buildingCode ?? ''
-			const buildingB = b.buildingCode ?? ''
-			if (buildingA !== buildingB) {
-				return buildingA.localeCompare(buildingB)
-			}
-			return a.roomNumber.localeCompare(b.roomNumber)
-		})
-)
-
-const canSubmitBooking = computed(() =>
-	!!studentId.value
-	&& !!bookingForm.value.semester
-	&& !!bookingForm.value.timeSlotId
-	&& !!bookingForm.value.roomId
-	&& !bookingSaving.value
-)
-
-const selectedParticipantIds = computed(() =>
-	new Set(selectedParticipants.value.map(participant => participant.id))
-)
-
-const participantSuggestions = computed(() => {
-	const ownerId = studentId.value
-	return participantSearchResults.value.filter(candidate =>
-		candidate.id !== ownerId && !selectedParticipantIds.value.has(candidate.id)
-	)
-})
-
-const participantSearchReady = computed(() =>
-	bookingModalOpen.value
-	&& !!studentId.value
-	&& !!bookingForm.value.semester
-	&& !!bookingForm.value.timeSlotId
-)
-
 let syncingStudentSemester = false
-let participantSearchTimer: ReturnType<typeof setTimeout> | null = null
-let participantSearchRequestId = 0
 
 watch(selectedBuildingId, () => {
 	selectedRoomId.value = null
@@ -488,66 +304,10 @@ watch([role, instructorId, studentId], async () => {
 	await refreshSchedulesAndFrictions()
 })
 
-watch(availableBookingRooms, (nextRooms) => {
-	if (bookingForm.value.roomId && !nextRooms.some(room => room.id === bookingForm.value.roomId)) {
-		bookingForm.value.roomId = null
-	}
-})
-
-watch(
-	[
-		participantSearchQuery,
-		() => bookingForm.value.semester,
-		() => bookingForm.value.timeSlotId,
-		studentId,
-		bookingModalOpen,
-	],
-	() => {
-		void scheduleParticipantSearch()
-	}
-)
-
 onMounted(async () => {
 	await loadReferenceData()
 	await refreshSchedulesAndFrictions()
 })
-
-onBeforeUnmount(() => {
-	clearParticipantSearchTimer()
-})
-
-function formatRoom(room: Room): string {
-	const parts = [room.buildingCode, room.roomNumber].filter(Boolean)
-	return parts.join(' ') || 'Room unavailable'
-}
-
-function getSemesterValueForStudent(): string | null {
-	if (selectedSemester.value && bookingSemesterOptions.value.includes(selectedSemester.value)) {
-		return selectedSemester.value
-	}
-	return bookingSemesterOptions.value[0] ?? null
-}
-
-function resetBookingForm() {
-	bookingForm.value = {
-		semester: getSemesterValueForStudent() ?? '',
-		timeSlotId: null,
-		roomId: null,
-	}
-	selectedParticipants.value = []
-	participantSearchQuery.value = ''
-	participantSearchResults.value = []
-	participantSearchError.value = null
-	bookingError.value = null
-}
-
-function getErrorMessage(cause: unknown, fallback: string): string {
-	const errorLike = cause as {
-		response?: { data?: { error?: string } }
-		message?: string
-	}
-	return errorLike.response?.data?.error ?? errorLike.message ?? fallback
-}
 
 async function loadReferenceData() {
 	referenceDataError.value = null
@@ -664,36 +424,6 @@ async function fetchStudentSchedules() {
 	}
 }
 
-async function fetchRoomBookings() {
-	roomBookingsLoading.value = true
-	roomBookingsError.value = null
-
-	try {
-		if (role.value === 'student') {
-			if (!studentId.value || !selectedSemester.value) {
-				roomBookings.value = []
-				return
-			}
-
-			roomBookings.value = await roomBookingsService.getAll({
-				semester: selectedSemester.value,
-				studentId: studentId.value,
-			})
-			return
-		}
-
-		roomBookings.value = await roomBookingsService.getAll({
-			semester: selectedSemester.value ?? undefined,
-		})
-	} catch (cause) {
-		console.error('Failed to load room bookings', cause)
-		roomBookingsError.value = 'Failed to load room bookings.'
-		roomBookings.value = []
-	} finally {
-		roomBookingsLoading.value = false
-	}
-}
-
 async function fetchFrictions() {
 	if (!INSTRUCTOR_FRICTION_MVP || role.value !== 'instructor' || !instructorId.value || !insightsSemester.value) {
 		frictions.value = []
@@ -718,87 +448,15 @@ async function fetchFrictions() {
 async function refreshSchedulesAndFrictions() {
 	if (role.value === 'student') {
 		await fetchStudentSchedules()
-		await fetchRoomBookings()
+		await loadRoomBookings()
 		frictions.value = []
 		frictionsError.value = null
 		frictionsLoading.value = false
 		return
 	}
 
-	await Promise.all([fetchAll(), fetchRoomBookings()])
+	await Promise.all([fetchAll(), loadRoomBookings()])
 	await fetchFrictions()
-}
-
-function clearParticipantSearchTimer() {
-	if (participantSearchTimer !== null) {
-		clearTimeout(participantSearchTimer)
-		participantSearchTimer = null
-	}
-}
-
-async function runParticipantSearch(requestId: number) {
-	if (!participantSearchReady.value) {
-		participantSearchResults.value = []
-		participantSearchLoading.value = false
-		return
-	}
-
-	const query = participantSearchQuery.value.trim()
-	if (query.length < 2) {
-		participantSearchResults.value = []
-		participantSearchError.value = null
-		participantSearchLoading.value = false
-		return
-	}
-
-	participantSearchLoading.value = true
-	participantSearchError.value = null
-
-	try {
-		const matches = await roomBookingsService.searchStudents(
-			query,
-			bookingForm.value.semester,
-			bookingForm.value.timeSlotId as number,
-			[
-				studentId.value as number,
-				...selectedParticipants.value.map(participant => participant.id),
-			]
-		)
-
-		if (requestId !== participantSearchRequestId) {
-			return
-		}
-
-		participantSearchResults.value = matches
-	} catch (cause) {
-		if (requestId !== participantSearchRequestId) {
-			return
-		}
-		console.error('Failed to search participants', cause)
-		participantSearchResults.value = []
-		participantSearchError.value = 'Could not search student email addresses.'
-	} finally {
-		if (requestId === participantSearchRequestId) {
-			participantSearchLoading.value = false
-		}
-	}
-}
-
-async function scheduleParticipantSearch() {
-	clearParticipantSearchTimer()
-	participantSearchRequestId += 1
-	const requestId = participantSearchRequestId
-
-	if (!participantSearchReady.value || participantSearchQuery.value.trim().length < 2) {
-		participantSearchResults.value = []
-		participantSearchError.value = null
-		participantSearchLoading.value = false
-		return
-	}
-
-	participantSearchTimer = setTimeout(() => {
-		void runParticipantSearch(requestId)
-	}, PARTICIPANT_SEARCH_DEBOUNCE_MS)
 }
 
 function handleEventClick(selection: CalendarSelection) {
@@ -846,66 +504,6 @@ function handleDetailsModalVisibilityChange(isOpen: boolean) {
 	}
 }
 
-function handleBookingModalVisibilityChange(isOpen: boolean) {
-	bookingModalOpen.value = isOpen
-	if (!isOpen) {
-		resetBookingForm()
-	}
-}
-
-function getInstructorName(schedule: Schedule): string {
-	const instructor = schedule.course.instructor
-	if (!instructor) {
-		return 'Unassigned'
-	}
-	return `${instructor.firstName} ${instructor.lastName}`
-}
-
-function getSeatUtilization(schedule: Schedule): string {
-	if (typeof schedule.filledSeats !== 'number' || typeof schedule.seatLimit !== 'number') {
-		return 'Seat data unavailable'
-	}
-	if (schedule.seatLimit <= 0) {
-		return `${schedule.filledSeats} enrolled`
-	}
-	const percent = Math.round((schedule.filledSeats / schedule.seatLimit) * 100)
-	return `${schedule.filledSeats}/${schedule.seatLimit} seats (${percent}%)`
-}
-
-function getSeatPressure(schedule: Schedule): string {
-	if (typeof schedule.remainingSeats !== 'number' || typeof schedule.waitlistCount !== 'number') {
-		return 'Seat pressure unavailable'
-	}
-	return `${schedule.remainingSeats} seats left, ${schedule.waitlistCount} waitlisted`
-}
-
-function getWaitlistSummary(schedule: Schedule): string {
-	if (typeof schedule.waitlistCount !== 'number') {
-		return 'N/A'
-	}
-	return `${schedule.waitlistCount}`
-}
-
-function getStudentStatusLabel(status: EnrollmentStatus | null): string {
-	if (status === 'ENROLLED') return 'Enrolled'
-	if (status === 'WAITLISTED') return 'Waitlisted'
-	return 'Unknown'
-}
-
-function getParticipantTotalLabel(count: number): string {
-	return count === 1 ? '1 student' : `${count} students`
-}
-
-function getBookingPrivacyMessage(booking: RoomBooking): string | null {
-	if (booking.viewerCanSeeStudentDetails) {
-		return null
-	}
-	if (booking.viewerIsParticipant) {
-		return 'You are included in this booking. Student details are only visible to the booking owner and admins.'
-	}
-	return 'Student details are hidden for this booking.'
-}
-
 function handleOpenCourseFromModal() {
 	if (!selectedSchedule.value) return
 	detailsModalOpen.value = false
@@ -939,68 +537,6 @@ function handleExportSingleClass() {
 function handleExportClassForSemester() {
 	if (!selectedSchedule.value) return
 	exportClassForSemester(selectedSchedule.value)
-}
-
-function openBookingModal() {
-	if (!studentId.value) {
-		toast.error('Select a student profile before creating a room booking.')
-		return
-	}
-
-	if (bookingSemesterOptions.value.length === 0) {
-		toast.error('No semester is available for room booking yet.')
-		return
-	}
-
-	resetBookingForm()
-	bookingModalOpen.value = true
-}
-
-function addParticipant(participant: RoomBookingStudentLookupResponse) {
-	if (selectedParticipantIds.value.has(participant.id)) {
-		return
-	}
-
-	selectedParticipants.value = [...selectedParticipants.value, participant]
-	participantSearchQuery.value = ''
-	participantSearchResults.value = []
-	participantSearchError.value = null
-}
-
-function removeParticipant(participantId: number) {
-	selectedParticipants.value = selectedParticipants.value.filter(
-		participant => participant.id !== participantId
-	)
-}
-
-async function submitRoomBooking() {
-	if (!canSubmitBooking.value || !studentId.value) {
-		return
-	}
-
-	bookingSaving.value = true
-	bookingError.value = null
-
-	try {
-		await roomBookingsService.create({
-			studentId: studentId.value,
-			semester: bookingForm.value.semester,
-			timeSlotId: bookingForm.value.timeSlotId as number,
-			roomId: bookingForm.value.roomId as number,
-			participantEmails: selectedParticipants.value.map(participant => participant.email),
-		})
-
-		await fetchRoomBookings()
-		bookingModalOpen.value = false
-		resetBookingForm()
-		toast.success('Room booking created')
-	} catch (cause) {
-		const message = getErrorMessage(cause, 'Failed to create room booking.')
-		bookingError.value = message
-		toast.error(message)
-	} finally {
-		bookingSaving.value = false
-	}
 }
 </script>
 
@@ -1299,7 +835,7 @@ async function submitRoomBooking() {
 										{{ timeslotsService.formatTimeSlot(booking.timeSlot) }}
 									</td>
 									<td class="px-4 py-3 text-gray-600">
-										{{ getParticipantTotalLabel(booking.participantCount) }}
+										{{ booking.participantCount === 1 ? '1 student' : `${booking.participantCount} students` }}
 									</td>
 									<td class="px-4 py-3 text-gray-600">
 										{{ booking.viewerIsOwner ? 'Owner' : 'Participant' }}
@@ -1404,415 +940,49 @@ async function submitRoomBooking() {
 			</div>
 		</template>
 
-		<BaseModal
+		<ScheduleSelectionModal
 			:model-value="detailsModalOpen"
 			:title="detailModalTitle"
-			size="lg"
+			:role="role"
+			:selected-schedule="selectedSchedule"
+			:selected-room-booking="selectedRoomBooking"
+			:selected-student-status="selectedStudentStatus"
+			:selected-issue="selectedIssue"
 			@update:model-value="handleDetailsModalVisibilityChange"
-		>
-			<div v-if="selectedSchedule" class="space-y-3 text-sm text-gray-700">
-				<div class="text-base font-medium text-gray-900">
-					{{ selectedSchedule.course.code }} - {{ selectedSchedule.course.name }}
-				</div>
-				<div>
-					<span class="font-medium text-gray-900">Time:</span>
-					{{ timeslotsService.formatTimeSlot(selectedSchedule.timeSlot) }}
-				</div>
-				<div>
-					<span class="font-medium text-gray-900">Room:</span>
-					{{ formatRoom(selectedSchedule.room) }}
-				</div>
-				<div>
-					<span class="font-medium text-gray-900">Semester:</span>
-					{{ selectedSchedule.semester }}
-				</div>
-				<div>
-					<span class="font-medium text-gray-900">Seat utilization:</span>
-					{{ getSeatUtilization(selectedSchedule) }}
-				</div>
-				<div>
-					<span class="font-medium text-gray-900">Seat pressure:</span>
-					{{ getSeatPressure(selectedSchedule) }}
-				</div>
-				<div v-if="role === 'admin'">
-					<span class="font-medium text-gray-900">Instructor:</span>
-					{{ getInstructorName(selectedSchedule) }}
-				</div>
-				<div v-if="role === 'student'">
-					<span class="font-medium text-gray-900">Status:</span>
-					{{ getStudentStatusLabel(selectedStudentStatus) }}
-				</div>
+			@update:selected-issue="selectedIssue = $event"
+			@open-course="handleOpenCourseFromModal"
+			@open-room="handleOpenRoomFromModal"
+			@delete-schedule="handleDeleteFromModal"
+			@start-request="handleStartRequest"
+			@export-single-class="handleExportSingleClass"
+			@export-class-for-semester="handleExportClassForSemester"
+		/>
 
-				<template v-if="role === 'instructor'">
-					<div class="mt-1 border-t border-gray-200 pt-3">
-						<p class="mb-1 text-xs font-medium text-gray-700">Add to Calendar</p>
-						<p class="mb-2 text-xs text-gray-500">
-							Download an .ics file to import into Google Calendar, Outlook, or Apple Calendar.
-						</p>
-						<div class="flex flex-wrap gap-2">
-							<button
-								v-tooltip="'One-time event for the next upcoming session of this class'"
-								class="inline-flex items-center gap-1.5 rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-								@click="handleExportSingleClass"
-							>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-3.5 w-3.5 text-gray-500"
-									viewBox="0 0 20 20"
-									fill="currentColor"
-									aria-hidden="true"
-								>
-									<path
-										fill-rule="evenodd"
-										d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z"
-										clip-rule="evenodd"
-									/>
-								</svg>
-								Next Session
-							</button>
-							<button
-								v-tooltip="'Weekly recurring events for this class through the end of the semester'"
-								class="inline-flex items-center gap-1.5 rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-								@click="handleExportClassForSemester"
-							>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-3.5 w-3.5 text-gray-500"
-									viewBox="0 0 20 20"
-									fill="currentColor"
-									aria-hidden="true"
-								>
-									<path
-										fill-rule="evenodd"
-										d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z"
-										clip-rule="evenodd"
-									/>
-								</svg>
-								Full Semester
-							</button>
-						</div>
-					</div>
-
-					<div class="mt-1 border-t border-gray-200 pt-3">
-						<p class="mb-1 text-xs font-medium text-gray-700">Request a Change</p>
-						<p class="mb-2 text-xs text-gray-600">
-							Start a change request for this class. You can refine the details on the next step.
-						</p>
-						<div>
-							<label for="request-change-issue" class="mb-1 block text-sm font-medium text-gray-700">
-								Why is this a problem?
-							</label>
-							<select
-								id="request-change-issue"
-								v-model="selectedIssue"
-								aria-label="Request Issue"
-								class="w-full rounded border border-gray-300 px-3 py-2"
-							>
-								<option value="" disabled>Select a reason</option>
-								<option
-									v-for="option in changeRequestIssueOptions"
-									:key="option.value"
-									:value="option.value"
-								>
-									{{ option.label }}
-								</option>
-							</select>
-						</div>
-					</div>
-				</template>
-			</div>
-
-			<div v-else-if="selectedRoomBooking" class="space-y-3 text-sm text-gray-700">
-				<div class="text-base font-medium text-gray-900">Room Booking</div>
-				<div>
-					<span class="font-medium text-gray-900">Time:</span>
-					{{ timeslotsService.formatTimeSlot(selectedRoomBooking.timeSlot) }}
-				</div>
-				<div>
-					<span class="font-medium text-gray-900">Room:</span>
-					{{ formatRoom(selectedRoomBooking.room) }}
-				</div>
-				<div>
-					<span class="font-medium text-gray-900">Semester:</span>
-					{{ selectedRoomBooking.semester }}
-				</div>
-				<div>
-					<span class="font-medium text-gray-900">Students:</span>
-					{{ getParticipantTotalLabel(selectedRoomBooking.participantCount) }}
-				</div>
-				<div v-if="selectedRoomBooking.viewerCanSeeStudentDetails && selectedRoomBooking.bookedBy">
-					<span class="font-medium text-gray-900">Booked by:</span>
-					{{ selectedRoomBooking.bookedBy.fullName }} ({{ selectedRoomBooking.bookedBy.email }})
-				</div>
-				<div v-if="selectedRoomBooking.viewerCanSeeStudentDetails">
-					<span class="font-medium text-gray-900">Invited students:</span>
-					<div v-if="selectedRoomBooking.participants.length === 0" class="mt-1 text-gray-500">
-						No invited students.
-					</div>
-					<ul v-else class="mt-1 space-y-1">
-						<li
-							v-for="participant in selectedRoomBooking.participants"
-							:key="participant.id"
-							class="rounded border border-gray-200 bg-gray-50 px-3 py-2"
-						>
-							<div class="font-medium text-gray-900">{{ participant.fullName }}</div>
-							<div class="text-xs text-gray-600">{{ participant.email }}</div>
-						</li>
-					</ul>
-				</div>
-				<div
-					v-else-if="getBookingPrivacyMessage(selectedRoomBooking)"
-					class="rounded border border-gray-200 bg-gray-50 px-3 py-2 text-gray-600"
-				>
-					{{ getBookingPrivacyMessage(selectedRoomBooking) }}
-				</div>
-				<div
-					v-if="selectedRoomBooking.viewerIsParticipant && !selectedRoomBooking.viewerIsOwner"
-					class="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-blue-800"
-				>
-					You are included in this booking.
-				</div>
-			</div>
-
-			<div v-else class="text-sm text-gray-600">
-				{{ role === 'instructor'
-					? 'Select a class to request a change.'
-					: 'Select an item to view details.' }}
-			</div>
-
-			<template #footer>
-				<div v-if="role === 'admin' && selectedSchedule" class="flex justify-end gap-2">
-					<button class="rounded border border-gray-300 px-4 py-2" @click="handleDetailsModalVisibilityChange(false)">
-						Close
-					</button>
-					<button
-						class="rounded border border-gray-300 px-4 py-2 disabled:opacity-50"
-						:disabled="!selectedSchedule"
-						@click="handleOpenCourseFromModal"
-					>
-						View Course
-					</button>
-					<button
-						class="rounded border border-gray-300 px-4 py-2 disabled:opacity-50"
-						:disabled="!selectedDetailRoomId"
-						@click="handleOpenRoomFromModal"
-					>
-						View Room
-					</button>
-					<button
-						class="rounded bg-red-600 px-4 py-2 text-white disabled:opacity-50"
-						:disabled="!selectedSchedule"
-						@click="handleDeleteFromModal"
-					>
-						Delete
-					</button>
-				</div>
-				<div v-else-if="role === 'admin' && selectedRoomBooking" class="flex justify-end gap-2">
-					<button class="rounded border border-gray-300 px-4 py-2" @click="handleDetailsModalVisibilityChange(false)">
-						Close
-					</button>
-					<button
-						class="rounded border border-gray-300 px-4 py-2 disabled:opacity-50"
-						:disabled="!selectedDetailRoomId"
-						@click="handleOpenRoomFromModal"
-					>
-						View Room
-					</button>
-				</div>
-				<div v-else-if="role === 'instructor' && selectedSchedule" class="flex justify-end gap-2">
-					<button class="rounded border border-gray-300 px-4 py-2" @click="handleDetailsModalVisibilityChange(false)">
-						Cancel
-					</button>
-					<button
-						class="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
-						:disabled="!selectedIssue"
-						@click="handleStartRequest"
-					>
-						Request Change
-					</button>
-				</div>
-				<div v-else class="flex justify-end gap-2">
-					<button class="rounded border border-gray-300 px-4 py-2" @click="handleDetailsModalVisibilityChange(false)">
-						Close
-					</button>
-				</div>
-			</template>
-		</BaseModal>
-
-		<BaseModal
+		<RoomBookingModal
 			:model-value="bookingModalOpen"
-			title="Book Room"
-			size="lg"
-			@update:model-value="handleBookingModalVisibilityChange"
-		>
-			<div class="space-y-4">
-				<div v-if="bookingError" class="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-					{{ bookingError }}
-				</div>
-
-				<div class="grid gap-4 md:grid-cols-2">
-					<div>
-						<label for="booking-semester" class="mb-1 block text-sm font-medium text-gray-700">
-							Semester
-						</label>
-						<select
-							id="booking-semester"
-							v-model="bookingForm.semester"
-							class="w-full rounded border border-gray-300 px-3 py-2"
-						>
-							<option value="" disabled>Select semester</option>
-							<option v-for="semester in bookingSemesterOptions" :key="semester" :value="semester">
-								{{ semester }}
-							</option>
-						</select>
-					</div>
-					<div>
-						<label for="booking-timeslot" class="mb-1 block text-sm font-medium text-gray-700">
-							Time Slot
-						</label>
-						<select
-							id="booking-timeslot"
-							v-model="bookingForm.timeSlotId"
-							class="w-full rounded border border-gray-300 px-3 py-2"
-						>
-							<option :value="null" disabled>Select time slot</option>
-							<option v-for="timeSlot in sortedTimeSlots" :key="timeSlot.id" :value="timeSlot.id">
-								{{ timeslotsService.formatTimeSlot(timeSlot) }}
-							</option>
-						</select>
-					</div>
-				</div>
-
-				<div>
-					<label for="booking-room" class="mb-1 block text-sm font-medium text-gray-700">Room</label>
-					<select
-						id="booking-room"
-						v-model="bookingForm.roomId"
-						class="w-full rounded border border-gray-300 px-3 py-2"
-						:disabled="!bookingForm.semester || !bookingForm.timeSlotId"
-					>
-						<option :value="null" disabled>Select room</option>
-						<option v-for="room in availableBookingRooms" :key="room.id" :value="room.id">
-							{{ formatRoom(room) }} ({{ room.capacity }} seats)
-						</option>
-					</select>
-					<p
-						v-if="bookingForm.semester && bookingForm.timeSlotId && availableBookingRooms.length === 0"
-						class="mt-2 text-sm text-gray-600"
-					>
-						No available rooms remain for this time slot.
-					</p>
-					<p v-else class="mt-2 text-xs text-gray-500">
-						Only rooms that are available and unused by classes or other student bookings are listed.
-					</p>
-				</div>
-
-				<div class="rounded border border-gray-200 bg-gray-50 p-4">
-					<div class="mb-2">
-						<h3 class="text-sm font-semibold text-gray-900">Invite Students</h3>
-						<p class="mt-1 text-xs text-gray-500">
-							Search by student email. Suggestions show the student name and whether they already have a class during this period.
-						</p>
-					</div>
-
-					<label for="participant-search" class="mb-1 block text-sm font-medium text-gray-700">
-						Student Email
-					</label>
-					<input
-						id="participant-search"
-						v-model="participantSearchQuery"
-						type="text"
-						placeholder="Start typing a student email"
-						class="w-full rounded border border-gray-300 px-3 py-2"
-						:disabled="!bookingForm.semester || !bookingForm.timeSlotId"
-					/>
-
-					<div v-if="participantSearchError" class="mt-2 text-sm text-red-600">
-						{{ participantSearchError }}
-					</div>
-					<div v-else-if="participantSearchLoading" class="mt-2 text-sm text-gray-500">
-						Searching students...
-					</div>
-					<div
-						v-else-if="participantSearchQuery.trim().length >= 2 && participantSuggestions.length === 0"
-						class="mt-2 text-sm text-gray-500"
-					>
-						No matching students found.
-					</div>
-
-					<ul v-if="participantSuggestions.length > 0" class="mt-3 space-y-2">
-						<li
-							v-for="candidate in participantSuggestions"
-							:key="candidate.id"
-							class="flex flex-col gap-2 rounded border border-gray-200 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
-						>
-							<div>
-								<div class="font-medium text-gray-900">{{ candidate.fullName }}</div>
-								<div class="text-xs text-gray-600">{{ candidate.email }}</div>
-								<div class="mt-1 text-xs" :class="candidate.hasClassDuringPeriod ? 'text-amber-700' : 'text-emerald-700'">
-									{{ candidate.hasClassDuringPeriod ? 'Has classes during this period' : 'No class conflict reported for this period' }}
-								</div>
-							</div>
-							<button
-								class="rounded border border-blue-300 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-50"
-								@click="addParticipant(candidate)"
-							>
-								Add
-							</button>
-						</li>
-					</ul>
-
-					<div class="mt-4">
-						<h4 class="text-sm font-medium text-gray-900">Selected Students</h4>
-						<div v-if="selectedParticipants.length === 0" class="mt-2 text-sm text-gray-500">
-							No invited students yet.
-						</div>
-						<ul v-else class="mt-2 space-y-2">
-							<li
-								v-for="participant in selectedParticipants"
-								:key="participant.id"
-								class="flex items-center justify-between rounded border border-gray-200 bg-white px-3 py-2"
-							>
-								<div>
-									<div class="font-medium text-gray-900">{{ participant.fullName }}</div>
-									<div class="text-xs text-gray-600">{{ participant.email }}</div>
-								</div>
-								<button
-									class="text-sm text-red-600 hover:underline"
-									@click="removeParticipant(participant.id)"
-								>
-									Remove
-								</button>
-							</li>
-						</ul>
-					</div>
-				</div>
-
-				<div
-					v-if="selectedBookingTimeSlot"
-					class="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900"
-				>
-					Booking for {{ bookingForm.semester }} on
-					{{ DAY_OF_WEEK_OPTIONS.find(option => option.value === selectedBookingTimeSlot?.dayOfWeek)?.label }}
-					{{ timeslotsService.formatTime(selectedBookingTimeSlot.startTime) }} -
-					{{ timeslotsService.formatTime(selectedBookingTimeSlot.endTime) }}.
-				</div>
-			</div>
-
-			<template #footer>
-				<div class="flex justify-end gap-2">
-					<button class="rounded border border-gray-300 px-4 py-2" @click="handleBookingModalVisibilityChange(false)">
-						Cancel
-					</button>
-					<button
-						class="rounded bg-blue-600 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
-						:disabled="!canSubmitBooking"
-						@click="submitRoomBooking"
-					>
-						Create Booking
-					</button>
-				</div>
-			</template>
-		</BaseModal>
+			:error="bookingError"
+			:saving="bookingSaving"
+			:semester-options="bookingSemesterOptions"
+			:semester="bookingForm.semester"
+			:time-slots="sortedTimeSlots"
+			:time-slot-id="bookingForm.timeSlotId"
+			:available-rooms="availableBookingRooms"
+			:room-id="bookingForm.roomId"
+			:participant-search-query="participantSearchQuery"
+			:participant-search-loading="participantSearchLoading"
+			:participant-search-error="participantSearchError"
+			:participant-suggestions="participantSuggestions"
+			:selected-participants="selectedParticipants"
+			:selected-booking-time-slot="selectedBookingTimeSlot"
+			:can-submit="canSubmitBooking"
+			@update:model-value="setBookingModalOpen"
+			@update:semester="bookingForm.semester = $event"
+			@update:time-slot-id="bookingForm.timeSlotId = $event"
+			@update:room-id="bookingForm.roomId = $event"
+			@update:participant-search-query="participantSearchQuery = $event"
+			@add-participant="addParticipant"
+			@remove-participant="removeParticipant"
+			@submit="submitRoomBooking"
+		/>
 	</div>
 </template>
