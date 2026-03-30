@@ -13,7 +13,7 @@ function resolveWorkerCount(requestedWorkers: number | null): number {
 		? os.availableParallelism()
 		: os.cpus().length
 
-	return Math.max(1, Math.min(8, cpuCount - 1))
+	return Math.max(1, Math.min(4, cpuCount - 1))
 }
 
 function main(): void {

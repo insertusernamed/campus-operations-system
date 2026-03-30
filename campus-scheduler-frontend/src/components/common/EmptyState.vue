@@ -15,7 +15,7 @@ defineProps<{
 <template>
 	<div class="py-12 px-4 text-center">
 		<div class="max-w-sm mx-auto">
-			<h3 class="text-base font-medium text-gray-900 mb-1">{{ title }}</h3>
+			<h2 class="mb-1 text-base font-medium text-gray-900">{{ title }}</h2>
 			<p class="text-sm text-gray-600 mb-5">{{ description }}</p>
 
 			<div class="flex items-center justify-center gap-3">

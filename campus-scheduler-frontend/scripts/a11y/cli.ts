@@ -3,7 +3,7 @@ import type { A11yCliOptions, A11yRole, A11yScenario, A11yTheme } from './types'
 
 const DEFAULT_REPORT_DIR = 'reports/a11y/latest'
 
-const ROLE_VALUES: A11yRole[] = ['admin', 'instructor']
+const ROLE_VALUES: A11yRole[] = ['admin', 'instructor', 'student']
 const THEME_VALUES: A11yTheme[] = ['snow-storm', 'slate']
 const SCENARIO_VALUES: A11yScenario[] = ['empty', 'normal', 'dense', 'error']
 

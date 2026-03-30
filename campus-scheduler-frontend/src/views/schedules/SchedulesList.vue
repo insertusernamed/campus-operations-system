@@ -733,10 +733,10 @@ function handleExportClassForSemester() {
 					/>
 				</section>
 
-				<section class="rounded border border-emerald-200 bg-emerald-50/40">
-					<div class="flex items-center justify-between border-b border-emerald-200 px-4 py-3">
-						<h2 class="text-sm font-semibold text-emerald-900">Enrolled Classes</h2>
-						<span class="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
+				<section class="rounded border border-emerald-200 bg-emerald-50/40 slate:border-emerald-400/35 slate:bg-emerald-950/20">
+					<div class="flex items-center justify-between border-b border-emerald-200 px-4 py-3 slate:border-emerald-400/35">
+						<h2 class="text-sm font-semibold text-emerald-900 slate:text-emerald-100">Enrolled Classes</h2>
+						<span class="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 slate:bg-emerald-900/50 slate:text-emerald-100">
 							{{ studentEnrolledItems.length }}
 						</span>
 					</div>
@@ -746,7 +746,7 @@ function handleExportClassForSemester() {
 					<div v-else class="overflow-x-auto">
 						<table class="w-full bg-white">
 							<thead>
-								<tr class="border-b border-emerald-100 bg-emerald-50/50">
+								<tr class="border-b border-emerald-100 bg-emerald-50/50 slate:border-emerald-400/25 slate:bg-emerald-900/20">
 									<th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Course</th>
 									<th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Time</th>
 									<th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Room</th>
@@ -769,7 +769,7 @@ function handleExportClassForSemester() {
 										<div class="text-xs text-gray-500">{{ getSeatPressure(schedule) }}</div>
 									</td>
 									<td class="px-4 py-3">
-										<button class="text-blue-600 hover:underline" @click="openScheduleDetails(schedule.id)">
+										<button class="text-blue-600 hover:underline slate:text-blue-200" @click="openScheduleDetails(schedule.id)">
 											Details
 										</button>
 									</td>
@@ -779,10 +779,10 @@ function handleExportClassForSemester() {
 					</div>
 				</section>
 
-				<section class="rounded border border-amber-200 bg-amber-50/40">
-					<div class="flex items-center justify-between border-b border-amber-200 px-4 py-3">
-						<h2 class="text-sm font-semibold text-amber-900">Waitlisted Classes</h2>
-						<span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+				<section class="rounded border border-amber-200 bg-amber-50/40 slate:border-amber-400/35 slate:bg-amber-950/20">
+					<div class="flex items-center justify-between border-b border-amber-200 px-4 py-3 slate:border-amber-400/35">
+						<h2 class="text-sm font-semibold text-amber-900 slate:text-amber-100">Waitlisted Classes</h2>
+						<span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 slate:bg-amber-900/50 slate:text-amber-100">
 							{{ studentWaitlistedItems.length }}
 						</span>
 					</div>
@@ -792,7 +792,7 @@ function handleExportClassForSemester() {
 					<div v-else class="overflow-x-auto">
 						<table class="w-full bg-white">
 							<thead>
-								<tr class="border-b border-amber-100 bg-amber-50/50">
+								<tr class="border-b border-amber-100 bg-amber-50/50 slate:border-amber-400/25 slate:bg-amber-900/20">
 									<th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Course</th>
 									<th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Time</th>
 									<th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Room</th>
@@ -805,7 +805,7 @@ function handleExportClassForSemester() {
 									<td class="px-4 py-3">
 										<div class="flex items-center gap-2">
 											<div class="font-medium text-gray-900">{{ schedule.course.code }}</div>
-											<span class="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800">
+											<span class="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-800 slate:bg-amber-900/50 slate:text-amber-100">
 												Waitlisted
 											</span>
 										</div>
@@ -820,7 +820,7 @@ function handleExportClassForSemester() {
 										<div class="text-xs text-gray-500">{{ getSeatPressure(schedule) }}</div>
 									</td>
 									<td class="px-4 py-3">
-										<button class="text-blue-600 hover:underline" @click="openScheduleDetails(schedule.id)">
+										<button class="text-blue-600 hover:underline slate:text-blue-200" @click="openScheduleDetails(schedule.id)">
 											Details
 										</button>
 									</td>
@@ -830,15 +830,15 @@ function handleExportClassForSemester() {
 					</div>
 				</section>
 
-				<section class="rounded border border-blue-200 bg-blue-50/40">
-					<div class="flex items-center justify-between border-b border-blue-200 px-4 py-3">
+				<section class="rounded border border-blue-200 bg-blue-50/40 slate:border-blue-400/35 slate:bg-blue-950/20">
+					<div class="flex items-center justify-between border-b border-blue-200 px-4 py-3 slate:border-blue-400/35">
 						<div>
-							<h2 class="text-sm font-semibold text-blue-900">My Room Bookings</h2>
-							<p class="mt-0.5 text-xs text-blue-800/80">
+							<h2 class="text-sm font-semibold text-blue-900 slate:text-blue-100">My Room Bookings</h2>
+							<p class="mt-0.5 text-xs text-blue-800/80 slate:text-blue-100/85">
 								Bookings appear on the main schedule calendar for other viewers without student names.
 							</p>
 						</div>
-						<span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+						<span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 slate:bg-blue-900/50 slate:text-blue-100">
 							{{ studentRoomBookings.length }}
 						</span>
 					</div>
@@ -848,7 +848,7 @@ function handleExportClassForSemester() {
 					<div v-else class="overflow-x-auto">
 						<table class="w-full bg-white">
 							<thead>
-								<tr class="border-b border-blue-100 bg-blue-50/50">
+								<tr class="border-b border-blue-100 bg-blue-50/50 slate:border-blue-400/25 slate:bg-blue-900/20">
 									<th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Room</th>
 									<th class="px-4 py-3 text-left text-sm font-medium text-gray-700">When</th>
 									<th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Students</th>
@@ -870,7 +870,7 @@ function handleExportClassForSemester() {
 										{{ booking.viewerIsOwner ? 'Owner' : 'Participant' }}
 									</td>
 									<td class="px-4 py-3">
-										<button class="text-blue-600 hover:underline" @click="openRoomBookingDetails(booking.id)">
+										<button class="text-blue-600 hover:underline slate:text-blue-200" @click="openRoomBookingDetails(booking.id)">
 											Details
 										</button>
 									</td>

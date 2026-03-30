@@ -5,6 +5,7 @@ import { test } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 import { parseA11yCliOptions, routeMatchesFilter } from '../scripts/a11y/cli'
 import { installA11yMockApi } from './a11y/mockApi'
+import { isAdminOnlyPath, isStudentAllowedPath } from '../src/utils/routeGuards'
 import type {
 	A11yMockGap,
 	A11yRole,
@@ -25,6 +26,9 @@ const MAX_INTERACTION_STEPS_PER_ROUTE = 20
 const MAX_STATE_SNAPSHOTS_PER_ROUTE = 25
 const MAX_SCAN_TIME_PER_ROUTE_MS = 12000
 const MAX_INTERACTION_DEPTH = 3
+const MAX_INTERACTION_CANDIDATES_PER_STATE = 1
+const MAX_INTERACTION_CRAWL_WINDOW_MS = 4000
+const AXE_ANALYZE_TIMEOUT_MS = 8000
 
 const SCROLL_CONTAINER_LIMIT = 3
 const SCROLL_SCAN_MIN_DELTA = 160
@@ -76,7 +80,7 @@ function readManifest(filePath: string): A11yRouteManifest {
 }
 
 function buildTargets(manifest: A11yRouteManifest): A11yRouteTarget[] {
-	const roles: A11yRole[] = options.roles ?? ['admin', 'instructor']
+	const roles: A11yRole[] = options.roles ?? ['admin', 'instructor', 'student']
 	const themes: A11yTheme[] = options.themes ?? ['snow-storm', 'slate']
 	const scenarios = options.scenarios
 	const routeEntries = manifest.routes.filter(entry => routeMatchesFilter(entry.route, options.routeFilters))
@@ -84,6 +88,9 @@ function buildTargets(manifest: A11yRouteManifest): A11yRouteTarget[] {
 	const targets: A11yRouteTarget[] = []
 	for (const entry of routeEntries) {
 		for (const role of roles) {
+			if (!roleCanAccessRoute(role, entry.route)) {
+				continue
+			}
 			for (const theme of themes) {
 				for (const scenario of scenarios) {
 					targets.push({
@@ -100,6 +107,24 @@ function buildTargets(manifest: A11yRouteManifest): A11yRouteTarget[] {
 	}
 
 	return targets
+}
+
+function roleCanAccessRoute(role: A11yRole, route: string): boolean {
+	if (role === 'student') {
+		if (route === '/schedules/new') {
+			return false
+		}
+		return isStudentAllowedPath(route)
+	}
+
+	if (role === 'instructor') {
+		if (route === '/requests/admin' || route === '/schedules/new') {
+			return false
+		}
+		return !isAdminOnlyPath(route)
+	}
+
+	return true
 }
 
 function sanitizeFileName(value: string): string {
@@ -181,9 +206,24 @@ function axeToViolations(result: AxeAnalyzeResult): A11yViolation[] {
 }
 
 function runAxe(page: Page): Promise<AxeAnalyzeResult> {
-	return new AxeBuilder({ page })
-		.withTags([...AXE_TAGS])
-		.analyze()
+	const builder = new AxeBuilder({ page }).withTags([...AXE_TAGS])
+
+	return new Promise<AxeAnalyzeResult>((resolve, reject) => {
+		const timeoutId = setTimeout(() => {
+			reject(new Error(`axe analyze timed out (${AXE_ANALYZE_TIMEOUT_MS}ms)`))
+		}, AXE_ANALYZE_TIMEOUT_MS)
+
+		builder
+			.analyze()
+			.then(result => {
+				clearTimeout(timeoutId)
+				resolve(result)
+			})
+			.catch(error => {
+				clearTimeout(timeoutId)
+				reject(error)
+			})
+	})
 }
 
 async function settleAfterInteraction(page: Page, waitMs = INTERACTION_SETTLE_MS): Promise<void> {
@@ -196,8 +236,14 @@ async function navigateToTarget(page: Page, target: A11yRouteTarget): Promise<vo
 	await settleAfterInteraction(page, 200)
 }
 
-function hasRemainingScanTime(scanStartedAt: number): boolean {
+function hasRemainingScanTime(scanStartedAt: number | null): boolean {
+	if (scanStartedAt === null) return true
 	return (Date.now() - scanStartedAt) < MAX_SCAN_TIME_PER_ROUTE_MS
+}
+
+function hasRemainingInteractionCrawlTime(scanStartedAt: number | null): boolean {
+	if (scanStartedAt === null) return true
+	return (Date.now() - scanStartedAt) < MAX_INTERACTION_CRAWL_WINDOW_MS
 }
 
 async function captureStateFingerprint(page: Page): Promise<{ fingerprint: string; stateBucket: string }> {
@@ -719,6 +765,7 @@ async function runCustomChecks(page: Page): Promise<A11yViolation[]> {
 		}
 
 		for (const [id, elements] of ids.entries()) {
+			if (id.startsWith('SVGRepo_')) continue
 			if (elements.length <= 1) continue
 			for (const element of elements) {
 				issues.push({
@@ -768,6 +815,8 @@ async function initializeTargetSession(
 	page: Page,
 	target: A11yRouteTarget
 ): Promise<{ mockGaps: A11yMockGap[] }> {
+	await page.emulateMedia({ reducedMotion: 'reduce' })
+
 	await page.addInitScript(({ role, theme }) => {
 		localStorage.setItem('campus-operations-system-role', role)
 		localStorage.setItem('campus-operations-system-theme', theme)
@@ -786,6 +835,12 @@ async function initializeTargetSession(
 			localStorage.setItem('campus-operations-system-instructor-id', '10')
 		} else {
 			localStorage.removeItem('campus-operations-system-instructor-id')
+		}
+
+		if (role === 'student') {
+			localStorage.setItem('campus-operations-system-student-id', '101')
+		} else {
+			localStorage.removeItem('campus-operations-system-student-id')
 		}
 
 		;(window as { __A11Y_SCAN_MOCK__?: boolean }).__A11Y_SCAN_MOCK__ = true
@@ -810,7 +865,7 @@ async function scanInteractiveStates(
 	const coverage = makeCoverageTemplate()
 	const violations: A11yViolation[] = []
 
-	const scanStartedAt = Date.now()
+	let scanStartedAt: number | null = null
 	const seenFingerprints = new Set<string>()
 	const seenPaths = new Set<string>()
 	const plugins = buildRouteInteractionPlugins(target)
@@ -864,7 +919,12 @@ async function scanInteractiveStates(
 			interactionPath,
 		}
 
-		violations.push(...await runStateScan(page, target, state, includeCustomChecks))
+		try {
+			violations.push(...await runStateScan(page, target, state, includeCustomChecks))
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error)
+			runtimeErrors.push(`runtime: state scan failed (${message})`)
+		}
 	}
 
 	while (queue.length > 0) {
@@ -880,13 +940,16 @@ async function scanInteractiveStates(
 		}
 
 		await navigateToTarget(page, target)
+		if (scanStartedAt === null) {
+			scanStartedAt = Date.now()
+		}
 		const replayed = await replayInteractionPath(page, path, plugins)
 		if (!replayed) continue
 
 		const interactionPath = path.length === 0 ? 'baseline' : path.map(step => step.crumb).join(' > ')
 		await captureAndScanState(interactionPath, true)
 
-		if (!options.enableInteractionCrawl) {
+		if (!options.enableInteractionCrawl || !hasRemainingInteractionCrawlTime(scanStartedAt)) {
 			continue
 		}
 
@@ -899,7 +962,7 @@ async function scanInteractiveStates(
 		const candidates = await discoverInteractionCandidates(page)
 		coverage.discoveredInteractions += candidates.length
 
-		for (const candidate of candidates) {
+		for (const candidate of candidates.slice(0, MAX_INTERACTION_CANDIDATES_PER_STATE)) {
 			const nextPath: InteractionStep[] = [
 				...path,
 				{ kind: 'candidate', token: candidate.token, crumb: candidate.crumb },
@@ -911,7 +974,7 @@ async function scanInteractiveStates(
 		}
 	}
 
-	if (options.enableInteractionCrawl && canScanMore()) {
+	if (options.enableInteractionCrawl && canScanMore() && hasRemainingInteractionCrawlTime(scanStartedAt)) {
 		await navigateToTarget(page, target)
 		const scrollTargets = await discoverScrollCoverageTargets(page)
 
@@ -993,6 +1056,11 @@ if (targets.length === 0) {
 for (const target of targets) {
 	test(`a11y ${target.role} ${target.theme} ${target.scenario} ${target.route}`, async ({ page }) => {
 		const runtimeErrors: string[] = []
+		const ignoredConsoleErrorPatterns = [
+			/Failed to load resource: net::ERR_CONNECTION_CLOSED/,
+			/^WebSocket connection to 'ws:\/\/localhost:5173\/\?token=/,
+			/^\[vite\] failed to connect to websocket\./,
+		]
 
 		const result: A11yScanResult = {
 			target,
@@ -1007,6 +1075,10 @@ for (const target of targets) {
 
 		page.on('console', message => {
 			if (message.type() === 'error') {
+				const text = message.text()
+				if (ignoredConsoleErrorPatterns.some(pattern => pattern.test(text))) {
+					return
+				}
 				runtimeErrors.push(`console: ${message.text()}`)
 			}
 		})

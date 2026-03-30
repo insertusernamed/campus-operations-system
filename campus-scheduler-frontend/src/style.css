@@ -303,6 +303,79 @@ body {
     color: var(--app-gray-700);
 }
 
+.text-gray-500 {
+    color: var(--app-gray-500);
+}
+
+.text-gray-600 {
+    color: var(--app-gray-600);
+}
+
+.text-gray-700 {
+    color: var(--app-gray-700);
+}
+
+.text-gray-900 {
+    color: var(--app-gray-900);
+}
+
+.bg-gray-50 {
+    background-color: var(--app-gray-50);
+}
+
+.bg-gray-100 {
+    background-color: var(--app-gray-100);
+}
+
+.bg-gray-200 {
+    background-color: var(--app-gray-200);
+}
+
+.border-gray-100 {
+    border-color: var(--app-gray-100);
+}
+
+.border-gray-200 {
+    border-color: var(--app-gray-200);
+}
+
+.border-gray-300 {
+    border-color: var(--app-gray-300);
+}
+
+.text-blue-600 {
+    color: var(--app-blue-600);
+}
+
+.text-blue-700 {
+    color: var(--app-blue-700);
+}
+
+.text-blue-800 {
+    color: var(--app-blue-700);
+}
+
+.text-blue-900 {
+    color: var(--app-blue-700);
+}
+
+.bg-blue-50 {
+    background-color: var(--app-blue-50);
+}
+
+.bg-blue-600 {
+    background-color: var(--app-blue-600);
+    color: #fff;
+}
+
+.bg-blue-600:hover {
+    background-color: var(--app-blue-700);
+}
+
+.text-red-600 {
+    color: var(--app-red-600);
+}
+
 input,
 select,
 textarea,
@@ -316,10 +389,6 @@ a:not([class*="text-"]) {
 
 .bg-white {
     background-color: var(--app-surface);
-}
-
-.bg-blue-600 {
-    color: #fff;
 }
 
 .bg-green-600,
@@ -340,6 +409,10 @@ a:not([class*="text-"]) {
     background-color: var(--app-surface);
 }
 
+[data-theme="slate"] .text-green-600 {
+    color: #9fceaf;
+}
+
 [data-theme="slate"] .text-blue-600 {
     color: #a9c7e5;
 }
@@ -348,8 +421,12 @@ a:not([class*="text-"]) {
     color: #bdd5eb;
 }
 
-[data-theme="slate"] .text-green-600 {
-    color: #9fceaf;
+[data-theme="slate"] .text-blue-800 {
+    color: #d1e4f7;
+}
+
+[data-theme="slate"] .text-blue-900 {
+    color: #e1efff;
 }
 
 [data-theme="slate"] .text-green-700 {
@@ -364,11 +441,11 @@ a:not([class*="text-"]) {
     color: #e1f4e7;
 }
 
-[data-theme="slate"] .text-red-600 {
-    color: #f2b6be;
+[data-theme="slate"] .text-red-700 {
+    color: #efc1c8;
 }
 
-[data-theme="slate"] .text-red-700 {
+[data-theme="slate"] .text-red-600 {
     color: #efc1c8;
 }
 

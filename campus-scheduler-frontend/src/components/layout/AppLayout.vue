@@ -20,7 +20,13 @@ function closeSidebar() {
 		<div class="flex flex-1 min-h-0 overflow-hidden relative">
 			<!-- Mobile backdrop -->
 			<Transition name="fade">
-				<div v-if="sidebarOpen" class="fixed inset-0 z-30 bg-black/40 md:hidden" @click="closeSidebar" />
+				<button
+					v-if="sidebarOpen"
+					type="button"
+					class="fixed inset-0 z-30 bg-black/40 md:hidden"
+					aria-label="Close navigation menu"
+					@click="closeSidebar"
+				/>
 			</Transition>
 			<Sidebar :is-open="sidebarOpen" @close="closeSidebar" />
 			<main class="flex-1 min-h-0 overflow-y-auto p-3 sm:p-6 bg-gray-50">
