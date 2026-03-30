@@ -155,7 +155,7 @@ export function getParticipantTotalLabel(count: number): string {
 }
 
 export function getBookingPrivacyMessage(booking: RoomBooking): string | null {
-	if (booking.viewerCanSeeStudentDetails) {
+	if (booking.viewerCanSeeStudentDetails || booking.viewerIsOwner) {
 		return null
 	}
 	if (booking.viewerIsParticipant) {

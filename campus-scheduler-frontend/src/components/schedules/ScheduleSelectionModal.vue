@@ -43,6 +43,11 @@ const selectedIssueModel = computed({
 	set: value => emit('update:selectedIssue', value),
 })
 
+const roomBookingViewerCanSeeStudentDetails = computed(() =>
+	!!props.selectedRoomBooking
+	&& (props.selectedRoomBooking.viewerCanSeeStudentDetails || props.selectedRoomBooking.viewerIsOwner)
+)
+
 function closeModal() {
 	emit('update:modelValue', false)
 }
@@ -185,11 +190,11 @@ function closeModal() {
 				<span class="font-medium text-gray-900">Students:</span>
 				{{ getParticipantTotalLabel(selectedRoomBooking.participantCount) }}
 			</div>
-			<div v-if="selectedRoomBooking.viewerCanSeeStudentDetails && selectedRoomBooking.bookedBy">
+			<div v-if="roomBookingViewerCanSeeStudentDetails && selectedRoomBooking.bookedBy">
 				<span class="font-medium text-gray-900">Booked by:</span>
 				{{ selectedRoomBooking.bookedBy.fullName }} ({{ selectedRoomBooking.bookedBy.email }})
 			</div>
-			<div v-if="selectedRoomBooking.viewerCanSeeStudentDetails">
+			<div v-if="roomBookingViewerCanSeeStudentDetails">
 				<span class="font-medium text-gray-900">Invited students:</span>
 				<div v-if="selectedRoomBooking.participants.length === 0" class="mt-1 text-gray-500">
 					No invited students.

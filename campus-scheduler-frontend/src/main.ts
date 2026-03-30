@@ -15,8 +15,8 @@ app.use(Vue3Toastify, {
 	position: 'bottom-right',
 	theme: toastTheme,
 	hideProgressBar: false,
-	closeOnClick: true,
-	pauseOnHover: true,
+	closeOnClick: false,
+	pauseOnHover: false,
 } as ToastContainerOptions)
 app.use(FloatingVue)
 app.mount('#app')

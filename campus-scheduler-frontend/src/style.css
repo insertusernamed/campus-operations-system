@@ -265,6 +265,12 @@
     color-scheme: dark;
 }
 
+.Toastify__toast-container,
+.Toastify__toast,
+.Toastify__toast-body {
+    pointer-events: none;
+}
+
 html.theme-transitioning,
 html.theme-transitioning *,
 html.theme-transitioning *::before,
