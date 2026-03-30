@@ -429,7 +429,7 @@ async function generateData() {
 			archetype: selectedArchetype.value,
 			studentPopulation: studentPopulation.value,
 		})
-		statusMessage.value = `Generated: ${result.buildings} buildings, ${result.rooms} rooms, ${result.instructors} instructors, ${result.courses} courses, ${result.students} students`
+		statusMessage.value = `Generated: ${result.buildings} schedulable buildings, ${result.rooms} rooms, ${result.instructors} instructors, ${result.courses} courses, ${result.students} students`
 		await fetchStats()
 		requestAnalyticsRefresh(true)
 		// Notify other components that data has changed
@@ -565,7 +565,7 @@ const solutionQuality = computed(() => {
 		<div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
 			<div
 				class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col items-center justify-center text-center">
-				<div class="text-gray-500 text-sm">Buildings</div>
+				<div class="text-gray-500 text-sm">Schedulable Buildings</div>
 				<div class="text-2xl font-bold">{{ stats.buildings }}</div>
 			</div>
 			<div
@@ -659,8 +659,8 @@ const solutionQuality = computed(() => {
 					</div>
 				</div>
 				<div class="mt-2 text-xs text-gray-500">
-					Campus estimate: {{ preview.totalBuildings }} total buildings,
-					{{ preview.academicBuildings }} used for scheduling.
+					Campus estimate: {{ preview.totalBuildings }} total buildings. This demo generates
+					{{ preview.academicBuildings }} schedulable buildings.
 				</div>
 			</div>
 
@@ -851,7 +851,7 @@ const solutionQuality = computed(() => {
 					<StatCard label="Overall Utilization"
 						:value="formatPercent(analytics.overallUtilizationPercentage)" />
 					<StatCard label="Total Rooms" :value="analytics.totalRooms" />
-					<StatCard label="Buildings" :value="analytics.totalBuildings" />
+					<StatCard label="Schedulable Buildings" :value="analytics.totalBuildings" />
 					<StatCard label="Scheduled Slots"
 						:value="`${analytics.totalScheduledSlots}/${analytics.totalAvailableSlots}`" />
 				</div>
