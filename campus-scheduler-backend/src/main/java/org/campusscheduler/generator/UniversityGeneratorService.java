@@ -21,6 +21,7 @@ import org.campusscheduler.domain.instructor.InstructorRepository;
 import org.campusscheduler.domain.instructorpreference.InstructorPreference;
 import org.campusscheduler.domain.instructorpreference.InstructorPreferenceRepository;
 import org.campusscheduler.domain.instructorpreference.RoomFeatureCatalog;
+import org.campusscheduler.domain.roombooking.RoomBookingRepository;
 import org.campusscheduler.domain.room.Room;
 import org.campusscheduler.domain.room.RoomRepository;
 import org.campusscheduler.domain.schedule.ScheduleRepository;
@@ -28,11 +29,11 @@ import org.campusscheduler.domain.student.Student;
 import org.campusscheduler.domain.student.StudentRepository;
 import org.campusscheduler.domain.timeslot.TimeSlotRepository;
 import org.campusscheduler.generator.DataGeneratorService.Contact;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.EntityManager;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -40,7 +41,6 @@ import lombok.extern.slf4j.Slf4j;
  * Creates buildings, rooms, instructors, and courses for demo/presentation.
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class UniversityGeneratorService {
 
@@ -55,9 +55,11 @@ public class UniversityGeneratorService {
     private final CourseRepository courseRepository;
     private final ScheduleRepository scheduleRepository;
     private final TimeSlotRepository timeSlotRepository;
+    private final RoomBookingRepository roomBookingRepository;
     private final EntityManager entityManager;
 
-    private static final Random random = new Random();
+    private final Long generationSeed;
+    private Random random;
     private static final int[] GAP_MINUTE_OPTIONS = {60, 90, 120, 150};
     private static final int[] TRAVEL_BUFFER_OPTIONS = {10, 15, 20, 25};
     private static final List<String> REQUIRED_FEATURE_POOL = RoomFeatureCatalog.options().stream()
@@ -94,12 +96,51 @@ public class UniversityGeneratorService {
             "Engineering", "Business", "Art", "Music", "History", "English", "Psychology"
     };
 
-	    private static final String[][] COURSE_PREFIXES = {
+    private static final String[][] COURSE_PREFIXES = {
 	            { "CS", "Computer Science" }, { "MATH", "Mathematics" }, { "PHYS", "Physics" },
             { "CHEM", "Chemistry" }, { "BIO", "Biology" }, { "ENG", "Engineering" },
             { "BUS", "Business" }, { "ART", "Art" }, { "MUS", "Music" }, { "HIST", "History" },
             { "ENGL", "English" }, { "PSYC", "Psychology" }
     };
+
+    public UniversityGeneratorService(
+            DataGeneratorService dataGeneratorService,
+            ScheduleChangeRequestRepository scheduleChangeRequestRepository,
+            BuildingRepository buildingRepository,
+            RoomRepository roomRepository,
+            InstructorRepository instructorRepository,
+            StudentRepository studentRepository,
+            EnrollmentRepository enrollmentRepository,
+            InstructorPreferenceRepository instructorPreferenceRepository,
+            CourseRepository courseRepository,
+            ScheduleRepository scheduleRepository,
+            TimeSlotRepository timeSlotRepository,
+            RoomBookingRepository roomBookingRepository,
+            EntityManager entityManager,
+            @Value("${demo.generation.seed:#{null}}") Long generationSeed) {
+        this.dataGeneratorService = dataGeneratorService;
+        this.scheduleChangeRequestRepository = scheduleChangeRequestRepository;
+        this.buildingRepository = buildingRepository;
+        this.roomRepository = roomRepository;
+        this.instructorRepository = instructorRepository;
+        this.studentRepository = studentRepository;
+        this.enrollmentRepository = enrollmentRepository;
+        this.instructorPreferenceRepository = instructorPreferenceRepository;
+        this.courseRepository = courseRepository;
+        this.scheduleRepository = scheduleRepository;
+        this.timeSlotRepository = timeSlotRepository;
+        this.roomBookingRepository = roomBookingRepository;
+        this.entityManager = entityManager;
+        if (generationSeed != null) {
+            this.generationSeed = generationSeed;
+            resetRandom();
+            log.info("University generation seeded with: {}", generationSeed);
+        } else {
+            this.generationSeed = System.nanoTime();
+            random = new Random();
+            log.info("University generation using unseeded random.");
+        }
+    }
 
     /**
      * Configuration for university generation.
@@ -265,6 +306,7 @@ public class UniversityGeneratorService {
     public void clearAll() {
         log.info("Clearing all existing data...");
         scheduleChangeRequestRepository.deleteAll();
+        roomBookingRepository.deleteAll();
         enrollmentRepository.deleteAll();
         scheduleRepository.deleteAll();
         courseRepository.deleteAll();
@@ -289,6 +331,10 @@ public class UniversityGeneratorService {
         log.info("Starting university generation with config: {}", config);
         log.info("Archetype: {} - {}", config.archetype().getDisplayName(), config.archetype().getDescription());
 
+        if (generationSeed != null) {
+            resetRandom();
+            dataGeneratorService.resetRandom(generationSeed);
+        }
         clearAll();
 
         List<Building> buildings = generateBuildings(config.academicBuildings());
@@ -328,6 +374,10 @@ public class UniversityGeneratorService {
                 generatedDemandCount,
                 timeSlots,
                 ratioInfo);
+    }
+
+    private void resetRandom() {
+        random = new Random(generationSeed);
     }
 
     /**

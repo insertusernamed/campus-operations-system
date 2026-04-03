@@ -8,4 +8,4 @@ contacts.csv
 # Local H2 file-based DB (demo)
 campus-scheduler-backend/data/*
 !campus-scheduler-backend/data/.gitkeep
-presentation/
+presentation*/

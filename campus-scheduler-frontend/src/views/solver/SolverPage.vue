@@ -45,11 +45,20 @@ const stats = ref<UniversityStats>({
 const archetypes = ref<ArchetypeInfo[]>([])
 const selectedArchetype = ref<'METROPOLIS' | 'CAMPUS_SPRAWL' | 'COMMUNITY'>('COMMUNITY')
 const studentPopulation = ref(8000)
+const presentationPresetActive = ref(false)
 const preview = ref<GenerationPreview | null>(null)
 const showResearchModal = ref(false)
 
 const selectedArchetypeInfo = computed(() => {
 	return archetypes.value.find((a) => a.id === selectedArchetype.value)
+})
+
+const effectivePopulationMin = computed(() => {
+	if (!selectedArchetypeInfo.value) return 1000
+	if (presentationPresetActive.value && selectedArchetype.value === 'COMMUNITY') {
+		return 1000
+	}
+	return selectedArchetypeInfo.value.minStudents
 })
 
 const isSolving = computed(() => progress.value?.status === 'SOLVING_ACTIVE')
@@ -296,6 +305,14 @@ function clearCompletionScrollTimeout() {
 	}
 }
 
+function applyPresentationPreset() {
+	selectedArchetype.value = 'COMMUNITY'
+	studentPopulation.value = 1000
+	presentationPresetActive.value = true
+	statusMessage.value = 'Presentation preset loaded: Community campus with 1,000 students (deterministic demo seed).'
+	errorMessage.value = ''
+}
+
 type ScrollAnchor = 'start' | 'center'
 
 function scrollWithinMainContainer(section: HTMLElement | null, block: ScrollAnchor = 'start') {
@@ -361,12 +378,18 @@ async function loadSemesters() {
 // Update preview when archetype or population changes
 watch([selectedArchetype, studentPopulation], updatePreview, { immediate: false })
 
+watch([selectedArchetype, studentPopulation], ([archetype, population]) => {
+	if (archetype !== 'COMMUNITY' || population !== 1000) {
+		presentationPresetActive.value = false
+	}
+}, { immediate: false })
+
 // Clamp student population to archetype limits
 watch(selectedArchetype, () => {
 	const arch = selectedArchetypeInfo.value
 	if (arch) {
-		if (studentPopulation.value < arch.minStudents) {
-			studentPopulation.value = arch.minStudents
+		if (studentPopulation.value < effectivePopulationMin.value) {
+			studentPopulation.value = effectivePopulationMin.value
 		} else if (studentPopulation.value > arch.maxStudents) {
 			studentPopulation.value = arch.maxStudents
 		}
@@ -594,9 +617,18 @@ const solutionQuality = computed(() => {
 		<div class="border p-4 mb-6">
 			<div class="flex items-center justify-between mb-4">
 				<h2 class="font-semibold">Data Generator</h2>
-				<button @click="showResearchModal = true" class="text-sm text-blue-600 hover:underline">
-					View Research Data
-				</button>
+				<div class="flex items-center gap-3">
+					<button
+						@click="applyPresentationPreset"
+						type="button"
+						class="text-sm rounded border border-blue-300 px-3 py-1.5 text-blue-700 hover:bg-blue-50"
+					>
+						Presentation Preset
+					</button>
+					<button @click="showResearchModal = true" class="text-sm text-blue-600 hover:underline">
+						View Research Data
+					</button>
+				</div>
 			</div>
 
 			<!-- Archetype Selection -->
@@ -624,12 +656,12 @@ const solutionQuality = computed(() => {
 					Student Population: {{ studentPopulation.toLocaleString() }}
 				</label>
 				<input id="solver-student-population" type="range" v-model.number="studentPopulation"
-					:min="selectedArchetypeInfo.minStudents" :max="selectedArchetypeInfo.maxStudents" :step="1000"
+					:min="effectivePopulationMin" :max="selectedArchetypeInfo.maxStudents" :step="1000"
 					:disabled="isGenerating" aria-label="Student population"
 					:aria-valuetext="`${studentPopulation.toLocaleString()} students`"
 					class="w-full h-2 bg-gray-200 rounded-lg cursor-pointer" />
 				<div class="flex justify-between text-xs text-gray-500 mt-1">
-					<span>{{ selectedArchetypeInfo.minStudents.toLocaleString() }}</span>
+					<span>{{ effectivePopulationMin.toLocaleString() }}</span>
 					<span>{{ selectedArchetypeInfo.maxStudents.toLocaleString() }}</span>
 				</div>
 			</div>

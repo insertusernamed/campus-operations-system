@@ -25,6 +25,9 @@ public class SolverManagerConfiguration {
     @Value("${solver.unimproved-limit:10s}")
     private Duration unimprovedLimit = Duration.ofSeconds(10);
 
+    @Value("${demo.solver.seed:#{null}}")
+    private Long solverSeed;
+
     /**
      * Calculate timeout based on problem size.
      * Base: 30s for up to 200 courses, scales up for larger problems.
@@ -76,6 +79,9 @@ public class SolverManagerConfiguration {
                         new TerminationConfig()
                                 .withSpentLimit(timeout)
                                 .withUnimprovedSpentLimit(unimprovedTimeout));
+        if (solverSeed != null) {
+            solverConfig.setRandomSeed(solverSeed);
+        }
 
         solverConfig.setPhaseConfigList(List.of(chConfig, lsConfig));
 
@@ -103,6 +109,9 @@ public class SolverManagerConfiguration {
                 .withTerminationConfig(
                         new TerminationConfig()
                                 .withSpentLimit(timeout));
+        if (solverSeed != null) {
+            solverConfig.setRandomSeed(solverSeed);
+        }
 
         solverConfig.setPhaseConfigList(List.of(chConfig, lsConfig));
 

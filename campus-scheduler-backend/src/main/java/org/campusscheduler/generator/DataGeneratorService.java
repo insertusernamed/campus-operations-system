@@ -12,6 +12,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
@@ -26,8 +27,22 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class DataGeneratorService {
 
-    private static final Random random = new Random();
+    private Random random;
     private List<String[]> contactsCache = null;
+
+    public DataGeneratorService(@Value("${demo.generation.seed:#{null}}") Long generationSeed) {
+        if (generationSeed != null) {
+            random = new Random(generationSeed);
+            log.info("Data generation seeded with: {}", generationSeed);
+        } else {
+            random = new Random();
+            log.info("Data generation using unseeded random.");
+        }
+    }
+
+    public void resetRandom(long seed) {
+        random = new Random(seed);
+    }
 
     /**
      * Represents a contact loaded from CSV.
